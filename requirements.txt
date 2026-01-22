@@ -1,2 +1,7 @@
 cyclopts
 depthai
+loguru
+depthai-nodes
+tabulate
+onnx
+onnxruntime

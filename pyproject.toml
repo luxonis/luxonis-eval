@@ -17,8 +17,8 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Image Recognition",
 ]
 
-#[project.scripts]
-#luxonis_eval = "luxonis_eval.__main__:app.meta"
+[project.scripts]
+luxonis_eval = "luxonis_eval.__main__:app"
 
 [project.urls]
 repository = "https://github.com/luxonis/luxonis-eval"
