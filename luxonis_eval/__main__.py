@@ -21,9 +21,9 @@ app["--version"].group = app.meta.group_parameters
 @app.command()
 def eval(
     dataset_name: str,
-    nn_archive: str,
-    backend: Literal["depthai", "onnx", "all"] = "depthai",
+    nn_archive: str | None = None,
     onnx: str | None = None,
+    backend: Literal["depthai", "onnx", "all"] = "depthai",
     device_ip: str | None = None,
 ):
     """Run evaluation on a dataset using a specified neural network.
@@ -32,25 +32,36 @@ def eval(
     ----------
     dataset_name : str
         Name of the dataset to evaluate on.
-    nn_archive : str
-        Path to the neural network NNArchive file.
+    nn_archive : str | None, optional
+        Path to the neural network NNArchive file. Required if backend is set to 'depthai' or 'all'.
+    onnx : str | None, optional
+        Path to the ONNX model file, required if backend is 'onnx' or 'all'. Required if backend is set to 'onnx' or 'all'.
     backend : str, optional
         Backend to use for inference. If 'all', runs inference on all available backends.
-    onnx : str | None, optional
-        Path to the ONNX model file, required if backend is 'onnx' or 'all'.
     device_ip : str | None, optional
         IP address of the device to connect to. Only applicable for RVC4 devices.
     """
-    if Path(nn_archive).exists() is False:
-        raise ValueError(f"NNArchive file '{nn_archive}' does not exist.")
-
-    if onnx is not None and Path(onnx).exists() is False:
-        raise ValueError(f"ONNX model file '{onnx}' does not exist.")
-
-    if backend in ["onnx", "all"] and onnx is None:
+    if not nn_archive and not onnx:
         raise ValueError(
-            "ONNX model path must be provided when using ONNX backend."
+            "At least one of nn-archive or onnx must be provided."
         )
+
+    if backend == "all" and not (nn_archive and onnx):
+        raise ValueError(
+            "Both nn-archive and onnx must be provided when backend is 'all'."
+        )
+
+    if nn_archive and backend not in ["depthai", "all"]:
+        raise ValueError(
+            "NNArchive can only be used with DepthAI backend enabled."
+        )
+    if onnx and backend not in ["onnx", "all"]:
+        raise ValueError("ONNX can only be used with ONNX backend enabled.")
+
+    if nn_archive and not Path(nn_archive).exists():
+        raise ValueError(f"NNArchive file '{nn_archive}' does not exist.")
+    if onnx and not Path(onnx).exists():
+        raise ValueError(f"ONNX model file '{onnx}' does not exist.")
 
     if not LuxonisDataset.exists(dataset_name):
         raise ValueError(f"Dataset '{dataset_name}' does not exist.")
@@ -59,7 +70,7 @@ def eval(
     dataset = LuxonisDataset(dataset_name)
 
     inferer = Inferer(
-        nn_archive_path=Path(nn_archive),
+        nn_archive_path=Path(nn_archive) if nn_archive else None,
         onnx_path=Path(onnx) if onnx else None,
         backend=backend,
         device_ip=device_ip,

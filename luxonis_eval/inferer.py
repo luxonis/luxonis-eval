@@ -28,7 +28,7 @@ class Inferer:
 
     def __init__(
         self,
-        nn_archive_path: Path,
+        nn_archive_path: Path | None = None,
         onnx_path: Path | None = None,
         backend: Literal["depthai", "onnx", "all"] = "depthai",
         device_ip: str | None = None,
@@ -52,7 +52,7 @@ class Inferer:
         self.device_ip = device_ip
 
         device_platform = None
-        if self.backend in ("depthai", "all"):
+        if self.backend in ["depthai", "all"]:
             self.device, device_platform = self.setup_device()
             self.nn_archive, input_info, model_platform = (
                 self.load_nn_archive()
@@ -108,13 +108,13 @@ class Inferer:
 
         logger.info(f"Loading NNArchive model from: {self.nn_archive_path!s}")
 
-        if not self.nn_archive_path.exists():
+        if not self.nn_archive_path.exists():  # type: ignore
             raise FileNotFoundError(
                 f"Model file not found: {self.nn_archive_path}"
             )
 
         try:
-            nn_archive = dai.NNArchive(self.nn_archive_path)
+            nn_archive = dai.NNArchive(self.nn_archive_path)  # type: ignore
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
             raise
