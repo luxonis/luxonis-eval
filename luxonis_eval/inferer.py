@@ -13,7 +13,7 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from luxonis_eval.backend_engine import DepthAIBackend, OnnxBackend
+from luxonis_eval.engines import DepthAIEngine, OnnxEngine
 from luxonis_eval.tasks import TASKS_REGISTRY
 from luxonis_eval.utils import (
     get_class_index_mapping,
@@ -308,12 +308,11 @@ class Inferer:
         metric.reset()
 
         if self.backend == "depthai":
-            be = DepthAIBackend(self)
+            infer_engine = DepthAIEngine(self)
         else:
-            be = OnnxBackend(self, **onnx_cfg)
+            infer_engine = OnnxEngine(self, **onnx_cfg)
 
-        be.setup()
-
+        infer_engine.setup()
         try:
             with Progress(
                 TextColumn("[progress.description]{task.description}"),
@@ -330,7 +329,7 @@ class Inferer:
                     img: np.ndarray = sample[0]  # type: ignore
                     target = sample[1][task.target_key()]
 
-                    raw_output = be.infer_once(img)
+                    raw_output = infer_engine.infer_once(img)
                     predictions = task.parse_predictions(
                         raw_output,
                         backend=self.backend,
@@ -353,7 +352,7 @@ class Inferer:
 
                     progress.update(ptask, advance=1)
         finally:
-            be.teardown()
+            infer_engine.teardown()
 
         results = metric.compute()
         tp = metric.throughput()
