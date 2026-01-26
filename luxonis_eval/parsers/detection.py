@@ -14,9 +14,6 @@ from .base_parser import BaseParser
 class YOLODetectionParser(BaseParser):
     """Parser for YOLO-based detection model outputs."""
 
-    TASK = "detection"
-    BACKENDS = {"depthai", "onnx"}
-
     def parse(
         self,
         raw_output: dai.NNData | list[np.ndarray],
