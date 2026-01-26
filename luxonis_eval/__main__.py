@@ -82,7 +82,7 @@ def eval(
         view=["val"],
         height=inferer.height,
         width=inferer.width,
-        keep_aspect_ratio=True,
+        keep_aspect_ratio=False,
         color_space="RGB" if backend == "onnx" else "BGR",
     )
     logger.info(
@@ -90,14 +90,37 @@ def eval(
     )
 
     # TODO: Load task_cfg, metric_cfg, onnx_cfg from a config file or CLI arguments
-    task_cfg = {}
-    metric_cfg = {}
+    # Config for COCO-based detection task
+    task_cfg = {
+        "name": "DetectionTask",
+    }
+    parser_cfg = {
+        "name": "YOLODetectionParser",
+    }
+    metric_cfg = {
+        "name": "DetectionMetric",
+    }
+    onnx_cfg = {
+        "mean": 0.0,
+        "std": 255.0,
+    }
+    # Config for imagenet-based classification task
+    task_cfg = {
+        "name": "ClassificationTask",
+    }
+    parser_cfg = {
+        "name": "ClassificationParser",
+    }
+    metric_cfg = {
+        "name": "ClassificationMetric",
+    }
     onnx_cfg = {}
+
     # TODO: task_name should be determined based on the model type. Check if there is any way to do that automatically, otherwise add it as a parameter to the CLI or config file.
     inferer.infer(
         loader,
-        task_name="DetectionTask",
         task_cfg=task_cfg,
+        parser_cfg=parser_cfg,
         metric_cfg=metric_cfg,
         onnx_cfg=onnx_cfg,
     )

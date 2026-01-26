@@ -14,7 +14,6 @@ from .base_parser import BaseParser
 class YOLODetectionParser(BaseParser):
     """Parser for YOLO-based detection model outputs."""
 
-    NAME = "yolo_detection"
     TASK = "detection"
     BACKENDS = {"depthai", "onnx"}
 

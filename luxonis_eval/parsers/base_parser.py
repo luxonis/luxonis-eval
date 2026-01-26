@@ -14,7 +14,6 @@ class BaseParser(
 ):
     """Base class for model output parsers."""
 
-    NAME: str = "base"
     TASK: str
     BACKENDS: set[str]
 

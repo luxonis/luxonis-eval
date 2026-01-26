@@ -10,7 +10,6 @@ from luxonis_eval.parsers.base_parser import BaseParser
 class ClassificationParser(BaseParser):
     """Parser for classification model outputs."""
 
-    NAME = "classification"
     TASK = "classification"
     BACKENDS = {"depthai", "onnx"}
 

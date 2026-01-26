@@ -14,8 +14,6 @@ from .base_metric import BaseMetric
 class DetectionMetric(BaseMetric):
     """COCO-style object detection metric."""
 
-    NAME = "detection"
-
     def __init__(self, *, iou_type: str = "bbox") -> None:
         """Initialize the detection metric.
 
@@ -25,6 +23,7 @@ class DetectionMetric(BaseMetric):
             IoU evaluation type.
         """
         self.iou_type = iou_type
+        super().__init__()
 
     def _reset_impl(self) -> None:
         """Reset internal metric state."""

@@ -1,15 +1,11 @@
 from typing import Any
 
-from luxonis_eval.metrics.detection import DetectionMetric
-from luxonis_eval.parsers.base_parser import BaseParser
 from luxonis_eval.tasks.base_task import BaseInferTask
 from luxonis_eval.utils import yolo_norm_to_coco_xywh
 
 
 class DetectionTask(BaseInferTask):
     """Object detection inference task."""
-
-    NAME = "detection"
 
     def target_key(self) -> str:
         """Return the ground-truth key.
@@ -21,25 +17,9 @@ class DetectionTask(BaseInferTask):
         """
         return "/boundingbox"
 
-    def build_metric(self, **kwargs: Any) -> Any:
-        """Create the detection metric.
-
-        Parameters
-        ----------
-        **kwargs : Any
-            Metric configuration.
-
-        Returns
-        -------
-        Any
-            Detection metric instance.
-        """
-        return DetectionMetric(**kwargs)
-
     def parse_predictions(
         self,
         raw_output: Any,
-        backend: str,
         **kwargs: Any,
     ) -> Any:
         """Parse backend output into predictions.
@@ -58,13 +38,10 @@ class DetectionTask(BaseInferTask):
         Any
             Parsed predictions.
         """
-        pcls = BaseParser.select(task=self.NAME, backend=backend)
-        parser = pcls()
-
         # Retrieve additional task-specific options
         native_class_map = kwargs.get("native_class_map", {})
 
-        return parser.parse(raw_output, class_map=native_class_map)
+        return self.parser.parse(raw_output, class_map=native_class_map)
 
     def metric_update_payload(
         self,

@@ -10,8 +10,6 @@ import numpy as np
 import onnxruntime as ort
 from tabulate import tabulate
 
-from luxonis_eval.tasks.base_task import BaseInferTask
-
 
 @contextmanager
 def suppress_stdout() -> Iterator[None]:
@@ -78,7 +76,7 @@ def section(title: str, width: int = 35) -> list[list[str]]:
 def make_report_table(
     *,
     backend: str,
-    task: BaseInferTask,
+    task_name: str,
     device: str,
     tp: dict[str, float],
     results: dict[str, Any],
@@ -89,8 +87,8 @@ def make_report_table(
     ----------
     backend : str
         Backend identifier.
-    task : BaseInferTask
-        Inference task instance.
+    task_name : str
+        Inference task name.
     device : str
         Inference device descriptor.
     tp : dict[str, float]
@@ -108,7 +106,7 @@ def make_report_table(
     rows += section("SETTINGS")
     rows += [
         ["Backend", str(backend).upper()],
-        ["Task", getattr(task, "NAME", str(task))],
+        ["Task", task_name],
         ["Device", str(device)],
     ]
 

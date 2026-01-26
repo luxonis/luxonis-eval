@@ -1,14 +1,10 @@
 from typing import Any
 
-from luxonis_eval.metrics.classification import ClassificationMetric
-from luxonis_eval.parsers.base_parser import BaseParser
 from luxonis_eval.tasks.base_task import BaseInferTask
 
 
 class ClassificationTask(BaseInferTask):
     """Classification inference task."""
-
-    NAME = "classification"
 
     def __init__(
         self,
@@ -34,25 +30,9 @@ class ClassificationTask(BaseInferTask):
         """
         return "/classification"
 
-    def build_metric(self, **kwargs: Any) -> Any:
-        """Create the classification metric.
-
-        Parameters
-        ----------
-        **kwargs : Any
-            Metric configuration.
-
-        Returns
-        -------
-        Any
-            Classification metric instance.
-        """
-        return ClassificationMetric(**kwargs)
-
     def parse_predictions(
         self,
         raw_output: Any,
-        backend: str,
         **kwargs: Any,
     ) -> Any:
         """Parse backend output into predictions.
@@ -71,13 +51,10 @@ class ClassificationTask(BaseInferTask):
         Any
             Parsed predictions.
         """
-        pcls = BaseParser.select(task=self.NAME, backend=backend)
-        parser = pcls()
-
         # Retrieve additional task-specific options
         apply_softmax = kwargs.get("apply_softmax", False)
 
-        return parser.parse(raw_output, apply_softmax=apply_softmax)
+        return self.parser.parse(raw_output, apply_softmax=apply_softmax)
 
     def metric_update_payload(
         self,

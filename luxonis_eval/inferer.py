@@ -267,8 +267,8 @@ class Inferer:
         self,
         dataloader: BaseLoader,
         *,
-        task_name: str,
         task_cfg: dict | None = None,
+        parser_cfg: dict | None = None,
         metric_cfg: dict | None = None,
         onnx_cfg: dict | None = None,
     ) -> None:
@@ -278,10 +278,10 @@ class Inferer:
         ----------
         dataloader : BaseLoader
             Dataloader to run inference on.
-        task_name : str
-            Task name registered in the task registry.
         task_cfg : dict | None, optional
             Task configuration.
+        parser_cfg : dict | None, optional
+            Parser configuration.
         metric_cfg : dict | None, optional
             Metric configuration.
         onnx_cfg : dict | None, optional
@@ -289,13 +289,13 @@ class Inferer:
         """
 
         task_cfg = task_cfg or {}
-        metric_cfg = metric_cfg or {}
-        onnx_cfg = onnx_cfg or {}
-
-        native_class_map, class_index_map = self.get_class_mapping(dataloader)
+        task_name = task_cfg.pop("name", None)
+        if not task_name:
+            raise ValueError("Task configuration must include a 'name' key.")
 
         try:
             task_cls = TASKS_REGISTRY[task_name]
+            logger.info(f"Loading inference task: {task_name}")
         except KeyError as e:
             raise ValueError(
                 f"Unknown task: {task_name}. "
@@ -303,8 +303,13 @@ class Inferer:
             ) from e
         task = task_cls(**task_cfg)
 
-        metric = task.build_metric(**metric_cfg)
-        metric.reset()
+        onnx_cfg = onnx_cfg or {}
+
+        native_class_map, class_index_map = self.get_class_mapping(dataloader)
+
+        task.build_parser(**parser_cfg or {})
+        task.build_metric(**metric_cfg or {})
+        task.build_throughput_metric()
 
         if self.backend == "depthai":
             infer_engine = DepthAIEngine(self)
@@ -320,7 +325,7 @@ class Inferer:
                 TimeElapsedColumn(),
             ) as progress:
                 ptask = progress.add_task(
-                    f"Running {self.backend.upper()} inference ({task.NAME})...",
+                    f"Running {self.backend.upper()} inference ({task.__class__.__name__})...",
                     total=len(dataloader),
                 )
 
@@ -331,7 +336,6 @@ class Inferer:
                     raw_output = infer_engine.infer_once(img)
                     predictions = task.parse_predictions(
                         raw_output,
-                        backend=self.backend,
                         native_class_map=native_class_map,
                     )
 
@@ -345,20 +349,21 @@ class Inferer:
                             class_index_map=class_index_map,
                         )
                     )
-                    metric.update(
+                    task.metric.update(
                         predictions=predictions_m, target=target_m, **kwargs
                     )
+                    task.throughput_metric.update()
 
                     progress.update(ptask, advance=1)
         finally:
             infer_engine.teardown()
 
-        results = metric.compute()
-        tp = metric.throughput()
+        results = task.metric.compute()
+        tp = task.throughput_metric.compute()
 
         table = make_report_table(
             backend=self.backend,
-            task=task,
+            task_name=task.__class__.__name__,
             device=self.platform_name,
             tp=tp,
             results=results,

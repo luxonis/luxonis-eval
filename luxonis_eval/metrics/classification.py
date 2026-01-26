@@ -9,8 +9,6 @@ from luxonis_eval.metrics.base_metric import BaseMetric
 class ClassificationMetric(BaseMetric):
     """Classification accuracy metric."""
 
-    NAME = "classification"
-
     def _reset_impl(self) -> None:
         """Reset internal metric state."""
         self.correct_at_k: dict[int, int] = {}
