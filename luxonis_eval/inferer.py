@@ -190,7 +190,6 @@ class Inferer:
         tuple[int, int]
             Input width and height.
         """
-        logger.warning(f"Input info: {input_info}")
         if not input_info or "shape" not in input_info:
             raise ValueError("Invalid input shape information.")
 
