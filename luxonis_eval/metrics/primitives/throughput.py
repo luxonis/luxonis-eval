@@ -9,15 +9,24 @@ class ThroughputMetric:
         self.reset()
 
     def reset(self) -> None:
+        """Reset the metric state."""
         self._num_updates = 0
 
         self._t0 = time.perf_counter()
         self._t_last = self._t0
 
     def update(self) -> None:
+        """Update the metric with a new sample."""
         self._num_updates += 1
 
     def compute(self) -> dict[str, float]:
+        """Compute final throughput metrics.
+
+        Returns
+        -------
+        dict[str, float]
+            Computed throughput results.
+        """
         elapsed = max(time.perf_counter() - self._t0, 1e-12)
         sps = self._num_updates / elapsed
         msp = (

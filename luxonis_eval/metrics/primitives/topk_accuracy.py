@@ -6,40 +6,48 @@ import numpy as np
 from luxonis_eval.metrics.base_metric import BaseMetric
 
 
-class ClassificationMetric(BaseMetric):
-    """Classification accuracy metric."""
+class TopKAccuracy(BaseMetric):
+    """Top-K accuracy metric."""
+
+    def __init__(self, *, topk: Sequence[int] = (1, 5)) -> None:
+        """Initialize the Top-K accuracy metric.
+
+        Parameters
+        ----------
+        topk : Sequence[int], optional
+            Sequence of K values for top-K accuracy.
+        """
+        self.topk = tuple(int(k) for k in topk)
+        super().__init__()
 
     def _reset_impl(self) -> None:
         """Reset internal metric state."""
-        self.correct_at_k: dict[int, int] = {}
+        self.correct_at_k = dict.fromkeys(self.topk, 0)
         self.total = 0
 
     def _update_impl(
         self, predictions: Any, target: Any, **kwargs: Any
     ) -> None:
-        """Update metric with predictions and ground truths.
+        """Update internal metric state.
 
         Parameters
         ----------
         predictions : Any
-            Model prediction scores.
+            Model predictions (logits or probabilities).
         target : Any
-            Ground-truth label or one-hot vector.
+            Ground-truth labels.
         **kwargs : Any
-            Additional context including class mapping and top-k values.
+            Additional context.
         """
-        # Retrieve additional task-specific options
         class_index_map = kwargs.get("class_index_map")
-        topk: Sequence[int] = kwargs.get("topk", (1, 5))
+        topk = tuple(kwargs.get("topk", self.topk))
 
         scores = np.asarray(predictions)
-        target = np.asarray(target)
+        tgt = np.asarray(target)
 
-        if target.ndim > 0 and target.size > 1:
-            target_idx = int(np.argmax(target))
-        else:
-            target_idx = int(target)
-
+        target_idx = (
+            int(np.argmax(tgt)) if tgt.ndim > 0 and tgt.size > 1 else int(tgt)
+        )
         if class_index_map is not None:
             target_idx = int(class_index_map[target_idx])
 
@@ -55,17 +63,16 @@ class ClassificationMetric(BaseMetric):
         self.total += 1
 
     def _compute_impl(self) -> dict[str, float]:
-        """Compute final accuracy metrics.
+        """Compute final Top-K accuracy metrics.
 
         Returns
         -------
         dict[str, float]
-            Top-k accuracy values.
+            Computed Top-K accuracy results.
         """
         if self.total == 0:
             return {"top1_acc": 0.0, "top5_acc": 0.0}
-
-        out: dict[str, float] = {}
-        for k, correct in sorted(self.correct_at_k.items()):
-            out[f"top{k}_acc"] = float(correct / self.total)
-        return out
+        return {
+            f"top{k}_acc": float(self.correct_at_k[k] / self.total)
+            for k in sorted(self.correct_at_k)
+        }
