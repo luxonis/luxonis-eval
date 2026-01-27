@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 
 
 class DepthAIEngine(BaseEngine):
+    """DepthAI inference engine."""
+
     def __init__(self, inferer: Inferer) -> None:
         """Initialize the DepthAI inference engine.
 

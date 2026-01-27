@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 
 
 class OnnxEngine(BaseEngine):
+    """ONNX Runtime inference engine."""
+
     def __init__(
         self,
         inferer: Inferer,
