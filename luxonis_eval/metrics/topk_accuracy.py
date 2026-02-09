@@ -20,6 +20,16 @@ class TopKAccuracy(BaseMetric):
         self.topk = tuple(int(k) for k in topk)
         super().__init__()
 
+    def metric_keys(self) -> list[str]:
+        """Return the ground-truth keys required by the metric.
+
+        Returns
+        -------
+        list[str]
+            Ground-truth key names.
+        """
+        return ["/classification"]
+
     def _reset_impl(self) -> None:
         """Reset internal metric state."""
         self.correct_at_k = dict.fromkeys(self.topk, 0)
@@ -39,11 +49,12 @@ class TopKAccuracy(BaseMetric):
         **kwargs : Any
             Additional context.
         """
+        cls_target = target[self.metric_keys()[0]]
         class_index_map = kwargs.get("class_index_map")
         topk = tuple(kwargs.get("topk", self.topk))
 
         scores = np.asarray(predictions)
-        tgt = np.asarray(target)
+        tgt = np.asarray(cls_target)
 
         target_idx = (
             int(np.argmax(tgt)) if tgt.ndim > 0 and tgt.size > 1 else int(tgt)

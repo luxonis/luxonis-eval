@@ -1,11 +1,13 @@
 from .base_metric import METRICS_REGISTRY
-from .primitives.throughput import ThroughputMetric
-from .tasks.classification import ClassificationMetric
-from .tasks.detection import DetectionMetric
+from .bbox_map import BboxMeanAveragePrecision
+from .mask_map import MaskMeanAveragePrecision
+from .throughput import ThroughputMetric
+from .topk_accuracy import TopKAccuracy
 
 __all__ = [
     "METRICS_REGISTRY",
-    "ClassificationMetric",
-    "DetectionMetric",
+    "BboxMeanAveragePrecision",
+    "MaskMeanAveragePrecision",
     "ThroughputMetric",
+    "TopKAccuracy",
 ]

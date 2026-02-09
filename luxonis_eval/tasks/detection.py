@@ -1,21 +1,11 @@
 from typing import Any
 
 from luxonis_eval.tasks.base_task import BaseInferTask
-from luxonis_eval.utils import yolo_norm_to_coco_xywh
+from luxonis_eval.utils.utils import yolo_norm_to_coco_xywh
 
 
 class DetectionTask(BaseInferTask):
     """Object detection inference task."""
-
-    def target_key(self) -> str:
-        """Return the ground-truth key.
-
-        Returns
-        -------
-        str
-            Ground-truth key path.
-        """
-        return "/boundingbox"
 
     def parse_predictions(
         self,

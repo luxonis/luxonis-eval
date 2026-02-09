@@ -5,7 +5,7 @@ from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 
 from luxonis_eval import __version__
-from luxonis_eval.utils import suppress_stdout
+from luxonis_eval.utils.utils import suppress_stdout
 
 
 class COCOStore:

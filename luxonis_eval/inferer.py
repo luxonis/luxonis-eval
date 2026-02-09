@@ -15,7 +15,7 @@ from rich.progress import (
 
 from luxonis_eval.engines import DepthAIEngine, OnnxEngine
 from luxonis_eval.tasks import TASKS_REGISTRY
-from luxonis_eval.utils import (
+from luxonis_eval.utils.utils import (
     get_class_index_mapping,
     get_dataset_class_mapping,
     get_onnx_input_info,
@@ -308,7 +308,7 @@ class Inferer:
         native_class_map, class_index_map = self.get_class_mapping(dataloader)
 
         task.build_parser(**parser_cfg or {})
-        task.build_metric(**metric_cfg or {})
+        task.build_metrics(**metric_cfg or {})
         task.build_throughput_metric()
 
         if self.backend == "depthai":
@@ -331,15 +331,16 @@ class Inferer:
 
                 for sample in dataloader:
                     img: np.ndarray = sample[0]  # type: ignore
-                    target = sample[1][task.target_key()]
+                    target = sample[1]
 
                     raw_output = infer_engine.infer_once(img)
                     predictions = task.parse_predictions(
                         raw_output,
                         native_class_map=native_class_map,
+                        **parser_cfg or {},
                     )
 
-                    predictions_m, target_m, kwargs = (
+                    predictions_m, target_m, kwargs_m = (
                         task.metric_update_payload(
                             predictions=predictions,
                             target=target,
@@ -349,16 +350,19 @@ class Inferer:
                             class_index_map=class_index_map,
                         )
                     )
-                    task.metric.update(
-                        predictions=predictions_m, target=target_m, **kwargs
-                    )
+                    for metric in task.metrics:
+                        metric.update(
+                            predictions=predictions_m,
+                            target=target_m,
+                            **kwargs_m,
+                        )
                     task.throughput_metric.update()
 
                     progress.update(ptask, advance=1)
         finally:
             infer_engine.teardown()
 
-        results = task.metric.compute()
+        results = [metric.compute() for metric in task.metrics]
         tp = task.throughput_metric.compute()
 
         table = make_report_table(

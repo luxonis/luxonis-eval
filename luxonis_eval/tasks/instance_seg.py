@@ -1,24 +1,11 @@
 from typing import Any
 
 from luxonis_eval.tasks.base_task import BaseInferTask
+from luxonis_eval.utils.utils import yolo_norm_to_coco_xywh
 
 
-class ClassificationTask(BaseInferTask):
-    """Classification inference task."""
-
-    def __init__(
-        self,
-        *,
-        topk: tuple[int, int] = (1, 5),
-    ):
-        """Initialize the classification task.
-
-        Parameters
-        ----------
-        topk : tuple[int, int], default=(1, 5)
-            Top-k values used for evaluation.
-        """
-        self.topk = topk
+class InstanceSegmentationTask(BaseInferTask):
+    """Instance segmentation inference task."""
 
     def parse_predictions(
         self,
@@ -42,9 +29,9 @@ class ClassificationTask(BaseInferTask):
             Parsed predictions.
         """
         # Retrieve additional task-specific options
-        apply_softmax = kwargs.get("apply_softmax", False)
+        native_class_map = kwargs.get("native_class_map", {})
 
-        return self.parser.parse(raw_output, apply_softmax=apply_softmax)
+        return self.parser.parse(raw_output, class_map=native_class_map)
 
     def metric_update_payload(
         self,
@@ -69,10 +56,18 @@ class ClassificationTask(BaseInferTask):
             Predictions, ground truths, and metric context.
         """
         # Retrieve additional task-specific options
+        width = kwargs.get("width", -1)
+        height = kwargs.get("height", -1)
+        native_class_map = kwargs.get("native_class_map", {})
         class_index_map = kwargs.get("class_index_map", {})
 
-        return (
-            predictions,
-            target,
-            {"class_index_map": class_index_map, "topk": self.topk},
-        )
+        ctx = {
+            "width": width,
+            "height": height,
+            "native_class_map": native_class_map,
+            "category_ids": sorted(native_class_map.keys()),
+            "class_index_map": class_index_map,
+            "target_converter": yolo_norm_to_coco_xywh,
+        }
+        # TODO: fix that target is a list of boxes and masks to be consistent across the codebase for tasks that require > 1 target and tasks that require exactly 1 target
+        return predictions, target, ctx

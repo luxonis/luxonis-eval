@@ -34,6 +34,7 @@ class BaseMetric(
         **kwargs : Any
             Additional context.
         """
+        self.validate_target_keys(target)
         self._update_impl(predictions, target, **kwargs)
 
     def compute(self) -> dict[str, float]:
@@ -44,7 +45,9 @@ class BaseMetric(
         dict[str, float]
             Computed metric results.
         """
-        return self._compute_impl()
+        results = self._compute_impl()
+        results["metric"] = self.__class__.__name__  # type: ignore
+        return results
 
     def as_log(self) -> dict[str, Any]:
         """Return metric results formatted for logging.
@@ -58,6 +61,27 @@ class BaseMetric(
             "metric": self.__class__.__name__,
             **self.compute(),
         }
+
+    def validate_target_keys(self, target: Any) -> None:
+        """Validate that the target contains the required keys for the metric.
+
+        Parameters
+        ----------
+        target : Any
+            Ground-truth data.
+        """
+        metric_keys = set(self.metric_keys())
+        target_keys = set(target)
+        if not metric_keys.issubset(target_keys):
+            raise ValueError(
+                f"Target is missing required keys for {self.__class__.__name__}. "
+                f"Expected at least: {self.metric_keys()}, but got: {list(target.keys())}."
+            )
+
+    @abstractmethod
+    def metric_keys(self) -> list[str]:
+        """Return the ground-truth keys required by the metric."""
+        ...
 
     @abstractmethod
     def _reset_impl(self) -> None:

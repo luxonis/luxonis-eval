@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 
 from luxonis_eval.metrics.base_metric import BaseMetric
-from luxonis_eval.metrics.primitives.coco_utils import COCOStore
+from luxonis_eval.utils.coco_utils import COCOStore
 
 
 class BboxMeanAveragePrecision(BaseMetric):
@@ -16,6 +16,16 @@ class BboxMeanAveragePrecision(BaseMetric):
         """Initialize the bounding box mAP metric."""
         self._store = COCOStore(iou_type="bbox")
         super().__init__()
+
+    def metric_keys(self) -> list[str]:
+        """Return the ground-truth keys required by the metric.
+
+        Returns
+        -------
+        list[str]
+            Ground-truth key names.
+        """
+        return ["/boundingbox"]
 
     def _reset_impl(self) -> None:
         """Reset internal metric state."""
@@ -35,6 +45,7 @@ class BboxMeanAveragePrecision(BaseMetric):
         **kwargs : Any
             Additional context.
         """
+        target_boxes = target[self.metric_keys()[0]]
         width = int(kwargs["width"])
         height = int(kwargs["height"])
 
@@ -54,7 +65,7 @@ class BboxMeanAveragePrecision(BaseMetric):
 
         # --- GT ---
         target_classes, target_boxes_xywh = target_converter(
-            target, width, height
+            target_boxes, width, height
         )
         for box_xywh, cls in zip(
             target_boxes_xywh, target_classes, strict=True
@@ -79,25 +90,9 @@ class BboxMeanAveragePrecision(BaseMetric):
             )
 
         # --- DT ---
-        bboxes = predictions["bboxes"]
-        scores = predictions["scores"]
-        classes = predictions["classes"]
-
-        bboxes = (
-            bboxes.detach().cpu().numpy()
-            if hasattr(bboxes, "detach")
-            else np.asarray(bboxes)
-        )
-        scores = (
-            scores.detach().cpu().numpy()
-            if hasattr(scores, "detach")
-            else np.asarray(scores)
-        )
-        classes = (
-            classes.detach().cpu().numpy()
-            if hasattr(classes, "detach")
-            else np.asarray(classes)
-        )
+        bboxes = np.asarray(predictions["bboxes"])
+        scores = np.asarray(predictions["scores"])
+        classes = np.asarray(predictions["classes"])
 
         for box, score, cls in zip(bboxes, scores, classes, strict=True):
             cls = int(cls)

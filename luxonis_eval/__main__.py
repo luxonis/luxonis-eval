@@ -82,7 +82,7 @@ def eval(
         view=["val"],
         height=inferer.height,
         width=inferer.width,
-        keep_aspect_ratio=False,
+        keep_aspect_ratio=True,
         color_space="RGB" if backend == "onnx" else "BGR",
     )
     logger.info(
@@ -90,6 +90,22 @@ def eval(
     )
 
     # TODO: Load task_cfg, metric_cfg, onnx_cfg from a config file or CLI arguments
+
+    # Config for imagenet-based classification task
+    task_cfg = {
+        "name": "ClassificationTask",
+    }
+    parser_cfg = {
+        "name": "ClassificationParser",
+        # "apply_softmax": True,
+    }
+    metric_cfg = {
+        "metrics": [
+            {"name": "TopKAccuracy"},
+        ]
+    }
+    onnx_cfg = {}
+
     # Config for COCO-based detection task
     task_cfg = {
         "name": "DetectionTask",
@@ -98,23 +114,32 @@ def eval(
         "name": "YOLODetectionParser",
     }
     metric_cfg = {
-        "name": "DetectionMetric",
+        "metrics": [
+            {"name": "BboxMeanAveragePrecision"},
+        ]
     }
     onnx_cfg = {
         "mean": 0.0,
         "std": 255.0,
     }
-    # Config for imagenet-based classification task
+
+    # Config for COCO-based instance segmentation task
     task_cfg = {
-        "name": "ClassificationTask",
+        "name": "InstanceSegmentationTask",
     }
     parser_cfg = {
-        "name": "ClassificationParser",
+        "name": "YOLOInstanceSegmentationParser",
     }
     metric_cfg = {
-        "name": "ClassificationMetric",
+        "metrics": [
+            {"name": "BboxMeanAveragePrecision"},
+            {"name": "MaskMeanAveragePrecision"},
+        ],
     }
-    onnx_cfg = {}
+    onnx_cfg = {
+        "mean": 0.0,
+        "std": 255.0,
+    }
 
     # TODO: task_name should be determined based on the model type. Check if there is any way to do that automatically, otherwise add it as a parameter to the CLI or config file.
     inferer.infer(

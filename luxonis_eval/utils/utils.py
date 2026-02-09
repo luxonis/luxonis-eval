@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 import numpy as np
 import onnxruntime as ort
+from pycocotools import mask as mask_utils
 from tabulate import tabulate
 
 
@@ -53,7 +54,9 @@ def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:
     }
 
 
-def section(title: str, width: int = 35) -> list[list[str]]:
+def section(
+    title: str, width: int = 35, line_char: str = "═"
+) -> list[list[str]]:
     """Create a section header row for a tabulated report.
 
     Parameters
@@ -62,6 +65,8 @@ def section(title: str, width: int = 35) -> list[list[str]]:
         Section title.
     width : int, optional
         Total header width.
+    line_char : str, optional
+        Character to use for the line.
 
     Returns
     -------
@@ -69,7 +74,7 @@ def section(title: str, width: int = 35) -> list[list[str]]:
         Rows suitable for appending to a tabulate row list.
     """
     label = f" {title} "
-    centered = label.center(width, "═")
+    centered = label.center(width, line_char)
     return [[centered, ""]]
 
 
@@ -79,7 +84,7 @@ def make_report_table(
     task_name: str,
     device: str,
     tp: dict[str, float],
-    results: dict[str, Any],
+    results: list[dict[str, Any]],
 ) -> str:
     """Build a formatted report table.
 
@@ -93,7 +98,7 @@ def make_report_table(
         Inference device descriptor.
     tp : dict[str, float]
         Throughput and latency related metrics.
-    results : dict[str, Any]
+    results : list[dict[str, Any]]
         Quality metric results.
 
     Returns
@@ -117,9 +122,12 @@ def make_report_table(
     ]
 
     rows += section("QUALITY")
-    for k, v in results.items():
-        val = f"{v * 100:.2f}%" if isinstance(v, float) else str(v)
-        rows.append([str(k), val])
+    for result in results:
+        metric_name = result.pop("metric")
+        rows += section(metric_name, line_char="-")
+        for k, v in result.items():
+            val = f"{v * 100:.2f}%" if isinstance(v, float) else str(v)
+            rows.append([str(k), val])
 
     return tabulate(
         rows,
@@ -148,7 +156,9 @@ def get_dataset_class_mapping(
     # TODO: Find a better way to set the type of the dataset_name parameter to be dynamic and extensible to other datasets may be intorduced in the future.
     if dataset_name == "coco":
         mapping_path = (
-            Path(__file__).parent / "metadata" / "coco_class_mappings.json"
+            Path(__file__).parent.parent
+            / "metadata"
+            / "coco_class_mappings.json"
         )
         with open(mapping_path) as f:
             class_mapping = json.load(f)
@@ -156,7 +166,9 @@ def get_dataset_class_mapping(
 
     if dataset_name == "imagenet":
         mapping_path = (
-            Path(__file__).parent / "metadata" / "imagenet_class_mappings.json"
+            Path(__file__).parent.parent
+            / "metadata"
+            / "imagenet_class_mappings.json"
         )
         with open(mapping_path) as f:
             class_mapping = json.load(f)
@@ -233,3 +245,30 @@ def yolo_norm_to_coco_xywh(
     bh = target[:, 4] * img_h
     boxes_xywh = np.stack([xc, yc, bw, bh], axis=-1)
     return cls_idc, boxes_xywh
+
+
+def binary_mask_to_rle(binary_mask: np.ndarray) -> Any:
+    """Convert a binary mask to COCO RLE format.
+
+    Parameters
+    ----------
+    binary_mask : np.ndarray
+        Binary mask of shape (H, W).
+
+    Returns
+    -------
+    dict[str, Any]
+        COCO RLE representation.
+    """
+    m = np.asfortranarray(binary_mask.astype(np.uint8))
+    rle = mask_utils.encode(m)
+    rle["counts"] = rle["counts"].decode("utf-8")  # type: ignore
+    return rle
+
+
+def area_from_rle(rle: Any) -> float:
+    return float(mask_utils.area(rle))
+
+
+def bbox_from_rle(rle: Any) -> list[float]:
+    return [float(x) for x in mask_utils.toBbox(rle)]

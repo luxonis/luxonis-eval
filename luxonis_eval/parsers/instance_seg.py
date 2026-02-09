@@ -1,7 +1,16 @@
 from typing import Any
 
+import cv2
 import depthai as dai
 import numpy as np
+from depthai_nodes.node.parsers.utils.bbox_format_converters import (
+    normalize_bboxes,
+    xyxy_to_xywh,
+)
+from depthai_nodes.node.parsers.utils.masks_utils import (
+    get_segmentation_outputs,
+    process_single_mask,
+)
 from depthai_nodes.node.parsers.utils.yolo import (
     YOLOSubtype,
     decode_yolo_output,
@@ -11,8 +20,8 @@ from loguru import logger
 from .base_parser import BaseParser
 
 
-class YOLODetectionParser(BaseParser):
-    """Parser for YOLO-based detection model outputs."""
+class YOLOInstanceSegmentationParser(BaseParser):
+    """Parser for YOLO-based instance segmentation model outputs."""
 
     def parse(
         self,
@@ -51,15 +60,26 @@ class YOLODetectionParser(BaseParser):
                 ).astype(np.float32)  # type: ignore
                 for o in outputs_names
             ]
+            (
+                masks_outputs_values,
+                protos_output,
+                protos_len,
+            ) = get_segmentation_outputs(raw_output)
         elif isinstance(raw_output, list):
             outputs_names = [f"output_{i}" for i in range(len(raw_output))]
-            outputs_values = raw_output
+            outputs_values = raw_output[:3]
+            masks_outputs_values = raw_output[3:-1]
+            protos_output = raw_output[-1]
+            protos_len = protos_output.shape[1]
         else:
             raise TypeError(
                 "raw_output must be dai.NNData or list[np.ndarray]"
             )
 
         strides = [8, 16, 32]
+        input_shape = tuple(
+            dim * strides[0] for dim in outputs_values[0].shape[2:4]
+        )
         n_classes = outputs_values[0].shape[1] - 5
 
         results = decode_yolo_output(
@@ -70,7 +90,7 @@ class YOLODetectionParser(BaseParser):
             conf_thres=0.4,
             iou_thres=0.45,
             num_classes=n_classes,
-            det_mode=True,
+            det_mode=False,
             subtype=YOLOSubtype.V8,
             max_nms=300,
         )
@@ -82,6 +102,7 @@ class YOLODetectionParser(BaseParser):
             [],
             [],
         )
+        instance_masks: list[np.ndarray] = []
         for i in range(results.shape[0]):
             bbox, conf, label, other = (
                 results[i, :4],
@@ -95,7 +116,31 @@ class YOLODetectionParser(BaseParser):
             label_names.append(class_map[int(label)])
             additional_output.append(other)
 
+            bbox_xywh = xyxy_to_xywh(bbox.reshape(1, 4))
+            bbox_xywh_norm = normalize_bboxes(
+                bbox_xywh, height=input_shape[0], width=input_shape[1]
+            )[0]
+
+            seg_coeff = other.astype(int)
+            hi, ai, xi, yi = seg_coeff
+            mask_coeff = masks_outputs_values[hi][
+                0, ai * protos_len : (ai + 1) * protos_len, yi, xi
+            ]
+            mask = process_single_mask(
+                protos_output[0], mask_coeff, 0.4, bbox_xywh_norm
+            )
+
+            resized_mask = cv2.resize(
+                mask,
+                (input_shape[1], input_shape[0]),
+                interpolation=cv2.INTER_NEAREST,
+            )
+
+            bin_mask = resized_mask > 0
+            instance_masks.append(bin_mask)
+
         return {
+            "masks": np.asarray(instance_masks),
             "bboxes": np.asarray(bboxes),
             "scores": np.asarray(scores, dtype=np.float32),
             "classes": np.asarray(labels, dtype=np.int64),

@@ -54,7 +54,7 @@ class ClassificationParser(BaseParser):
 
         if isinstance(raw_output, dai.NNData):
             layer_names = raw_output.getAllLayerNames()
-            logger.debug(f"Processing input with layers: {layer_names}")
+            logger.debug(f"Processing output with layers: {layer_names}")
             output_name = layer_names[0]
             scores = raw_output.getTensor(output_name, dequantize=True)
         elif isinstance(raw_output, list):

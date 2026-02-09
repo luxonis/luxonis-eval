@@ -18,31 +18,41 @@ class BaseInferTask(
 ):
     """Base class for inference tasks."""
 
-    def build_metric(self, **kwargs: Any) -> None:
-        """Create the metric instance.
+    def build_metrics(self, **kwargs: Any) -> None:
+        """Create the metrics instance.
 
         Parameters
         ----------
         **kwargs : Any
-            Metric configuration.
+            Metrics configuration.
 
         Returns
         -------
         Any
-            Classification metric instance.
+            Metrics instance.
         """
-        metric_name = kwargs.pop("name", None)
-        if not metric_name:
-            raise ValueError("Metric configuration must include a 'name' key.")
-        try:
-            metric_cls = METRICS_REGISTRY[metric_name]
-            logger.info(f"{metric_name} metric initialized.")
-        except KeyError as e:
+        metrics_list = kwargs.pop("metrics", None)
+        if not metrics_list:
             raise ValueError(
-                f"Unknown metric: {metric_name}. "
-                f"Available metrics: {list(METRICS_REGISTRY._module_dict)}"
-            ) from e
-        self.metric = metric_cls(**kwargs)
+                "Metric configuration must include a 'metrics' key with a list of metrics."
+            )
+        self.metrics = []
+        for metric_cfg in metrics_list:
+            metric_name = metric_cfg.pop("name", None)
+            if not metric_name:
+                raise ValueError(
+                    "Each metric configuration must include a 'name' key."
+                )
+            try:
+                metric_cls = METRICS_REGISTRY[metric_name]
+                logger.info(f"{metric_name} metric initialized.")
+            except KeyError as e:
+                raise ValueError(
+                    f"Unknown metric: {metric_name}. "
+                    f"Available metrics: {list(METRICS_REGISTRY._module_dict)}"
+                ) from e
+            metric_instance = metric_cls(**metric_cfg)
+            self.metrics.append(metric_instance)
 
     def build_throughput_metric(self) -> None:
         """Create the throughput metric instance."""
@@ -73,12 +83,7 @@ class BaseInferTask(
                 f"Unknown parser: {parser_name}. "
                 f"Available parsers: {list(PARSERS_REGISTRY._module_dict)}"
             ) from e
-        self.parser = parser_cls(**kwargs)
-
-    @abstractmethod
-    def target_key(self) -> str:
-        """Return the ground-truth key for a sample."""
-        ...
+        self.parser = parser_cls()
 
     @abstractmethod
     def parse_predictions(
