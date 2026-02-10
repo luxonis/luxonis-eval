@@ -24,7 +24,7 @@ class MetricsCfg(LuxonisConfig):
 
 
 class OnnxConfig(LuxonisConfig):
-    providers: str | list[str] = "CPUExecutionProvider"
+    providers: list[str] = ["CPUExecutionProvider"]
     mean: list[float] | float = 0.0
     std: list[float] | float = 1.0
 
