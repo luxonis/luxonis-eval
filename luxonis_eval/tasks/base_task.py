@@ -95,11 +95,9 @@ class BaseInferTask(
         ...
 
     @abstractmethod
-    def metric_update_payload(
+    def metric_extra_context(
         self,
-        predictions: Any,
-        target: Any,
         **kwargs: Any,
-    ) -> tuple[Any, Any, dict[str, Any]]:
-        """Prepare metric update inputs."""
+    ) -> dict[str, Any]:
+        """Provide additional context for metric updates."""
         ...

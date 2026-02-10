@@ -340,21 +340,17 @@ class Inferer:
                         **parser_cfg or {},
                     )
 
-                    predictions_m, target_m, kwargs_m = (
-                        task.metric_update_payload(
-                            predictions=predictions,
-                            target=target,
-                            width=self.width,
-                            height=self.height,
-                            native_class_map=native_class_map,
-                            class_index_map=class_index_map,
-                        )
+                    metric_ctx = task.metric_extra_context(
+                        width=self.width,
+                        height=self.height,
+                        native_class_map=native_class_map,
+                        class_index_map=class_index_map,
                     )
                     for metric in task.metrics:
                         metric.update(
-                            predictions=predictions_m,
-                            target=target_m,
-                            **kwargs_m,
+                            predictions=predictions,
+                            target=target,
+                            **metric_ctx,
                         )
                     task.throughput_metric.update()
 

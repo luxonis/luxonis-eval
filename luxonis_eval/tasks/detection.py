@@ -33,27 +33,21 @@ class DetectionTask(BaseInferTask):
 
         return self.parser.parse(raw_output, class_map=native_class_map)
 
-    def metric_update_payload(
+    def metric_extra_context(
         self,
-        predictions: Any,
-        target: Any,
         **kwargs: Any,
-    ) -> tuple[Any, Any, dict[str, Any]]:
-        """Prepare metric update payload.
+    ) -> dict[str, Any]:
+        """Provide additional context for metric updates.
 
         Parameters
         ----------
-        predictions : Any
-            Model predictions.
-        target : Any
-            Ground-truth data.
         **kwargs : Any
             Additional context.
 
         Returns
         -------
-        tuple[Any, Any, dict[str, Any]]
-            Predictions, ground truths, and metric context.
+        dict[str, Any]
+            Additional metric context.
         """
         # Retrieve additional task-specific options
         width = kwargs.get("width", -1)
@@ -61,7 +55,7 @@ class DetectionTask(BaseInferTask):
         native_class_map = kwargs.get("native_class_map", {})
         class_index_map = kwargs.get("class_index_map", {})
 
-        ctx = {
+        return {
             "width": width,
             "height": height,
             "native_class_map": native_class_map,
@@ -69,4 +63,3 @@ class DetectionTask(BaseInferTask):
             "class_index_map": class_index_map,
             "target_converter": yolo_norm_to_coco_xywh,
         }
-        return predictions, target, ctx
