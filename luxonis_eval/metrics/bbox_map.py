@@ -12,9 +12,9 @@ class BboxMeanAveragePrecision(BaseMetric):
     Uses COCO evaluation metrics for bounding box detection.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, iou_type: str = "bbox") -> None:
         """Initialize the bounding box mAP metric."""
-        self._store = COCOStore(iou_type="bbox")
+        self._store = COCOStore(iou_type=iou_type)
         super().__init__()
 
     def metric_keys(self) -> list[str]:
