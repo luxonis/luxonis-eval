@@ -153,7 +153,7 @@ def get_dataset_class_mapping(
     dict[int, str]
         Mapping from class index to class name.
     """
-    # TODO: Find a better way to set the type of the dataset_name parameter to be dynamic and extensible to other datasets may be intorduced in the future.
+    # TODO: Find a better way to set the type of the dataset parameter to be dynamic and extensible to other datasets may be intorduced in the future.
     if dataset_name == "coco":
         mapping_path = (
             Path(__file__).parent.parent
@@ -175,7 +175,7 @@ def get_dataset_class_mapping(
         return {int(k): v for k, v in class_mapping.items()}
 
     raise ValueError(
-        f"Unsupported dataset name '{dataset_name}'. Supported values are 'coco' and 'imagenet'."
+        f"Unsupported dataset '{dataset_name}'. Supported values are 'coco' and 'imagenet'."
     )
 
 
