@@ -23,6 +23,10 @@ from .base_parser import BaseParser
 class YOLOInstanceSegmentationParser(BaseParser):
     """Parser for YOLO-based instance segmentation model outputs."""
 
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize the YOLO instance segmentation parser."""
+        super().__init__(**kwargs)
+
     def parse(
         self,
         raw_output: dai.NNData | list[np.ndarray],

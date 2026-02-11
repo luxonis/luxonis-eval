@@ -6,6 +6,10 @@ from luxonis_eval.tasks.base_task import BaseInferTask
 class ClassificationTask(BaseInferTask):
     """Classification inference task."""
 
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize the classification task."""
+        super().__init__(**kwargs)
+
     def parse_predictions(
         self,
         raw_output: Any,

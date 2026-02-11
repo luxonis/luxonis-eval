@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from luxonis_ml.utils.registry import AutoRegisterMeta, Registry
+from luxonis_ml.utils.registry import AutoRegisterMeta
 
-METRICS_REGISTRY: Registry[type["BaseMetric"]] = Registry(name="metrics")
+from luxonis_eval.registry import METRICS_REGISTRY
 
 
 class BaseMetric(
@@ -14,8 +14,14 @@ class BaseMetric(
 ):
     """Base class for evaluation metrics."""
 
-    def __init__(self) -> None:
-        """Initialize the metric."""
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize the metric.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Metric basic configuration.
+        """
         self.reset()
 
     def reset(self) -> None:

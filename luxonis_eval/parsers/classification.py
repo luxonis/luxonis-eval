@@ -10,6 +10,10 @@ from luxonis_eval.parsers.base_parser import BaseParser
 class ClassificationParser(BaseParser):
     """Parser for classification model outputs."""
 
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize the classification parser."""
+        super().__init__(**kwargs)
+
     def softmax(
         self, x: np.ndarray, axis: int | None = None, keep_dims: bool = False
     ) -> np.ndarray:

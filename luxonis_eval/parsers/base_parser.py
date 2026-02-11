@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from luxonis_ml.utils.registry import AutoRegisterMeta, Registry
+from luxonis_ml.utils.registry import AutoRegisterMeta
 
-PARSERS_REGISTRY: Registry[type["BaseParser"]] = Registry(name="parsers")
+from luxonis_eval.registry import PARSERS_REGISTRY
 
 
 class BaseParser(
@@ -13,6 +13,15 @@ class BaseParser(
     register=False,
 ):
     """Base class for model output parsers."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize the parser.
+
+        Parameters
+        ---------
+        **kwargs : Any
+            Parser basic configuration.
+        """
 
     @abstractmethod
     def parse(self, raw_output: Any, **kwargs: Any) -> Any:

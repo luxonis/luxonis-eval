@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import depthai as dai
 import numpy as np
@@ -12,17 +12,20 @@ if TYPE_CHECKING:
     from luxonis_eval.inferer import Inferer
 
 
-class DepthAIEngine(BaseEngine):
+class DepthAIEngine(BaseEngine, register_name="depthai"):
     """DepthAI inference engine."""
 
-    def __init__(self, inferer: Inferer) -> None:
+    def __init__(self, inferer: Inferer, **kwargs: Any) -> None:
         """Initialize the DepthAI inference engine.
 
         Parameters
         ----------
         inferer : Inferer
             Inferer instance providing device and model information.
+        **kwargs : Any
+            Additional engine configuration.
         """
+        super().__init__(**kwargs)
         self.inferer = inferer
         self._pipeline = None
 

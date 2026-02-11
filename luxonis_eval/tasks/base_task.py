@@ -2,12 +2,15 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from loguru import logger
-from luxonis_ml.utils.registry import AutoRegisterMeta, Registry
+from luxonis_ml.utils.registry import AutoRegisterMeta
 
-from luxonis_eval.metrics import METRICS_REGISTRY, ThroughputMetric
-from luxonis_eval.parsers import PARSERS_REGISTRY
-
-TASKS_REGISTRY: Registry[type["BaseInferTask"]] = Registry(name="infer_tasks")
+from luxonis_eval.metrics import ThroughputMetric
+from luxonis_eval.registry import (
+    METRICS_REGISTRY,
+    PARSERS_REGISTRY,
+    TASKS_REGISTRY,
+    from_registry,
+)
 
 
 class BaseInferTask(
@@ -17,6 +20,15 @@ class BaseInferTask(
     register=False,
 ):
     """Base class for inference tasks."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize the inference task.
+
+        Parameters
+        ---------
+        **kwargs : Any
+            Inference task basic configuration.
+        """
 
     def build_metrics(self, **kwargs: Any) -> None:
         """Create the metrics instance.
@@ -44,14 +56,15 @@ class BaseInferTask(
                     "Each metric configuration must include a 'name' key."
                 )
             try:
-                metric_cls = METRICS_REGISTRY[metric_name]
+                metric_instance = from_registry(
+                    METRICS_REGISTRY, metric_name, **metric_cfg
+                )
                 logger.info(f"{metric_name} metric initialized.")
             except KeyError as e:
                 raise ValueError(
                     f"Unknown metric: {metric_name}. "
                     f"Available metrics: {list(METRICS_REGISTRY._module_dict)}"
                 ) from e
-            metric_instance = metric_cls(**metric_cfg)
             self.metrics.append(metric_instance)
 
     def build_throughput_metric(self) -> None:
@@ -76,14 +89,15 @@ class BaseInferTask(
         if not parser_name:
             raise ValueError("Parser configuration must include a 'name' key.")
         try:
-            parser_cls = PARSERS_REGISTRY[parser_name]
+            self.parser = from_registry(
+                PARSERS_REGISTRY, parser_name, **kwargs
+            )
             logger.info(f"{parser_name} parser initialized.")
         except KeyError as e:
             raise ValueError(
                 f"Unknown parser: {parser_name}. "
                 f"Available parsers: {list(PARSERS_REGISTRY._module_dict)}"
             ) from e
-        self.parser = parser_cls()
 
     @abstractmethod
     def parse_predictions(

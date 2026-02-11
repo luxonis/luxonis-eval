@@ -14,6 +14,10 @@ from .base_parser import BaseParser
 class YOLODetectionParser(BaseParser):
     """Parser for YOLO-based detection model outputs."""
 
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize the YOLO detection parser."""
+        super().__init__(**kwargs)
+
     def parse(
         self,
         raw_output: dai.NNData | list[np.ndarray],

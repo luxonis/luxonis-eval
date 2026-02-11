@@ -7,6 +7,10 @@ from luxonis_eval.utils.utils import yolo_norm_to_coco_xywh
 class InstanceSegmentationTask(BaseInferTask):
     """Instance segmentation inference task."""
 
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize the instance segmentation task."""
+        super().__init__(**kwargs)
+
     def parse_predictions(
         self,
         raw_output: Any,

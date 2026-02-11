@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from luxonis_eval.inferer import Inferer
 
 
-class OnnxEngine(BaseEngine):
+class OnnxEngine(BaseEngine, register_name="onnx"):
     """ONNX Runtime inference engine."""
 
     def __init__(
@@ -29,6 +29,7 @@ class OnnxEngine(BaseEngine):
             57.12,
             57.375,
         ),
+        **kwargs: Any,
     ) -> None:
         """Initialize the ONNX inference engine.
 
@@ -42,7 +43,10 @@ class OnnxEngine(BaseEngine):
             Mean used for input normalization.
         std : tuple[float, float, float] | float | None, optional
             Standard deviation used for input normalization.
+        **kwargs : Any
+            Additional engine configuration.
         """
+        super().__init__(**kwargs)
         self.inferer = inferer
         self.providers = providers or [
             "CUDAExecutionProvider",

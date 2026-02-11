@@ -17,16 +17,18 @@ class MaskMeanAveragePrecision(BaseMetric):
     Uses COCO evaluation metrics for instance segmentation.
     """
 
-    def __init__(self, *, iou_type: str = "segm") -> None:
+    def __init__(self, iou_type: str = "segm", **kwargs: Any) -> None:
         """Initialize the mask mAP metric.
 
         Parameters
         ----------
         iou_type : str, optional
             Type of IoU to use for evaluation.
+        **kwargs : Any
+            Additional metric configuration.
         """
         self._store = COCOStore(iou_type=iou_type)
-        super().__init__()
+        super().__init__(**kwargs)
 
     def metric_keys(self) -> list[str]:
         """Return the ground-truth keys required by the metric.

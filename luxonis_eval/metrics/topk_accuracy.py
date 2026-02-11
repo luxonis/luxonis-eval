@@ -9,16 +9,18 @@ from luxonis_eval.metrics.base_metric import BaseMetric
 class TopKAccuracy(BaseMetric):
     """Top-K accuracy metric."""
 
-    def __init__(self, *, topk: Sequence[int] = (1, 5)) -> None:
+    def __init__(self, topk: Sequence[int] = (1, 5), **kwargs: Any) -> None:
         """Initialize the Top-K accuracy metric.
 
         Parameters
         ----------
         topk : Sequence[int], optional
             Sequence of K values for top-K accuracy.
+        **kwargs : Any
+            Additional metric configuration.
         """
         self.topk = tuple(int(k) for k in topk)
-        super().__init__()
+        super().__init__(**kwargs)
 
     def metric_keys(self) -> list[str]:
         """Return the ground-truth keys required by the metric.

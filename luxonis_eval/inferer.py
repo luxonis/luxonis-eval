@@ -13,8 +13,11 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from luxonis_eval.engines import DepthAIEngine, OnnxEngine
-from luxonis_eval.tasks import TASKS_REGISTRY
+from luxonis_eval.registry import (
+    ENGINES_REGISTRY,
+    TASKS_REGISTRY,
+    from_registry,
+)
 from luxonis_eval.utils.utils import (
     get_class_index_mapping,
     get_dataset_class_mapping,
@@ -311,10 +314,9 @@ class Inferer:
         task.build_metrics(**metric_cfg or {})
         task.build_throughput_metric()
 
-        if self.backend == "depthai":
-            infer_engine = DepthAIEngine(self)
-        else:
-            infer_engine = OnnxEngine(self, **onnx_cfg)
+        infer_engine = from_registry(
+            ENGINES_REGISTRY, self.backend, self, **onnx_cfg
+        )
 
         infer_engine.setup()
         try:
