@@ -18,7 +18,13 @@ class MaskMeanAveragePrecision(BaseMetric):
     """
 
     def __init__(self, *, iou_type: str = "segm") -> None:
-        """Initialize the mask mAP metric."""
+        """Initialize the mask mAP metric.
+
+        Parameters
+        ----------
+        iou_type : str, optional
+            Type of IoU to use for evaluation.
+        """
         self._store = COCOStore(iou_type=iou_type)
         super().__init__()
 

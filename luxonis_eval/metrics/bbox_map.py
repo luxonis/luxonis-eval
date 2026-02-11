@@ -13,7 +13,13 @@ class BboxMeanAveragePrecision(BaseMetric):
     """
 
     def __init__(self, *, iou_type: str = "bbox") -> None:
-        """Initialize the bounding box mAP metric."""
+        """Initialize the bounding box mAP metric.
+
+        Parameters
+        ----------
+        iou_type : str, optional
+            Type of IoU to use for evaluation.
+        """
         self._store = COCOStore(iou_type=iou_type)
         super().__init__()
 
