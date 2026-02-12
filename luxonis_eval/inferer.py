@@ -297,14 +297,13 @@ class Inferer:
             raise ValueError("Task configuration must include a 'name' key.")
 
         try:
-            task_cls = TASKS_REGISTRY[task_name]
+            task = from_registry(TASKS_REGISTRY, task_name, **task_cfg)
             logger.info(f"Loading inference task: {task_name}")
         except KeyError as e:
             raise ValueError(
                 f"Unknown task: {task_name}. "
                 f"Available tasks: {list(TASKS_REGISTRY._module_dict)}"
             ) from e
-        task = task_cls(**task_cfg)
 
         onnx_cfg = onnx_cfg or {}
 
