@@ -2,6 +2,8 @@ from typing import Any
 
 import depthai as dai
 import numpy as np
+from depthai_nodes.message.creators import create_detection_message
+from depthai_nodes.node.parsers.utils import normalize_bboxes, xyxy_to_xywh
 from depthai_nodes.node.parsers.utils.yolo import (
     YOLOSubtype,
     decode_yolo_output,
@@ -30,7 +32,7 @@ class YOLODetectionParser(BaseParser):
         iou_thres: float = 0.7,
         max_det: int = 300,
         **kwargs: Any,
-    ) -> dict[str, np.ndarray | list]:
+    ) -> dai.ImgDetections:
         """Parse backend output into detection predictions.
 
         Parameters
@@ -56,7 +58,7 @@ class YOLODetectionParser(BaseParser):
 
         Returns
         -------
-        dict[str, np.ndarray | list]
+        dai.ImgDetections
             Detection results including boxes, scores, classes, and metadata.
         """
         try:
@@ -94,6 +96,9 @@ class YOLODetectionParser(BaseParser):
             if subtype
             not in [YOLOSubtype.V3UT, YOLOSubtype.V3T, YOLOSubtype.V4T]
             else [16, 32]
+        )
+        input_shape = tuple(
+            dim * strides[0] for dim in outputs_values[0].shape[2:4]
         )
         final_anchors: np.ndarray | None = (
             np.array(anchors).reshape(len(strides), -1) if anchors else None
@@ -135,16 +140,19 @@ class YOLODetectionParser(BaseParser):
                 results[i, 5].astype(int),
                 results[i, 6:],
             )
+            bbox = xyxy_to_xywh(bbox.reshape(1, 4))
+            bbox = normalize_bboxes(
+                bbox, height=input_shape[0], width=input_shape[1]
+            )[0]
             bboxes.append(bbox)
             scores.append(float(conf))
             labels.append(int(label))
             label_names.append(class_map[int(label)])
             additional_output.append(other)
 
-        return {
-            "bboxes": np.asarray(bboxes),
-            "scores": np.asarray(scores, dtype=np.float32),
-            "classes": np.asarray(labels, dtype=np.int64),
-            "class_names": label_names,
-            "extra": np.asarray(additional_output),
-        }
+        return create_detection_message(
+            bboxes=np.array(bboxes),
+            scores=np.array(scores),
+            labels=np.array(labels),
+            label_names=label_names,
+        )

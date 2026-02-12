@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import Any
 
-import numpy as np
+import depthai as dai
 
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.utils.coco_utils import COCOStore
@@ -40,13 +40,13 @@ class BboxMeanAveragePrecision(BaseMetric):
         self._store.reset()
 
     def _update_impl(
-        self, predictions: Any, target: Any, **kwargs: Any
+        self, predictions: dai.ImgDetections, target: Any, **kwargs: Any
     ) -> None:
         """Update internal metric state.
 
         Parameters
         ----------
-        predictions : Any
+        predictions : dai.ImgDetections
             Model predictions.
         target : Any
             Ground-truth data.
@@ -98,29 +98,25 @@ class BboxMeanAveragePrecision(BaseMetric):
             )
 
         # --- DT ---
-        bboxes = np.asarray(predictions["bboxes"])
-        scores = np.asarray(predictions["scores"])
-        classes = np.asarray(predictions["classes"])
-
-        for box, score, cls in zip(bboxes, scores, classes, strict=True):
-            cls = int(cls)
+        for pred in predictions.detections:
+            cls = int(pred.label)
             if (
                 self._store.category_ids_set is not None
                 and cls not in self._store.category_ids_set
             ):
                 continue
-
-            x1, y1, x2, y2 = map(float, box)
-            w = x2 - x1
-            h = y2 - y1
-            if w <= 0 or h <= 0:
+            box = (
+                pred.getBoundingBox().denormalize(width, height).getOuterXYWH()
+            )
+            box = [box[0].x, box[0].y, box[1].width, box[1].height]
+            if box[2] <= 0 or box[3] <= 0:
                 continue
             self._store.add_dt(
                 {
                     "image_id": img_id,
                     "category_id": cls,
-                    "bbox": [x1, y1, w, h],
-                    "score": float(score),
+                    "bbox": box,
+                    "score": float(pred.confidence),
                 }
             )
 

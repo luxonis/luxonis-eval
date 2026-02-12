@@ -1,5 +1,5 @@
 cyclopts
-depthai
+depthai>=3.3.0
 loguru
 depthai-nodes
 tabulate
