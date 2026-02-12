@@ -31,10 +31,7 @@ class ClassificationTask(BaseInferTask):
         Any
             Parsed predictions.
         """
-        # Retrieve additional task-specific options
-        apply_softmax = kwargs.get("apply_softmax", False)
-
-        return self.parser.parse(raw_output, apply_softmax=apply_softmax)
+        return self.parser.parse(raw_output, **kwargs)
 
     def metric_extra_context(
         self,

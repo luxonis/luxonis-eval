@@ -41,14 +41,14 @@ class COCOStore:
     def init_categories_once(
         self,
         *,
-        native_class_map: dict[int, str],
+        class_map: dict[int, str],
         category_ids: Sequence[int] | None,
     ) -> None:
         """Initialize categories if not already initialized.
 
         Parameters
         ----------
-        native_class_map : dict[int, str]
+        class_map : dict[int, str]
             Mapping from native class indices to class names.
         category_ids : Sequence[int] | None
             Sequence of category IDs to include.
@@ -56,12 +56,12 @@ class COCOStore:
         if self.categories is not None:
             return
         if category_ids is None:
-            category_ids = sorted(native_class_map.keys())
+            category_ids = sorted(class_map.keys())
         self.category_ids_set = {int(x) for x in category_ids}
         self.categories = [
             {
                 "id": int(cid),
-                "name": str(native_class_map.get(int(cid), str(cid))),
+                "name": str(class_map.get(int(cid), str(cid))),
             }
             for cid in sorted(self.category_ids_set)
         ]

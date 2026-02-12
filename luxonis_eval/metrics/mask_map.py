@@ -64,7 +64,7 @@ class MaskMeanAveragePrecision(BaseMetric):
         width = int(kwargs["width"])
         height = int(kwargs["height"])
 
-        native_class_map: dict[int, str] = kwargs.get("native_class_map", {})
+        class_map: dict[int, str] = kwargs.get("class_map", {})
         category_ids: Sequence[int] | None = kwargs.get("category_ids")
         class_index_map = kwargs.get("class_index_map")
         target_converter = kwargs.get("target_converter")
@@ -74,7 +74,7 @@ class MaskMeanAveragePrecision(BaseMetric):
             )
 
         self._store.init_categories_once(
-            native_class_map=native_class_map, category_ids=category_ids
+            class_map=class_map, category_ids=category_ids
         )
         img_id = self._store.new_image(width=width, height=height)
 

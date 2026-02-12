@@ -30,6 +30,14 @@ class YOLOInstanceSegmentationParser(BaseParser):
     def parse(
         self,
         raw_output: dai.NNData | list[np.ndarray],
+        *,
+        class_map: dict[int, str],
+        subtype: str,
+        n_classes: int | None = None,
+        anchors: list[list[list[float]]] | None = None,
+        conf_thres: float = 0.001,
+        iou_thres: float = 0.7,
+        max_det: int = 300,
         **kwargs: Any,
     ) -> dict[str, np.ndarray | list]:
         """Parse backend output into detection predictions.
@@ -38,6 +46,20 @@ class YOLOInstanceSegmentationParser(BaseParser):
         ----------
         raw_output : dai.NNData | list[np.ndarray]
             Backend inference output.
+        class_map : dict[int, str]
+            Mapping from class indices to class names.
+        subtype : str
+            YOLO model subtype.
+        n_classes : int | None, optional
+            Number of classes.
+        anchors : list[list[list[float]]] | None, optional
+            Anchor boxes.
+        conf_thres : float, default=0.001
+            Confidence threshold.
+        iou_thres : float, default=0.7
+            IoU threshold.
+        max_det : int, default=300
+            Maximum detections.
         **kwargs : Any
             Additional parser arguments.
 
@@ -46,8 +68,12 @@ class YOLOInstanceSegmentationParser(BaseParser):
         dict[str, np.ndarray | list]
             Detection results including boxes, scores, classes, and metadata.
         """
-        # Retrieve additional task-specific options
-        class_map = kwargs.get("class_map", {})
+        try:
+            subtype = YOLOSubtype(subtype.lower())
+        except ValueError as err:
+            raise ValueError(
+                f"Invalid YOLO subtype {subtype}. Supported YOLO subtypes are {[e.value for e in YOLOSubtype][:-1]}."
+            ) from err
 
         if isinstance(raw_output, dai.NNData):
             layer_names = raw_output.getAllLayerNames()
@@ -80,23 +106,39 @@ class YOLOInstanceSegmentationParser(BaseParser):
                 "raw_output must be dai.NNData or list[np.ndarray]"
             )
 
-        strides = [8, 16, 32]
+        strides = (
+            [8, 16, 32]
+            if subtype
+            not in [YOLOSubtype.V3UT, YOLOSubtype.V3T, YOLOSubtype.V4T]
+            else [16, 32]
+        )
         input_shape = tuple(
             dim * strides[0] for dim in outputs_values[0].shape[2:4]
         )
-        n_classes = outputs_values[0].shape[1] - 5
+        final_anchors: np.ndarray | None = (
+            np.array(anchors).reshape(len(strides), -1) if anchors else None
+        )
+        inferred_n_classes = (
+            outputs_values[0].shape[1] - 5
+            if not final_anchors
+            else (outputs_values[0].shape[1] // final_anchors.shape[0]) - 5
+        )
+        if n_classes and inferred_n_classes != n_classes:
+            raise ValueError(
+                f"The provided number of classes {n_classes} does not match the model's {inferred_n_classes}."
+            )
 
         results = decode_yolo_output(
             yolo_outputs=outputs_values,
             strides=strides,
-            anchors=None,
+            anchors=final_anchors,
             kpts=None,
-            conf_thres=0.4,
-            iou_thres=0.45,
-            num_classes=n_classes,
+            conf_thres=conf_thres,
+            iou_thres=iou_thres,
+            num_classes=inferred_n_classes,
             det_mode=False,
-            subtype=YOLOSubtype.V8,
-            max_nms=300,
+            subtype=subtype,
+            max_nms=max_det,
         )
 
         bboxes, labels, label_names, scores, additional_output = (

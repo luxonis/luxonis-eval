@@ -32,10 +32,7 @@ class KeypointDetectionTask(BaseInferTask):
         Any
             Parsed predictions.
         """
-        # Retrieve additional task-specific options
-        native_class_map = kwargs.get("native_class_map", {})
-
-        return self.parser.parse(raw_output, class_map=native_class_map)
+        return self.parser.parse(raw_output, **kwargs)
 
     def metric_extra_context(
         self,
@@ -56,14 +53,14 @@ class KeypointDetectionTask(BaseInferTask):
         # Retrieve additional task-specific options
         width = kwargs.get("width", -1)
         height = kwargs.get("height", -1)
-        native_class_map = kwargs.get("native_class_map", {})
+        class_map = kwargs.get("class_map", {})
         class_index_map = kwargs.get("class_index_map", {})
 
         return {
             "width": width,
             "height": height,
-            "native_class_map": native_class_map,
-            "category_ids": sorted(native_class_map.keys()),
+            "class_map": class_map,
+            "category_ids": sorted(class_map.keys()),
             "class_index_map": class_index_map,
             "target_converter": yolo_norm_to_coco_xywh,
         }

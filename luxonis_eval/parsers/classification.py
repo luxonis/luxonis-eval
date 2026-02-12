@@ -37,7 +37,11 @@ class ClassificationParser(BaseParser):
         return ex / np.sum(ex, axis=axis, keepdims=keep_dims)
 
     def parse(
-        self, raw_output: dai.NNData | list[np.ndarray], **kwargs: Any
+        self,
+        raw_output: dai.NNData | list[np.ndarray],
+        *,
+        apply_softmax: bool = False,
+        **kwargs: Any,
     ) -> np.ndarray:
         """Parse backend output into class scores.
 
@@ -45,6 +49,8 @@ class ClassificationParser(BaseParser):
         ----------
         raw_output : dai.NNData | list[np.ndarray]
             Backend inference output.
+        apply_softmax : bool, default=False
+            Whether to apply softmax to the output scores.
         **kwargs : Any
             Additional parser arguments.
 
@@ -53,9 +59,6 @@ class ClassificationParser(BaseParser):
         np.ndarray
             Classification scores.
         """
-        # Retrieve additional task-specific options
-        apply_softmax = kwargs.get("apply_softmax", False)
-
         if isinstance(raw_output, dai.NNData):
             layer_names = raw_output.getAllLayerNames()
             logger.debug(f"Processing output with layers: {layer_names}")

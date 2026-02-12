@@ -298,7 +298,7 @@ class Inferer:
                 f"Available tasks: {list(TASKS_REGISTRY._module_dict)}"
             ) from e
 
-        native_class_map, class_index_map = self.get_class_mapping(dataloader)
+        class_map, class_index_map = self.get_class_mapping(dataloader)
 
         task.build_parser(**parser_cfg)
         task.build_metrics(**metrics_cfg)
@@ -331,14 +331,14 @@ class Inferer:
                     raw_output = infer_engine.infer_once(img)
                     predictions = task.parse_predictions(
                         raw_output,
-                        native_class_map=native_class_map,
-                        **parser_cfg or {},
+                        class_map=class_map,
+                        **parser_cfg.get("params", {}),
                     )
 
                     metric_ctx = task.metric_extra_context(
                         width=self.width,
                         height=self.height,
-                        native_class_map=native_class_map,
+                        class_map=class_map,
                         class_index_map=class_index_map,
                     )
                     for metric in task.metrics:
