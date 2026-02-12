@@ -48,19 +48,16 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
         """
         super().__init__(**kwargs)
         self.inferer = inferer
-        self.providers = providers or [
-            "CUDAExecutionProvider",
-            "CPUExecutionProvider",
-        ]
+        self.providers = providers or ["CPUExecutionProvider"]
         self.mean = np.array(mean, dtype=np.float32)
         self.std = np.array(std, dtype=np.float32)
 
     def setup(self) -> None:
         """Initialize the ONNX Runtime session."""
-        if self.inferer.onnx_path is None:
+        if self.inferer.model_path is None:
             raise ValueError("ONNX path is not provided for ONNX inference.")
         self._session = ort.InferenceSession(
-            str(self.inferer.onnx_path), providers=self.providers
+            str(self.inferer.model_path), providers=self.providers
         )
         self._input_name = self._session.get_inputs()[0].name
 

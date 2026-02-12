@@ -43,21 +43,23 @@ class BaseInferTask(
         Any
             Metrics instance.
         """
-        metrics_list = kwargs.pop("metrics", None)
+        metrics_list = kwargs.get("metrics")
         if not metrics_list:
             raise ValueError(
                 "Metric configuration must include a 'metrics' key with a list of metrics."
             )
         self.metrics = []
         for metric_cfg in metrics_list:
-            metric_name = metric_cfg.pop("name", None)
+            metric_name = metric_cfg.get("name")
             if not metric_name:
                 raise ValueError(
                     "Each metric configuration must include a 'name' key."
                 )
             try:
                 metric_instance = from_registry(
-                    METRICS_REGISTRY, metric_name, **metric_cfg
+                    METRICS_REGISTRY,
+                    metric_name,
+                    **metric_cfg.get("params", {}),
                 )
                 logger.info(f"{metric_name} metric initialized.")
             except KeyError as e:
@@ -85,12 +87,12 @@ class BaseInferTask(
         Any
             Parser instance.
         """
-        parser_name = kwargs.pop("name", None)
+        parser_name = kwargs.get("name")
         if not parser_name:
             raise ValueError("Parser configuration must include a 'name' key.")
         try:
             self.parser = from_registry(
-                PARSERS_REGISTRY, parser_name, **kwargs
+                PARSERS_REGISTRY, parser_name, **kwargs.get("params", {})
             )
             logger.info(f"{parser_name} parser initialized.")
         except KeyError as e:

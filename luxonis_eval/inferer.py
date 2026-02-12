@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Literal
 
 import depthai as dai
 import numpy as np
@@ -31,31 +30,27 @@ class Inferer:
 
     def __init__(
         self,
-        nn_archive_path: Path | None = None,
-        onnx_path: Path | None = None,
-        backend: Literal["depthai", "onnx", "all"] = "depthai",
+        model_path: Path,
+        backend: str,
         device_ip: str | None = None,
     ):
         """Initialize the inferer.
 
         Parameters
         ----------
-        nn_archive_path : Path
-            Path to the NNArchive model.
-        onnx_path : Path | None, optional
-            Path to the ONNX model.
-        backend : Literal["depthai", "onnx", "all"], optional
+        model_path : Path
+            Path to the model file.
+        backend : str
             Backend selection.
         device_ip : str | None, optional
             IP address of the DepthAI device.
         """
-        self.nn_archive_path = nn_archive_path
-        self.onnx_path = onnx_path
+        self.model_path = model_path
         self.backend = backend
         self.device_ip = device_ip
 
         device_platform = None
-        if self.backend in ["depthai", "all"]:
+        if self.backend == "depthai":
             self.device, device_platform = self.setup_device()
             self.nn_archive, input_info, model_platform = (
                 self.load_nn_archive()
@@ -65,7 +60,7 @@ class Inferer:
             )
         else:
             self.platform_name = "Host CPU/GPU"
-            input_info = get_onnx_input_info(self.onnx_path)
+            input_info = get_onnx_input_info(self.model_path)
 
         self.width, self.height = self.get_input_shape(input_info)
 
@@ -109,15 +104,13 @@ class Inferer:
             Loaded NNArchive, input info, and inferred platform.
         """
 
-        logger.info(f"Loading NNArchive model from: {self.nn_archive_path!s}")
+        logger.info(f"Loading NNArchive model from: {self.model_path!s}")
 
-        if not self.nn_archive_path.exists():  # type: ignore
-            raise FileNotFoundError(
-                f"Model file not found: {self.nn_archive_path}"
-            )
+        if not self.model_path.exists():  # type: ignore
+            raise FileNotFoundError(f"Model file not found: {self.model_path}")
 
         try:
-            nn_archive = dai.NNArchive(self.nn_archive_path)  # type: ignore
+            nn_archive = dai.NNArchive(self.model_path)  # type: ignore
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
             raise
@@ -198,7 +191,7 @@ class Inferer:
 
         shape = input_info["shape"]
 
-        if self.backend in ["depthai", "all"]:
+        if self.backend == "depthai":
             if self.platform_name == "RVC2":
                 # RVC2 uses NCHW format: [batch, channels, height, width]
                 if len(shape) == 4:
@@ -270,10 +263,10 @@ class Inferer:
         self,
         dataloader: BaseLoader,
         *,
-        task_cfg: dict | None = None,
-        parser_cfg: dict | None = None,
-        metric_cfg: dict | None = None,
-        onnx_cfg: dict | None = None,
+        task_cfg: dict,
+        parser_cfg: dict,
+        metrics_cfg: dict,
+        engine_cfg: dict,
     ) -> None:
         """Run inference and compute metrics on a dataloader.
 
@@ -281,23 +274,23 @@ class Inferer:
         ----------
         dataloader : BaseLoader
             Dataloader to run inference on.
-        task_cfg : dict | None, optional
+        task_cfg : dict
             Task configuration.
-        parser_cfg : dict | None, optional
+        parser_cfg : dict
             Parser configuration.
-        metric_cfg : dict | None, optional
+        metrics_cfg : dict
             Metric configuration.
-        onnx_cfg : dict | None, optional
-            ONNX backend configuration.
+        engine_cfg : dict
+            Engine configuration.
         """
-
-        task_cfg = task_cfg or {}
-        task_name = task_cfg.pop("name", None)
+        task_name = task_cfg.get("name")
         if not task_name:
             raise ValueError("Task configuration must include a 'name' key.")
 
         try:
-            task = from_registry(TASKS_REGISTRY, task_name, **task_cfg)
+            task = from_registry(
+                TASKS_REGISTRY, task_name, **task_cfg.get("params", {})
+            )
             logger.info(f"Loading inference task: {task_name}")
         except KeyError as e:
             raise ValueError(
@@ -305,16 +298,17 @@ class Inferer:
                 f"Available tasks: {list(TASKS_REGISTRY._module_dict)}"
             ) from e
 
-        onnx_cfg = onnx_cfg or {}
-
         native_class_map, class_index_map = self.get_class_mapping(dataloader)
 
-        task.build_parser(**parser_cfg or {})
-        task.build_metrics(**metric_cfg or {})
+        task.build_parser(**parser_cfg)
+        task.build_metrics(**metrics_cfg)
         task.build_throughput_metric()
 
         infer_engine = from_registry(
-            ENGINES_REGISTRY, self.backend, self, **onnx_cfg
+            ENGINES_REGISTRY,
+            self.backend,
+            self,
+            **engine_cfg.get("params", {}),
         )
 
         infer_engine.setup()

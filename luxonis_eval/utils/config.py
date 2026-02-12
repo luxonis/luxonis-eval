@@ -1,90 +1,89 @@
 from pathlib import Path
-from typing import Literal
 
+from luxonis_ml.typing import ConfigItem
 from luxonis_ml.utils.config import LuxonisConfig
-from pydantic import ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, field_validator, model_validator
+
+from luxonis_eval.registry import (
+    ENGINES_REGISTRY,
+    METRICS_REGISTRY,
+    PARSERS_REGISTRY,
+    TASKS_REGISTRY,
+)
 
 
-class TaskConfig(LuxonisConfig):
-    name: str
+class DatasetConfig(ConfigItem): ...
 
 
-class ParserConfig(LuxonisConfig):
-    name: str
-    apply_softmax: bool | None = None
+class TaskConfig(ConfigItem):
+    @field_validator("name", mode="after")
+    def validate_name(cls, v: str) -> str:
+        if v not in TASKS_REGISTRY:
+            raise ValueError(
+                f"Invalid task name: {v}. Must be one of {list(TASKS_REGISTRY._module_dict)}."
+            )
+        return v
 
 
-class MetricCfg(LuxonisConfig):
-    name: str
-    model_config: ConfigDict = ConfigDict(extra="allow")
+class ParserConfig(ConfigItem):
+    @field_validator("name", mode="after")
+    def validate_name(cls, v: str) -> str:
+        if v not in PARSERS_REGISTRY:
+            raise ValueError(
+                f"Invalid parser name: {v}. Must be one of {list(PARSERS_REGISTRY._module_dict)}."
+            )
+        return v
 
 
-class MetricsCfg(LuxonisConfig):
-    metrics: list[MetricCfg]
+class MetricConfig(ConfigItem):
+    @field_validator("name", mode="after")
+    def validate_name(cls, v: str) -> str:
+        if v not in METRICS_REGISTRY:
+            raise ValueError(
+                f"Invalid metric name: {v}. Must be one of {list(METRICS_REGISTRY._module_dict)}."
+            )
+        return v
 
 
-class OnnxConfig(LuxonisConfig):
-    providers: list[str] = ["CPUExecutionProvider"]
-    mean: list[float] | float = 0.0
-    std: list[float] | float = 1.0
+class MetricsConfig(BaseModel):
+    metrics: list[MetricConfig]
+
+
+class EngineConfig(ConfigItem):
+    model_path: str
+
+    @field_validator("name", mode="after")
+    def validate_name(cls, v: str) -> str:
+        if v not in ENGINES_REGISTRY:
+            raise ValueError(
+                f"Invalid engine name: {v}. Must be one of {list(ENGINES_REGISTRY._module_dict)}."
+            )
+        return v
+
+    @field_validator("model_path", mode="after")
+    def validate_model_path(cls, v: str) -> str:
+        if not Path(v).exists():
+            raise ValueError(f"Model file '{v}' does not exist.")
+        return v
+
+    @model_validator(mode="after")
+    def _validate_backend_matches_inputs(self) -> "EngineConfig":
+        if self.model_path.endswith(".tar.xz") and self.name != "depthai":
+            raise ValueError(
+                f"NNArchive model ({self.model_path}) can only be used with the 'depthai' backend."
+            )
+        if self.model_path.endswith(".onnx") and self.name != "onnx":
+            raise ValueError(
+                f"ONNX model ({self.model_path}) can only be used with the 'onnx' backend."
+            )
+        return self
 
 
 class EvalConfig(LuxonisConfig):
     """Configuration for evaluation."""
 
-    dataset_name: str
-    backend: Literal["depthai", "onnx", "all"]
-    nn_archive: str | None = None
-    onnx: str | None = None
-    device_ip: str | None = None
-
+    dataset_cfg: DatasetConfig
     task_cfg: TaskConfig
     parser_cfg: ParserConfig
-    metrics_cfg: MetricsCfg
-    onnx_cfg: OnnxConfig | None = None
-
-    @field_validator("nn_archive", mode="after")
-    @classmethod
-    def _nn_archive_must_exist(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        if not Path(v).exists():
-            raise ValueError(f"NNArchive file '{v}' does not exist.")
-        return v
-
-    @field_validator("onnx", mode="after")
-    @classmethod
-    def _onnx_must_exist(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        if not Path(v).exists():
-            raise ValueError(f"ONNX model file '{v}' does not exist.")
-        return v
-
-    @model_validator(mode="after")
-    def _validate_inputs_present(self) -> "EvalConfig":
-        if not self.nn_archive and not self.onnx:
-            raise ValueError(
-                "At least one of nn_archive or onnx must be provided."
-            )
-        return self
-
-    @model_validator(mode="after")
-    def _validate_backend_all_requires_both(self) -> "EvalConfig":
-        if self.backend == "all" and not (self.nn_archive and self.onnx):
-            raise ValueError(
-                "Both nn_archive and onnx must be provided when backend is 'all'."
-            )
-        return self
-
-    @model_validator(mode="after")
-    def _validate_backend_matches_inputs(self) -> "EvalConfig":
-        if self.nn_archive and self.backend not in ("depthai", "all"):
-            raise ValueError(
-                "nn_archive can only be used with backend 'depthai' or 'all'."
-            )
-        if self.onnx and self.backend not in ("onnx", "all"):
-            raise ValueError(
-                "onnx can only be used with backend 'onnx' or 'all'."
-            )
-        return self
+    metrics_cfg: MetricsConfig
+    engine_cfg: EngineConfig
