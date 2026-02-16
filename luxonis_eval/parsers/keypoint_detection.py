@@ -2,6 +2,8 @@ from typing import Any
 
 import depthai as dai
 import numpy as np
+from depthai_nodes.message.creators import create_detection_message
+from depthai_nodes.node.parsers.utils import normalize_bboxes, xyxy_to_xywh
 from depthai_nodes.node.parsers.utils.yolo import (
     YOLOSubtype,
     decode_yolo_output,
@@ -30,8 +32,10 @@ class YOLOKeypointDetectionParser(BaseParser):
         conf_thres: float = 0.001,
         iou_thres: float = 0.7,
         max_det: int = 300,
+        keypoint_label_names: list[str] | None = None,
+        keypoint_edges: list[tuple[int, int]] | None = None,
         **kwargs: Any,
-    ) -> dict[str, np.ndarray | list]:
+    ) -> dai.ImgDetections:
         """Parse backend output into detection predictions.
 
         Parameters
@@ -52,12 +56,16 @@ class YOLOKeypointDetectionParser(BaseParser):
             IoU threshold.
         max_det : int, default=300
             Maximum detections.
+        keypoint_label_names : list[str] | None, optional
+            Names of keypoint labels.
+        keypoint_edges : list[tuple[int, int]] | None, optional
+            Edges connecting keypoints.
         **kwargs : Any
             Additional parser arguments.
 
         Returns
         -------
-        dict[str, np.ndarray | list]
+        dai.ImgDetections
             Detection results including boxes, scores, classes, and metadata.
         """
         try:
@@ -151,6 +159,10 @@ class YOLOKeypointDetectionParser(BaseParser):
                 results[i, 5].astype(int),
                 results[i, 6:],
             )
+            bbox = xyxy_to_xywh(bbox.reshape(1, 4))
+            bbox = normalize_bboxes(
+                bbox, height=input_shape[0], width=input_shape[1]
+            )[0]
             bboxes.append(bbox)
             scores.append(float(conf))
             labels.append(int(label))
@@ -159,10 +171,25 @@ class YOLOKeypointDetectionParser(BaseParser):
             kpts = parse_kpts(other, num_keypoints, input_shape)  # type: ignore
             additional_output.append(kpts)
 
-        return {
-            "bboxes": np.asarray(bboxes),
-            "scores": np.asarray(scores, dtype=np.float32),
-            "classes": np.asarray(labels, dtype=np.int64),
-            "class_names": label_names,
-            "keypoints": np.asarray(additional_output),
-        }
+        additional_output = np.array(additional_output)
+        keypoints = (
+            additional_output[:, :, :2]
+            if additional_output.size > 0
+            else np.array([])
+        )
+        keypoints_scores = (
+            additional_output[:, :, 2]
+            if additional_output.size > 0
+            else np.array([])
+        )
+
+        return create_detection_message(
+            bboxes=np.array(bboxes),
+            scores=np.array(scores),
+            labels=np.array(labels),
+            label_names=label_names,
+            keypoints=keypoints,
+            keypoints_scores=keypoints_scores,
+            keypoint_label_names=keypoint_label_names,
+            keypoint_edges=keypoint_edges,
+        )

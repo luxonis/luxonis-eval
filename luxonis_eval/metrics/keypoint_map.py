@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from typing import Any
 
+import depthai as dai
 import numpy as np
 
 from luxonis_eval.metrics.base_metric import BaseMetric
@@ -112,13 +113,13 @@ class KeypointMeanAveragePrecision(BaseMetric):
         return [x_min, y_min, float(w), float(h)], area, num_kpts
 
     def _update_impl(
-        self, predictions: Any, target: Any, **kwargs: Any
+        self, predictions: dai.ImgDetections, target: Any, **kwargs: Any
     ) -> None:
         """Update internal metric state.
 
         Parameters
         ----------
-        predictions : Any
+        predictions : dai.ImgDetections
             Model predictions.
         target : Any
             Ground-truth data.
@@ -178,9 +179,21 @@ class KeypointMeanAveragePrecision(BaseMetric):
             )
 
         # --- DT ---
-        keypoints = np.asarray(predictions["keypoints"], dtype=float)
-        scores = np.asarray(predictions["scores"], dtype=float)
-        classes = np.asarray(predictions["classes"], dtype=int)
+        scores = [det.confidence for det in predictions.detections]
+        classes = [det.label for det in predictions.detections]
+        keypoints = np.array(
+            [
+                [
+                    [
+                        kp.imageCoordinates.x,
+                        kp.imageCoordinates.y,
+                        kp.confidence,
+                    ]
+                    for kp in det.getKeypoints()
+                ]
+                for det in predictions.detections
+            ]
+        )
 
         for kpts, score, cls in zip(keypoints, scores, classes, strict=True):
             cls = int(cls)
