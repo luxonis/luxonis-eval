@@ -37,6 +37,7 @@ class YOLOInstanceSegmentationParser(BaseParser):
         anchors: list[list[list[float]]] | None = None,
         conf_thres: float = 0.001,
         iou_thres: float = 0.7,
+        mask_thres: float = 0.001,
         max_det: int = 300,
         **kwargs: Any,
     ) -> dict[str, np.ndarray | list]:
@@ -58,6 +59,8 @@ class YOLOInstanceSegmentationParser(BaseParser):
             Confidence threshold.
         iou_thres : float, default=0.7
             IoU threshold.
+        mask_thres : float, default=0.001
+            Mask threshold.
         max_det : int, default=300
             Maximum detections.
         **kwargs : Any
@@ -156,16 +159,15 @@ class YOLOInstanceSegmentationParser(BaseParser):
                 results[i, 5].astype(int),
                 results[i, 6:],
             )
+            bbox_xywh = xyxy_to_xywh(bbox.reshape(1, 4))
+            bbox_xywh_norm = normalize_bboxes(
+                bbox_xywh, height=input_shape[0], width=input_shape[1]
+            )[0]
             bboxes.append(bbox)
             scores.append(float(conf))
             labels.append(int(label))
             label_names.append(class_map[int(label)])
             additional_output.append(other)
-
-            bbox_xywh = xyxy_to_xywh(bbox.reshape(1, 4))
-            bbox_xywh_norm = normalize_bboxes(
-                bbox_xywh, height=input_shape[0], width=input_shape[1]
-            )[0]
 
             seg_coeff = other.astype(int)
             hi, ai, xi, yi = seg_coeff
@@ -173,7 +175,7 @@ class YOLOInstanceSegmentationParser(BaseParser):
                 0, ai * protos_len : (ai + 1) * protos_len, yi, xi
             ]
             mask = process_single_mask(
-                protos_output[0], mask_coeff, 0.4, bbox_xywh_norm
+                protos_output[0], mask_coeff, mask_thres, bbox_xywh_norm
             )
 
             resized_mask = cv2.resize(
