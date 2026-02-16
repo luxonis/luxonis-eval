@@ -3,10 +3,8 @@ from typing import Any
 import cv2
 import depthai as dai
 import numpy as np
-from depthai_nodes.node.parsers.utils.bbox_format_converters import (
-    normalize_bboxes,
-    xyxy_to_xywh,
-)
+from depthai_nodes.message.creators import create_detection_message
+from depthai_nodes.node.parsers.utils import normalize_bboxes, xyxy_to_xywh
 from depthai_nodes.node.parsers.utils.masks_utils import (
     get_segmentation_outputs,
     process_single_mask,
@@ -40,7 +38,7 @@ class YOLOInstanceSegmentationParser(BaseParser):
         mask_thres: float = 0.001,
         max_det: int = 300,
         **kwargs: Any,
-    ) -> dict[str, np.ndarray | list]:
+    ) -> dai.ImgDetections:
         """Parse backend output into detection predictions.
 
         Parameters
@@ -68,7 +66,7 @@ class YOLOInstanceSegmentationParser(BaseParser):
 
         Returns
         -------
-        dict[str, np.ndarray | list]
+        dai.ImgDetections
             Detection results including boxes, scores, classes, and metadata.
         """
         try:
@@ -159,9 +157,9 @@ class YOLOInstanceSegmentationParser(BaseParser):
                 results[i, 5].astype(int),
                 results[i, 6:],
             )
-            bbox_xywh = xyxy_to_xywh(bbox.reshape(1, 4))
-            bbox_xywh_norm = normalize_bboxes(
-                bbox_xywh, height=input_shape[0], width=input_shape[1]
+            bbox = xyxy_to_xywh(bbox.reshape(1, 4))
+            bbox = normalize_bboxes(
+                bbox, height=input_shape[0], width=input_shape[1]
             )[0]
             bboxes.append(bbox)
             scores.append(float(conf))
@@ -175,7 +173,7 @@ class YOLOInstanceSegmentationParser(BaseParser):
                 0, ai * protos_len : (ai + 1) * protos_len, yi, xi
             ]
             mask = process_single_mask(
-                protos_output[0], mask_coeff, mask_thres, bbox_xywh_norm
+                protos_output[0], mask_coeff, mask_thres, bbox
             )
 
             resized_mask = cv2.resize(
@@ -187,11 +185,15 @@ class YOLOInstanceSegmentationParser(BaseParser):
             bin_mask = resized_mask > 0
             instance_masks.append(bin_mask)
 
-        return {
-            "masks": np.asarray(instance_masks),
-            "bboxes": np.asarray(bboxes),
-            "scores": np.asarray(scores, dtype=np.float32),
-            "classes": np.asarray(labels, dtype=np.int64),
-            "class_names": label_names,
-            "extra": np.asarray(additional_output),
-        }
+        final_mask = np.asarray(instance_masks.copy())
+        if final_mask.size != 0:
+            # Flatten (N, H, W) to (N*H, W) since dai.ImgDetections expects a 2D mask.
+            final_mask = final_mask.reshape(-1, final_mask.shape[-1])
+
+        return create_detection_message(
+            bboxes=np.array(bboxes),
+            scores=np.array(scores),
+            labels=np.array(labels),
+            label_names=label_names,
+            masks=final_mask,
+        )

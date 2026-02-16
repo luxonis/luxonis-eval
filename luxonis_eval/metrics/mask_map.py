@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from typing import Any
 
+import depthai as dai
 import numpy as np
 
 from luxonis_eval.metrics.base_metric import BaseMetric
@@ -45,13 +46,13 @@ class MaskMeanAveragePrecision(BaseMetric):
         self._store.reset()
 
     def _update_impl(
-        self, predictions: Any, target: Any, **kwargs: Any
+        self, predictions: dai.ImgDetections, target: Any, **kwargs: Any
     ) -> None:
         """Update internal metric state.
 
         Parameters
         ----------
-        predictions : Any
+        predictions : dai.ImgDetections
             Model predictions.
         target : Any
             Ground-truth data.
@@ -110,14 +111,23 @@ class MaskMeanAveragePrecision(BaseMetric):
             )
 
         # --- DT ---
-        masks = np.asarray(predictions["masks"])
-        bboxes = np.asarray(predictions["bboxes"])
-        scores = np.asarray(predictions["scores"])
-        classes = np.asarray(predictions["classes"])
+        detections = predictions.detections
+        scores = [det.confidence for det in detections]
+        classes = [det.label for det in detections]
+        masks: np.ndarray = predictions.getCvSegmentationMask()  # type: ignore
+        # Unflatten (N*H, W) → (N, H, W)
+        masks = (
+            masks.reshape(len(detections), -1, masks.shape[-1])
+            if detections
+            else np.zeros((0, 0, 0), dtype=np.uint8)
+        )
+        if masks.size > 0 and masks.shape[1:] != (height, width):
+            raise ValueError(
+                f"Mask dimensions {masks.shape[1:]} do not match image dimensions ({height}, {width}). "
+                f"Ensure masks in 'dai.ImgDetections' are stored as (N*H, W)."
+            )
 
-        for mask, box, score, cls in zip(
-            masks, bboxes, scores, classes, strict=True
-        ):
+        for mask, score, cls in zip(masks, scores, classes, strict=True):
             cls = int(cls)
             if (
                 self._store.category_ids_set is not None

@@ -179,8 +179,9 @@ class KeypointMeanAveragePrecision(BaseMetric):
             )
 
         # --- DT ---
-        scores = [det.confidence for det in predictions.detections]
-        classes = [det.label for det in predictions.detections]
+        detections = predictions.detections
+        scores = [det.confidence for det in detections]
+        classes = [det.label for det in detections]
         keypoints = np.array(
             [
                 [
@@ -191,7 +192,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
                     ]
                     for kp in det.getKeypoints()
                 ]
-                for det in predictions.detections
+                for det in detections
             ]
         )
 
