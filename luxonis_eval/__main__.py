@@ -71,10 +71,12 @@ def eval(
     # TODO: This code is placeholder, we need to implement a proper way to handle different loaders based on the dataset and model type. The loaders should always inherit from BaseLoader (from luxonis_ml).
     loader = LuxonisLoader(
         dataset,
-        view=["val"],
+        view=cfg.dataset_cfg.params.get("view", ["val"]),  # type: ignore
         height=inferer.height,
         width=inferer.width,
-        keep_aspect_ratio=True,
+        keep_aspect_ratio=cfg.dataset_cfg.params.get(
+            "keep_aspect_ratio", False
+        ),  # type: ignore
         color_space="RGB" if cfg.engine_cfg.name == "onnx" else "BGR",
     )
     logger.info(
@@ -84,6 +86,7 @@ def eval(
     # TODO: task_name should be determined based on the model type. Check if there is any way to do that automatically, otherwise add it as a parameter to the CLI or config file.
     inferer.infer(
         loader,
+        dataset_cfg=cfg.dataset_cfg.model_dump(),
         task_cfg=cfg.task_cfg.model_dump(),
         parser_cfg=cfg.parser_cfg.model_dump(),
         metrics_cfg=cfg.metrics_cfg.model_dump(),

@@ -220,18 +220,21 @@ class Inferer:
     @staticmethod
     def get_class_mapping(
         dataloader: BaseLoader,
-    ) -> tuple[dict, dict | None]:
+        **kwargs,
+    ) -> tuple[dict, dict, dict | None]:
         """Get native class map and optional class index mapping.
 
         Parameters
         ----------
         dataloader : BaseLoader
             Dataloader to extract class mappings from.
+        **kwargs
+            Additional dataset-specific parameters.
 
         Returns
         -------
-        tuple[dict, dict | None]
-            Native class map and class index map (if available).
+        tuple[dict, dict, dict | None]
+            LDF class map, native class map and class index map (if available).
         """
 
         # TODO: Support loaders inheriting from BaseLoader. Find a way to get class map from them. If its not provided, go though the dataset, which if it inherits from LuxonisDataset (it should), we can get the native classes from there.
@@ -249,7 +252,7 @@ class Inferer:
         elif "coco" in dataloader.dataset.dataset_name:
             native_class_map = get_dataset_class_mapping("coco")
         else:
-            native_class_map = {}
+            native_class_map = kwargs.get("class_mapping", {})
 
         class_index_map = None
         if native_class_map:
@@ -257,12 +260,13 @@ class Inferer:
                 ldf_class_map, native_class_map
             )
 
-        return native_class_map, class_index_map
+        return ldf_class_map, native_class_map, class_index_map
 
     def infer(
         self,
         dataloader: BaseLoader,
         *,
+        dataset_cfg: dict,
         task_cfg: dict,
         parser_cfg: dict,
         metrics_cfg: dict,
@@ -274,6 +278,8 @@ class Inferer:
         ----------
         dataloader : BaseLoader
             Dataloader to run inference on.
+        dataset_cfg : dict
+            Dataset configuration.
         task_cfg : dict
             Task configuration.
         parser_cfg : dict
@@ -298,7 +304,9 @@ class Inferer:
                 f"Available tasks: {list(TASKS_REGISTRY._module_dict)}"
             ) from e
 
-        class_map, class_index_map = self.get_class_mapping(dataloader)
+        ldf_class_map, class_map, class_index_map = self.get_class_mapping(
+            dataloader, **dataset_cfg.get("params", {})
+        )
 
         task.build_parser(**parser_cfg)
         task.build_metrics(**metrics_cfg)
@@ -338,6 +346,7 @@ class Inferer:
                     metric_ctx = task.metric_extra_context(
                         width=self.width,
                         height=self.height,
+                        ldf_class_map=ldf_class_map,
                         class_map=class_map,
                         class_index_map=class_index_map,
                     )

@@ -5,3 +5,5 @@ depthai-nodes
 tabulate
 onnx
 onnxruntime
+torchmetrics
+torch
