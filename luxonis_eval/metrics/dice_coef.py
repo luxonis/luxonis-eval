@@ -102,4 +102,4 @@ class DiceCoefficient(BaseMetric):
         dict[str, float]
             Computed Dice coefficient results.
         """
-        return {"dice_coef": float(self.metric.compute())}
+        return {"Dice Score": float(self.metric.compute())}
