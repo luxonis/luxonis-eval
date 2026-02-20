@@ -1,8 +1,9 @@
 from pathlib import Path
+from typing import Literal
 
-from luxonis_ml.typing import ConfigItem
+from luxonis_ml.typing import BaseModelExtraForbid, ConfigItem, Params
 from luxonis_ml.utils.config import LuxonisConfig
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import field_validator, model_validator
 
 from luxonis_eval.registry import (
     ENGINES_REGISTRY,
@@ -12,7 +13,34 @@ from luxonis_eval.registry import (
 )
 
 
-class DatasetConfig(ConfigItem): ...
+class NormalizeAugmentationConfig(BaseModelExtraForbid):
+    active: bool = False
+    params: Params = {
+        "mean": [0.485, 0.456, 0.406],
+        "std": [0.229, 0.224, 0.225],
+    }
+
+    @field_validator("params", mode="after")
+    def validate_params(cls, v: Params) -> Params:
+        if "mean" not in v or "std" not in v:
+            raise ValueError(
+                "Both 'mean' and 'std' must be specified in params."
+            )
+        if not isinstance(v["mean"], (list | tuple)):
+            v["mean"] = [v["mean"]] * 3
+        if not isinstance(v["std"], (list | tuple)):
+            v["std"] = [v["std"]] * 3
+        return v
+
+
+class PreProcessingConfig(BaseModelExtraForbid):
+    normalize: NormalizeAugmentationConfig
+    color_space: Literal["RGB", "BGR", "GRAY"] = "RGB"
+    keep_aspect_ratio: bool = False
+
+
+class DatasetConfig(ConfigItem):
+    preprocessing: PreProcessingConfig
 
 
 class TaskConfig(ConfigItem):
@@ -45,7 +73,7 @@ class MetricConfig(ConfigItem):
         return v
 
 
-class MetricsConfig(BaseModel):
+class MetricsConfig(BaseModelExtraForbid):
     metrics: list[MetricConfig]
 
 

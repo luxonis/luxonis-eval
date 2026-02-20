@@ -68,22 +68,43 @@ def eval(
         device_ip=cfg.engine_cfg.params.get("device_ip"),  # type: ignore
     )
 
+    augmentation_config = []
+    if cfg.dataset_cfg.preprocessing.normalize.active:
+        augmentation_config.append(
+            {
+                "name": "Normalize",
+                "params": cfg.dataset_cfg.preprocessing.normalize.params,
+            }
+        )
+
     # TODO: This code is placeholder, we need to implement a proper way to handle different loaders based on the dataset and model type. The loaders should always inherit from BaseLoader (from luxonis_ml).
     loader = LuxonisLoader(
         dataset,
         view=cfg.dataset_cfg.params.get("view", ["val"]),  # type: ignore
+        augmentation_config=augmentation_config,
         height=inferer.height,
         width=inferer.width,
-        keep_aspect_ratio=cfg.dataset_cfg.params.get(
-            "keep_aspect_ratio", False
-        ),  # type: ignore
-        color_space="RGB" if cfg.engine_cfg.name == "onnx" else "BGR",
+        keep_aspect_ratio=cfg.dataset_cfg.preprocessing.keep_aspect_ratio,
+        color_space=cfg.dataset_cfg.preprocessing.color_space,
     )
     logger.info(
         f"Dataset loaded with {len(loader)} samples with images of size {inferer.height}x{inferer.width}."
     )
 
-    # TODO: task_name should be determined based on the model type. Check if there is any way to do that automatically, otherwise add it as a parameter to the CLI or config file.
+    if (
+        cfg.engine_cfg.name == "depthai"
+        and cfg.dataset_cfg.preprocessing.normalize.active
+    ):
+        logger.warning(
+            "Normalization is usually part of the model's preprocessing pipeline in DepthAI. Consider disabling normalization in the dataset config."
+        )
+    if (
+        cfg.engine_cfg.name == "depthai"
+        and cfg.dataset_cfg.preprocessing.color_space == "RGB"
+    ):
+        logger.warning(
+            "Color space is set to RGB in the dataset config. DepthAI expects BGR color space."
+        )
     inferer.infer(
         loader,
         dataset_cfg=cfg.dataset_cfg.model_dump(),
