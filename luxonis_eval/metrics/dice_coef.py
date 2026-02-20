@@ -3,45 +3,44 @@ from typing import Any, Literal
 import numpy as np
 import torch
 from depthai_nodes import SegmentationMask
-from torchmetrics.segmentation import MeanIoU
+from torchmetrics.segmentation import DiceScore
 
 from luxonis_eval.metrics import mask_ignore_pixels, remap_prediction_mask
 from luxonis_eval.metrics.base_metric import BaseMetric
 
 
-class MIoU(BaseMetric):
-    """Mean IoU metric."""
+class DiceCoefficient(BaseMetric):
+    """Dice coefficient metric for semantic segmentation."""
 
     def __init__(
         self,
         num_classes: int,
         include_background: bool = False,
-        per_class: bool = True,
-        input_format: Literal["one-hot", "index", "mixed"] = "index",
+        average: Literal["micro", "macro", "weighted", "none"]
+        | None = "micro",
+        input_format: Literal["one-hot", "index"] = "index",
         **kwargs: Any,
     ) -> None:
-        """Initialize the Mean IoU metric.
-
+        """Initialize the Dice coefficient metric.
         Parameters
         ----------
         num_classes : int
             Number of classes in the segmentation task.
-        include_background : bool, default=False
+        include_background : bool, default=True
             Whether to include the background class in the metric calculation.
-        per_class : bool, default=False
-            Whether to compute IoU per class.
-        input_format : Literal["one-hot", "index", "mixed"], default="index"
+        average : Literal["micro", "macro", "weighted", "none"] | None, default="micro"
+            How to average the metric across classes.
+        input_format : Literal["one-hot", "index"], default="index"
             Format of the input data.
         **kwargs : Any
             Additional metric configuration.
         """
-        self.metric = MeanIoU(
+        self.metric = DiceScore(
             num_classes=num_classes,
             include_background=include_background,
-            per_class=per_class,
+            average=average,
             input_format=input_format,
         )
-        self.per_class = per_class
         self.include_background = include_background
         self.input_format = input_format
         self.target_class_map = None
@@ -75,7 +74,6 @@ class MIoU(BaseMetric):
         **kwargs : Any
             Additional context.
         """
-        # Retrieve additional metric-specific options
         if self.target_class_map is None:
             self.target_class_map = kwargs.get("target_class_map", {})
         target_bg = kwargs.get("target_bg")
@@ -97,26 +95,11 @@ class MIoU(BaseMetric):
         )
 
     def _compute_impl(self) -> dict[str, float]:
-        """Compute final mIoU metrics.
+        """Compute final Dice coefficient metrics.
 
         Returns
         -------
         dict[str, float]
-            Computed mIoU results.
+            Computed Dice coefficient results.
         """
-        results = self.metric.compute()
-
-        if not self.per_class:
-            return {"mIoU": float(results)}
-
-        class_names = [
-            self.target_class_map.get(i, f"class_{i}")
-            if self.target_class_map is not None
-            else f"class_{i}"
-            for i in range(len(results))
-        ]
-
-        return {
-            f"mIoU ({name})": float(r)
-            for name, r in zip(class_names, results, strict=True)
-        }
+        return {"dice_coef": float(self.metric.compute())}

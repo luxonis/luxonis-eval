@@ -4,6 +4,7 @@ from typing import Any
 import depthai as dai
 import numpy as np
 
+from luxonis_eval.metrics import bbox_area_from_keypoints, to_coco_kpts_flat
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.utils.coco_utils import COCOStore
 
@@ -39,78 +40,6 @@ class KeypointMeanAveragePrecision(BaseMetric):
     def _reset_impl(self) -> None:
         """Reset internal metric state."""
         self._store.reset()
-
-    @staticmethod
-    def _to_coco_kpts_flat(kpts: np.ndarray) -> list[float]:
-        """Convert keypoints to COCO flat list [x,y,v,...].
-
-        Parameters
-        ----------
-        kpts : np.ndarray
-            Keypoints array, either flat (3K,) or shaped (K,3).
-
-        Returns
-        -------
-        list[float]
-            Flattened keypoints list in COCO format [x,y,v,...].
-        """
-        kpts = np.asarray(kpts, dtype=float)
-
-        if kpts.ndim == 1:
-            if kpts.size % 3 != 0:
-                raise ValueError(
-                    f"Keypoints flat array must have length multiple of 3; got {kpts.size}."
-                )
-            flat = kpts
-        elif kpts.ndim == 2 and kpts.shape[1] == 3:
-            flat = kpts.reshape(-1)
-        else:
-            raise ValueError(
-                f"Unsupported keypoints shape {kpts.shape}; expected (K,3) or (3K,)."
-            )
-
-        return [float(x) for x in flat.tolist()]
-
-    @staticmethod
-    def _bbox_area_from_keypoints(
-        kpts_flat: Sequence[float],
-    ) -> tuple[list[float], float, int]:
-        """Compute [x,y,w,h], area, num_keypoints from COCO flat keypoints.
-
-        Parameters
-        ----------
-        kpts_flat : Sequence[float]
-            Flattened keypoints list in COCO format [x,y,v,...].
-
-        Returns
-        -------
-        tuple[list[float], float, int]
-            Bounding box [x,y,w,h], area, and number of keypoints.
-        """
-        arr = np.asarray(kpts_flat, dtype=float)
-        if arr.size % 3 != 0:
-            raise ValueError("kpts_flat must be a multiple of 3.")
-
-        xs = arr[0::3]
-        ys = arr[1::3]
-        vs = arr[2::3]
-
-        labeled = vs > 0
-        num_kpts = int(np.count_nonzero(labeled))
-
-        if num_kpts == 0:
-            return [0.0, 0.0, 0.0, 0.0], 0.0, 0
-
-        x_min = float(np.min(xs[labeled]))
-        y_min = float(np.min(ys[labeled]))
-        x_max = float(np.max(xs[labeled]))
-        y_max = float(np.max(ys[labeled]))
-
-        w = max(0.0, x_max - x_min)
-        h = max(0.0, y_max - y_min)
-        area = float(w * h)
-
-        return [x_min, y_min, float(w), float(h)], area, num_kpts
 
     def _update_impl(
         self, predictions: dai.ImgDetections, target: Any, **kwargs: Any
@@ -163,8 +92,8 @@ class KeypointMeanAveragePrecision(BaseMetric):
             ):
                 continue
 
-            kpts_flat = self._to_coco_kpts_flat(kpts)
-            bbox, area, num_kpts = self._bbox_area_from_keypoints(kpts_flat)
+            kpts_flat = to_coco_kpts_flat(kpts)
+            bbox, area, num_kpts = bbox_area_from_keypoints(kpts_flat)
 
             self._store.add_gt(
                 {
@@ -204,7 +133,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
             ):
                 continue
 
-            kpts_flat = self._to_coco_kpts_flat(kpts)
+            kpts_flat = to_coco_kpts_flat(kpts)
             if not any(kpts_flat):
                 continue
 
