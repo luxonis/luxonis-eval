@@ -19,16 +19,6 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
         inferer: Inferer,
         *,
         providers: list[str] | None = None,
-        mean: tuple[float, float, float] | float | None = (
-            123.675,
-            116.28,
-            103.53,
-        ),
-        std: tuple[float, float, float] | float | None = (
-            58.395,
-            57.12,
-            57.375,
-        ),
         **kwargs: Any,
     ) -> None:
         """Initialize the ONNX inference engine.
@@ -39,18 +29,12 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
             Inferer instance providing model information.
         providers : list[str] | None, optional
             ONNX Runtime execution providers.
-        mean : tuple[float, float, float] | float | None, optional
-            Mean used for input normalization.
-        std : tuple[float, float, float] | float | None, optional
-            Standard deviation used for input normalization.
         **kwargs : Any
             Additional engine configuration.
         """
         super().__init__(**kwargs)
         self.inferer = inferer
         self.providers = providers or ["CPUExecutionProvider"]
-        self.mean = np.array(mean, dtype=np.float32)
-        self.std = np.array(std, dtype=np.float32)
 
     def setup(self) -> None:
         """Initialize the ONNX Runtime session."""
@@ -75,9 +59,9 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
             Raw ONNX Runtime output.
         """
         self._visualization_frame = img.copy()
-        x = img.astype(np.float32)
-        x = (x - self.mean) / self.std
-        x = np.transpose(x, (2, 0, 1))
+        if img.dtype != np.float32:
+            img = img.astype(np.float32)
+        x = np.transpose(img, (2, 0, 1))
         x = x[None, :, :, :]
         return self._session.run(None, {self._input_name: x})
 
