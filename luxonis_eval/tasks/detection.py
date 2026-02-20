@@ -1,7 +1,7 @@
 from typing import Any
 
+from luxonis_eval.metrics.metrics_utils import yolo_norm_to_coco_xywh
 from luxonis_eval.tasks.base_task import BaseInferTask
-from luxonis_eval.utils.utils import yolo_norm_to_coco_xywh
 
 
 class DetectionTask(BaseInferTask):

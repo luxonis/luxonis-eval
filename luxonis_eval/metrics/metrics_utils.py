@@ -1,6 +1,69 @@
 from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
+from pycocotools import mask as mask_utils
+
+
+def yolo_norm_to_coco_xywh(
+    target: np.ndarray, img_w: int, img_h: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Convert YOLO-normalized labels to COCO xywh boxes.
+
+    Parameters
+    ----------
+    target : np.ndarray
+        Array of shape ``(N, 5)`` as ``(class_id, x_center, y_center, w, h)``.
+    img_w : int
+        Image width in pixels.
+    img_h : int
+        Image height in pixels.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        Class indices and COCO-format boxes in pixels.
+    """
+    target = np.asarray(target, dtype=np.float32)
+    if target.size == 0:
+        return np.zeros((0,), dtype=np.int64), np.zeros(
+            (0, 4), dtype=np.float32
+        )
+
+    cls_idc = target[:, 0].astype(np.int64)
+    xc = target[:, 1] * img_w
+    yc = target[:, 2] * img_h
+    bw = target[:, 3] * img_w
+    bh = target[:, 4] * img_h
+    boxes_xywh = np.stack([xc, yc, bw, bh], axis=-1)
+    return cls_idc, boxes_xywh
+
+
+def binary_mask_to_rle(binary_mask: np.ndarray) -> Any:
+    """Convert a binary mask to COCO RLE format.
+
+    Parameters
+    ----------
+    binary_mask : np.ndarray
+        Binary mask of shape (H, W).
+
+    Returns
+    -------
+    dict[str, Any]
+        COCO RLE representation.
+    """
+    m = np.asfortranarray(binary_mask.astype(np.uint8))
+    rle = mask_utils.encode(m)
+    rle["counts"] = rle["counts"].decode("utf-8")  # type: ignore
+    return rle
+
+
+def area_from_rle(rle: Any) -> float:
+    return float(mask_utils.area(rle))
+
+
+def bbox_from_rle(rle: Any) -> list[float]:
+    return [float(x) for x in mask_utils.toBbox(rle)]
 
 
 def remap_prediction_mask(

@@ -5,8 +5,11 @@ import torch
 from depthai_nodes import SegmentationMask
 from torchmetrics.segmentation import MeanIoU
 
-from luxonis_eval.metrics import mask_ignore_pixels, remap_prediction_mask
 from luxonis_eval.metrics.base_metric import BaseMetric
+from luxonis_eval.metrics.metrics_utils import (
+    mask_ignore_pixels,
+    remap_prediction_mask,
+)
 
 
 class MIoU(BaseMetric):

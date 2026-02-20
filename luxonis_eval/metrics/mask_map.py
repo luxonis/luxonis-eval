@@ -5,12 +5,12 @@ import depthai as dai
 import numpy as np
 
 from luxonis_eval.metrics.base_metric import BaseMetric
-from luxonis_eval.utils.coco_utils import COCOStore
-from luxonis_eval.utils.utils import (
+from luxonis_eval.metrics.metrics_utils import (
     area_from_rle,
     bbox_from_rle,
     binary_mask_to_rle,
 )
+from luxonis_eval.utils.coco_utils import COCOStore
 
 
 class MaskMeanAveragePrecision(BaseMetric):

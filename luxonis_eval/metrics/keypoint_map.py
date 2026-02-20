@@ -4,8 +4,11 @@ from typing import Any
 import depthai as dai
 import numpy as np
 
-from luxonis_eval.metrics import bbox_area_from_keypoints, to_coco_kpts_flat
 from luxonis_eval.metrics.base_metric import BaseMetric
+from luxonis_eval.metrics.metrics_utils import (
+    bbox_area_from_keypoints,
+    to_coco_kpts_flat,
+)
 from luxonis_eval.utils.coco_utils import COCOStore
 
 
