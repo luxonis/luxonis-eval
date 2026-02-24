@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
+from depthai_nodes import Classifications
 
 from luxonis_eval.metrics.base_metric import BaseMetric
 
@@ -38,13 +39,13 @@ class TopKAccuracy(BaseMetric):
         self.total = 0
 
     def _update_impl(
-        self, predictions: Any, target: Any, **kwargs: Any
+        self, predictions: Classifications, target: Any, **kwargs: Any
     ) -> None:
         """Update internal metric state.
 
         Parameters
         ----------
-        predictions : Any
+        predictions : Classifications
             Model predictions (logits or probabilities).
         target : Any
             Ground-truth labels.
@@ -53,9 +54,11 @@ class TopKAccuracy(BaseMetric):
         """
         cls_target = target[self.metric_keys()[0]]
         class_index_map = kwargs.get("class_index_map")
+        class_map = kwargs.get("class_map")
+
         topk = tuple(kwargs.get("topk", self.topk))
 
-        scores = np.asarray(predictions)
+        pred_classes = predictions.classes
         tgt = np.asarray(cls_target)
 
         target_idx = (
@@ -65,7 +68,7 @@ class TopKAccuracy(BaseMetric):
             target_idx = int(class_index_map[target_idx])
 
         max_k = max(topk)
-        top_idx = np.argsort(scores)[-max_k:][::-1]
+        top_idx = [class_map[pred_classes[i]] for i in range(max_k)]  # type: ignore
 
         for k in topk:
             if k not in self.correct_at_k:

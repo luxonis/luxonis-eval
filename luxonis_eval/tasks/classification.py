@@ -51,5 +51,8 @@ class ClassificationTask(BaseInferTask):
         """
         # Retrieve additional task-specific options
         class_index_map = kwargs.get("class_index_map", {})
+        class_map = kwargs.get("class_map", {})
 
-        return {"class_index_map": class_index_map}
+        class_map = {v: k for k, v in class_map.items()}
+
+        return {"class_map": class_map, "class_index_map": class_index_map}

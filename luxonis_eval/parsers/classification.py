@@ -2,6 +2,8 @@ from typing import Any
 
 import depthai as dai
 import numpy as np
+from depthai_nodes import Classifications
+from depthai_nodes.message.creators import create_classification_message
 from loguru import logger
 
 from luxonis_eval.parsers.base_parser import BaseParser
@@ -40,9 +42,10 @@ class ClassificationParser(BaseParser):
         self,
         raw_output: dai.NNData | list[np.ndarray],
         *,
+        class_map: dict[int, str],
         apply_softmax: bool = False,
         **kwargs: Any,
-    ) -> np.ndarray:
+    ) -> Classifications:
         """Parse backend output into class scores.
 
         Parameters
@@ -56,9 +59,10 @@ class ClassificationParser(BaseParser):
 
         Returns
         -------
-        np.ndarray
+        Classifications
             Classification scores.
         """
+        classes = list(class_map.values())
         if isinstance(raw_output, dai.NNData):
             layer_names = raw_output.getAllLayerNames()
             logger.debug(f"Processing output with layers: {layer_names}")
@@ -76,4 +80,4 @@ class ClassificationParser(BaseParser):
         if apply_softmax:
             scores = self.softmax(scores)
 
-        return scores
+        return create_classification_message(classes=classes, scores=scores)
