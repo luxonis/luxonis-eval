@@ -111,6 +111,7 @@ def eval(
         task_cfg=cfg.task_cfg.model_dump(),
         parser_cfg=cfg.parser_cfg.model_dump(),
         metrics_cfg=cfg.metrics_cfg.model_dump(),
+        visualizer_cfg=cfg.visualizer_cfg.model_dump(),
         engine_cfg=cfg.engine_cfg.model_dump(),
     )
 

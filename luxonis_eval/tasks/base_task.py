@@ -9,6 +9,7 @@ from luxonis_eval.registry import (
     METRICS_REGISTRY,
     PARSERS_REGISTRY,
     TASKS_REGISTRY,
+    VISUALIZERS_REGISTRY,
     from_registry,
 )
 
@@ -99,6 +100,37 @@ class BaseInferTask(
             raise ValueError(
                 f"Unknown parser: {parser_name}. "
                 f"Available parsers: {list(PARSERS_REGISTRY._module_dict)}"
+            ) from e
+
+    def build_visualizer(self, **kwargs: Any) -> None:
+        """Create the visualizer instance.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Visualizer configuration.
+
+        Returns
+        -------
+        Any
+            Visualizer instance.
+        """
+        visualizer_name = kwargs.get("name")
+        if not visualizer_name:
+            raise ValueError(
+                "Visualizer configuration must include a 'name' key."
+            )
+        try:
+            self.visualizer = from_registry(
+                VISUALIZERS_REGISTRY,
+                visualizer_name,
+                **kwargs.get("params", {}),
+            )
+            logger.info(f"{visualizer_name} visualizer initialized.")
+        except KeyError as e:
+            raise ValueError(
+                f"Unknown visualizer: {visualizer_name}. "
+                f"Available visualizers: {list(VISUALIZERS_REGISTRY._module_dict)}"
             ) from e
 
     @abstractmethod

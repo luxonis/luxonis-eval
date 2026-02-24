@@ -10,6 +10,7 @@ from luxonis_eval.registry import (
     METRICS_REGISTRY,
     PARSERS_REGISTRY,
     TASKS_REGISTRY,
+    VISUALIZERS_REGISTRY,
 )
 
 
@@ -77,6 +78,18 @@ class MetricsConfig(BaseModelExtraForbid):
     metrics: list[MetricConfig]
 
 
+class VisualizerConfig(ConfigItem):
+    visualize: bool = True
+
+    @field_validator("name", mode="after")
+    def validate_name(cls, v: str) -> str:
+        if v not in VISUALIZERS_REGISTRY:
+            raise ValueError(
+                f"Invalid visualizer name: {v}. Must be one of {list(VISUALIZERS_REGISTRY._module_dict)}."
+            )
+        return v
+
+
 class EngineConfig(ConfigItem):
     model_path: str
 
@@ -114,4 +127,5 @@ class EvalConfig(LuxonisConfig):
     task_cfg: TaskConfig
     parser_cfg: ParserConfig
     metrics_cfg: MetricsConfig
+    visualizer_cfg: VisualizerConfig
     engine_cfg: EngineConfig

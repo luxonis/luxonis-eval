@@ -270,6 +270,7 @@ class Inferer:
         task_cfg: dict,
         parser_cfg: dict,
         metrics_cfg: dict,
+        visualizer_cfg: dict,
         engine_cfg: dict,
     ) -> None:
         """Run inference and compute metrics on a dataloader.
@@ -285,7 +286,9 @@ class Inferer:
         parser_cfg : dict
             Parser configuration.
         metrics_cfg : dict
-            Metric configuration.
+            Metrics configuration.
+        visualizer_cfg : dict
+            Visualizer configuration.
         engine_cfg : dict
             Engine configuration.
         """
@@ -311,6 +314,8 @@ class Inferer:
         task.build_parser(**parser_cfg)
         task.build_metrics(**metrics_cfg)
         task.build_throughput_metric()
+        if visualizer_cfg.get("visualize"):
+            task.build_visualizer(**visualizer_cfg)
 
         infer_engine = from_registry(
             ENGINES_REGISTRY,
@@ -357,6 +362,13 @@ class Inferer:
                             **metric_ctx,
                         )
                     task.throughput_metric.update()
+
+                    if visualizer_cfg.get("visualize"):
+                        task.visualizer.visualize(
+                            predictions,
+                            infer_engine.vis_frame(),
+                            **visualizer_cfg.get("params", {}),
+                        )
 
                     progress.update(ptask, advance=1)
         finally:

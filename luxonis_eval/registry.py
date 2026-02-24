@@ -13,6 +13,9 @@ ENGINES_REGISTRY: Registry[type["lxeval.BaseEngine"]] = Registry(
 METRICS_REGISTRY: Registry[type["lxeval.BaseMetric"]] = Registry(
     name="metrics"
 )
+VISUALIZERS_REGISTRY: Registry[type["lxeval.BaseVisualizer"]] = Registry(
+    name="visualizers"
+)
 PARSERS_REGISTRY: Registry[type["lxeval.BaseParser"]] = Registry(
     name="parsers"
 )
