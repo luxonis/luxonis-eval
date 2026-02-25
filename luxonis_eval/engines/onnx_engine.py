@@ -1,14 +1,11 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import onnxruntime as ort
 
 from luxonis_eval.engines.base_engine import BaseEngine
-
-if TYPE_CHECKING:
-    from luxonis_eval.inferer import Inferer
+from luxonis_eval.utils.utils import get_onnx_input_info
 
 
 class OnnxEngine(BaseEngine, register_name="onnx"):
@@ -16,7 +13,7 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
 
     def __init__(
         self,
-        inferer: Inferer,
+        model_path: str,
         *,
         providers: list[str] | None = None,
         **kwargs: Any,
@@ -25,25 +22,61 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
 
         Parameters
         ----------
-        inferer : Inferer
-            Inferer instance providing model information.
+        model_path : str
+            Path to the ONNX model file.
         providers : list[str] | None, optional
             ONNX Runtime execution providers.
         **kwargs : Any
             Additional engine configuration.
         """
-        super().__init__(**kwargs)
-        self.inferer = inferer
+        self.model_path = (
+            model_path if isinstance(model_path, Path) else Path(model_path)
+        )
         self.providers = providers or ["CPUExecutionProvider"]
+        self.setup()
+        super().__init__(**kwargs)
 
     def setup(self) -> None:
         """Initialize the ONNX Runtime session."""
-        if self.inferer.model_path is None:
+        if self.model_path is None:
             raise ValueError("ONNX path is not provided for ONNX inference.")
         self._session = ort.InferenceSession(
-            str(self.inferer.model_path), providers=self.providers
+            str(self.model_path), providers=self.providers
         )
         self._input_name = self._session.get_inputs()[0].name
+
+    def get_input_shape(self) -> tuple[int, int]:
+        """Get model input width and height.
+
+        Returns
+        -------
+        tuple[int, int]
+            Input width and height.
+        """
+        input_info = get_onnx_input_info(Path(self.model_path))
+
+        if not input_info or "shape" not in input_info:
+            raise ValueError("Invalid input shape information.")
+
+        shape = input_info["shape"]
+        if len(shape) == 4:
+            height, width = shape[2], shape[3]
+        else:
+            raise ValueError(
+                f"Unexpected input shape for ONNX: {shape}. Expected input shape in NCHW format."
+            )
+
+        return width, height
+
+    def get_platform_name(self) -> str:
+        """Get the platform name for ONNX engine.
+
+        Returns
+        -------
+        str
+            Platform name.
+        """
+        return "Host CPU/GPU"
 
     def infer_once(self, img: np.ndarray) -> Any:
         """Run inference on a single image using ONNX Runtime.

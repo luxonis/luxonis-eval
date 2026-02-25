@@ -1,14 +1,27 @@
 from importlib.metadata import version
-from pathlib import Path
 from typing import Literal
 
+import numpy as np
 from cyclopts import App, Group
 from loguru import logger
 from luxonis_ml.data import LuxonisDataset
-from luxonis_ml.data.loaders import LuxonisLoader
+from luxonis_ml.data.loaders import BaseLoader, LuxonisLoader
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
-from luxonis_eval.inferer import Inferer
+from luxonis_eval import BaseEngine
+from luxonis_eval.registry import (
+    ENGINES_REGISTRY,
+    TASKS_REGISTRY,
+    from_registry,
+)
 from luxonis_eval.utils.config import EvalConfig
+from luxonis_eval.utils.utils import get_class_mapping, make_report_table
 
 app = App(
     help="Luxonis Eval CLI",
@@ -17,6 +30,200 @@ app = App(
 app.meta.group_parameters = Group("Global Parameters", sort_key=0)
 app["--help"].group = app.meta.group_parameters
 app["--version"].group = app.meta.group_parameters
+
+
+def eval_setup(eval_cfg: EvalConfig) -> tuple[BaseEngine, BaseLoader]:
+    """Setup evaluation configuration.
+
+    Parameters
+    ----------
+    eval_cfg : EvalConfig
+        Evaluation configuration.
+
+    Returns
+    -------
+    tuple[BaseEngine, BaseLoader]
+        The initialized inference engine and the initialized dataloader.
+    """
+    logger.info("Setting up evaluation configuration.")
+
+    # -------------------------------------------------------------------------
+    # Inference engine initialization
+    # -------------------------------------------------------------------------
+    infer_engine = from_registry(
+        ENGINES_REGISTRY,
+        eval_cfg.engine_cfg.name,
+        eval_cfg.engine_cfg.model_path,
+        **eval_cfg.engine_cfg.params,
+    )
+
+    # -------------------------------------------------------------------------
+    # Dataset and dataloader initialization
+    # -------------------------------------------------------------------------
+    # TODO: This code is placeholder, we need to implement a proper way to handle different datasets. The datasets should always inherit from BaseDataset (from luxonis_ml).
+    dataset = LuxonisDataset(eval_cfg.dataset_cfg.name)
+    augmentation_config = []
+    if eval_cfg.dataset_cfg.preprocessing.normalize.active:
+        augmentation_config.append(
+            {
+                "name": "Normalize",
+                "params": eval_cfg.dataset_cfg.preprocessing.normalize.params,
+            }
+        )
+    # TODO: This code is placeholder, we need to implement a proper way to handle different loaders based on the dataset and model type. The loaders should always inherit from BaseLoader (from luxonis_ml).
+    dataloader = LuxonisLoader(
+        dataset,
+        view=eval_cfg.dataset_cfg.params.get("view", ["val"]),  # type: ignore
+        augmentation_config=augmentation_config,
+        height=infer_engine.height,
+        width=infer_engine.width,
+        keep_aspect_ratio=eval_cfg.dataset_cfg.preprocessing.keep_aspect_ratio,
+        color_space=eval_cfg.dataset_cfg.preprocessing.color_space,
+    )
+    logger.info(
+        f"Dataset loaded with {len(dataloader)} samples with images of size {infer_engine.height}x{infer_engine.width}."
+    )
+
+    # -------------------------------------------------------------------------
+    # Configuration compatibility checks
+    # -------------------------------------------------------------------------
+    if (
+        eval_cfg.engine_cfg.name == "depthai"
+        and eval_cfg.dataset_cfg.preprocessing.normalize.active
+    ):
+        logger.warning(
+            "Normalization is usually part of the model's preprocessing pipeline in DepthAI. Consider disabling normalization in the dataset config."
+        )
+    if (
+        eval_cfg.engine_cfg.name == "depthai"
+        and eval_cfg.dataset_cfg.preprocessing.color_space == "RGB"
+    ):
+        logger.warning(
+            "Color space is set to RGB in the dataset config. DepthAI expects BGR color space."
+        )
+
+    return infer_engine, dataloader
+
+
+def eval_run(
+    eval_cfg: EvalConfig,
+    infer_engine: BaseEngine,
+    dataloader: BaseLoader,
+) -> None:
+    """Run evaluation with the given configuration and dataloader.
+
+    Parameters
+    ----------
+    eval_cfg : EvalConfig
+        Evaluation configuration.
+    infer_engine : BaseEngine
+        The inference engine to use for evaluation.
+    dataloader : BaseLoader
+        The dataloader to use for evaluation.
+    """
+    # -------------------------------------------------------------------------
+    # Task initialization
+    # -------------------------------------------------------------------------
+    task_name = eval_cfg.task_cfg.name
+    if not task_name:
+        raise ValueError("Task configuration must include a 'name' key.")
+
+    try:
+        task = from_registry(
+            TASKS_REGISTRY, task_name, **eval_cfg.task_cfg.params
+        )
+        logger.info(f"Loading inference task: {task_name}")
+    except KeyError as e:
+        raise ValueError(
+            f"Unknown task: {task_name}. "
+            f"Available tasks: {list(TASKS_REGISTRY._module_dict)}"
+        ) from e
+
+    ldf_class_map, class_map, class_index_map = get_class_mapping(
+        dataloader, **eval_cfg.dataset_cfg.params
+    )
+
+    # -------------------------------------------------------------------------
+    # Parser, Metrics, and Visualizer initialization
+    # -------------------------------------------------------------------------
+    task.build_parser(**eval_cfg.parser_cfg.model_dump())
+    task.build_metrics(**eval_cfg.metrics_cfg.model_dump())
+    task.build_throughput_metric()
+    if eval_cfg.visualizer_cfg and eval_cfg.visualizer_cfg.visualize:
+        task.build_visualizer(**eval_cfg.visualizer_cfg.model_dump())
+
+    backend: str = eval_cfg.engine_cfg.name
+
+    # -------------------------------------------------------------------------
+    # Main evaluation loop
+    # -------------------------------------------------------------------------
+    try:
+        with Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+        ) as progress:
+            ptask = progress.add_task(
+                f"Running {backend.upper()} inference ({task.__class__.__name__})...",
+                total=len(dataloader),
+            )
+
+            for sample in dataloader:
+                img: np.ndarray = sample[0]  # type: ignore
+                target = sample[1]
+
+                raw_output = infer_engine.infer_once(img)
+                predictions = task.parse_predictions(
+                    raw_output,
+                    class_map=class_map,
+                    **eval_cfg.parser_cfg.params,
+                )
+
+                metric_ctx = task.metric_extra_context(
+                    width=infer_engine.width,
+                    height=infer_engine.height,
+                    ldf_class_map=ldf_class_map,
+                    class_map=class_map,
+                    class_index_map=class_index_map,
+                )
+                for metric in task.metrics:
+                    metric.update(
+                        predictions=predictions,
+                        target=target,
+                        **metric_ctx,
+                    )
+                task.throughput_metric.update()
+
+                if (
+                    eval_cfg.visualizer_cfg
+                    and eval_cfg.visualizer_cfg.visualize
+                ):
+                    task.visualizer.visualize(
+                        predictions,
+                        infer_engine.vis_frame(),
+                        **eval_cfg.visualizer_cfg.params,
+                    )
+
+                progress.update(ptask, advance=1)
+    finally:
+        infer_engine.teardown()
+
+    # -------------------------------------------------------------------------
+    # Results computation and reporting
+    # -------------------------------------------------------------------------
+    results = [metric.compute() for metric in task.metrics]
+    tp = task.throughput_metric.compute()
+
+    table = make_report_table(
+        backend=backend,
+        task_name=task.__class__.__name__,
+        device=infer_engine.platform_name,
+        tp=tp,
+        results=results,
+    )
+
+    logger.info(f"\n{table}")
 
 
 @app.command()
@@ -57,63 +264,11 @@ def eval(
     if device_ip is not None:
         overrides["device_ip"] = device_ip
 
-    cfg = EvalConfig.get_config(cfg=config, overrides=overrides)
+    eval_cfg = EvalConfig.get_config(cfg=config, overrides=overrides)
 
-    # TODO: This code is placeholder, we need to implement a proper way to handle different datasets. The datasets should always inherit from BaseDataset (from luxonis_ml).
-    dataset = LuxonisDataset(cfg.dataset_cfg.name)
+    infer_engine, dataloader = eval_setup(eval_cfg)
 
-    inferer = Inferer(
-        model_path=Path(cfg.engine_cfg.model_path),
-        backend=cfg.engine_cfg.name,
-        device_ip=cfg.engine_cfg.params.get("device_ip"),  # type: ignore
-    )
-
-    augmentation_config = []
-    if cfg.dataset_cfg.preprocessing.normalize.active:
-        augmentation_config.append(
-            {
-                "name": "Normalize",
-                "params": cfg.dataset_cfg.preprocessing.normalize.params,
-            }
-        )
-
-    # TODO: This code is placeholder, we need to implement a proper way to handle different loaders based on the dataset and model type. The loaders should always inherit from BaseLoader (from luxonis_ml).
-    loader = LuxonisLoader(
-        dataset,
-        view=cfg.dataset_cfg.params.get("view", ["val"]),  # type: ignore
-        augmentation_config=augmentation_config,
-        height=inferer.height,
-        width=inferer.width,
-        keep_aspect_ratio=cfg.dataset_cfg.preprocessing.keep_aspect_ratio,
-        color_space=cfg.dataset_cfg.preprocessing.color_space,
-    )
-    logger.info(
-        f"Dataset loaded with {len(loader)} samples with images of size {inferer.height}x{inferer.width}."
-    )
-
-    if (
-        cfg.engine_cfg.name == "depthai"
-        and cfg.dataset_cfg.preprocessing.normalize.active
-    ):
-        logger.warning(
-            "Normalization is usually part of the model's preprocessing pipeline in DepthAI. Consider disabling normalization in the dataset config."
-        )
-    if (
-        cfg.engine_cfg.name == "depthai"
-        and cfg.dataset_cfg.preprocessing.color_space == "RGB"
-    ):
-        logger.warning(
-            "Color space is set to RGB in the dataset config. DepthAI expects BGR color space."
-        )
-    inferer.infer(
-        loader,
-        dataset_cfg=cfg.dataset_cfg.model_dump(),
-        task_cfg=cfg.task_cfg.model_dump(),
-        parser_cfg=cfg.parser_cfg.model_dump(),
-        metrics_cfg=cfg.metrics_cfg.model_dump(),
-        visualizer_cfg=cfg.visualizer_cfg.model_dump(),
-        engine_cfg=cfg.engine_cfg.model_dump(),
-    )
+    eval_run(eval_cfg, infer_engine, dataloader)
 
 
 if __name__ == "__main__":

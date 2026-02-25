@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import onnxruntime as ort
+from luxonis_ml.data.loaders import BaseLoader, LuxonisLoader
 from tabulate import tabulate
 
 
@@ -23,33 +24,6 @@ def suppress_stdout() -> Iterator[None]:
     finally:
         os.dup2(saved_fd, fd)
         os.close(saved_fd)
-
-
-def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:
-    """Retrieve ONNX model input information.
-
-    Parameters
-    ----------
-    onnx_path : Path
-        Path to the ONNX model file.
-
-    Returns
-    -------
-    dict[str, Any]
-        Dictionary containing input information.
-    """
-    if onnx_path is None:
-        raise ValueError("ONNX model path must be provided.")
-
-    session = ort.InferenceSession(
-        str(onnx_path), providers=["CPUExecutionProvider"]
-    )
-
-    input = session.get_inputs()[0]
-    return {
-        "shape": input.shape,
-        "name": input.name,
-    }
 
 
 def section(
@@ -134,6 +108,76 @@ def make_report_table(
         colalign=("left", "right"),
         disable_numparse=True,
     )
+
+
+def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:
+    """Retrieve ONNX model input information.
+
+    Parameters
+    ----------
+    onnx_path : Path
+        Path to the ONNX model file.
+
+    Returns
+    -------
+    dict[str, Any]
+        Dictionary containing input information.
+    """
+    if onnx_path is None:
+        raise ValueError("ONNX model path must be provided.")
+
+    session = ort.InferenceSession(
+        str(onnx_path), providers=["CPUExecutionProvider"]
+    )
+
+    input = session.get_inputs()[0]
+    return {
+        "shape": input.shape,
+        "name": input.name,
+    }
+
+
+def get_class_mapping(
+    dataloader: BaseLoader,
+    **kwargs,
+) -> tuple[dict, dict, dict | None]:
+    """Get native class map and optional class index mapping.
+
+    Parameters
+    ----------
+    dataloader : BaseLoader
+        Dataloader to extract class mappings from.
+    **kwargs
+        Additional dataset-specific parameters.
+
+    Returns
+    -------
+    tuple[dict, dict, dict | None]
+        LDF class map, native class map and class index map (if available).
+    """
+
+    # TODO: Support loaders inheriting from BaseLoader. Find a way to get class map from them. If its not provided, go though the dataset, which if it inherits from LuxonisDataset (it should), we can get the native classes from there.
+    if isinstance(dataloader, LuxonisLoader):
+        ldf_class_map = dataloader.classes[""]
+        ldf_class_map = {v: k for k, v in ldf_class_map.items()}
+    else:
+        raise NotImplementedError("Only LuxonisLoader is currently supported.")
+
+    # TODO: Find a better way to determine dataset type/name because the dataset name can be arbitrary and may not contain 'imagenet' or 'coco'.
+    if "imagenet" in dataloader.dataset.dataset_name:
+        native_class_map = get_dataset_class_mapping("imagenet")
+    elif "coco" in dataloader.dataset.dataset_name:
+        native_class_map = get_dataset_class_mapping("coco")
+    else:
+        native_class_map = kwargs.get("class_mapping", {})
+
+    class_index_map = None
+    if native_class_map:
+        class_index_map = get_class_index_mapping(
+            ldf_class_map, native_class_map
+        )
+
+    return ldf_class_map, native_class_map, class_index_map
 
 
 def get_dataset_class_mapping(

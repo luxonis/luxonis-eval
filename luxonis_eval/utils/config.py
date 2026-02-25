@@ -127,5 +127,5 @@ class EvalConfig(LuxonisConfig):
     task_cfg: TaskConfig
     parser_cfg: ParserConfig
     metrics_cfg: MetricsConfig
-    visualizer_cfg: VisualizerConfig
+    visualizer_cfg: VisualizerConfig | None = None
     engine_cfg: EngineConfig

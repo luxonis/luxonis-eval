@@ -19,14 +19,32 @@ class BaseEngine(
         """Initialize the engine.
 
         Parameters
-        ---------
+        ----------
         **kwargs : Any
             Engine basic configuration.
         """
+        self.width, self.height = self.get_input_shape()
+        if self.width is None or self.height is None:
+            raise ValueError(
+                "Invalid input shape: width and height must be defined."
+            )
+        self.platform_name = self.get_platform_name()
+        if self.platform_name is None:
+            raise ValueError("Platform name must be defined.")
 
     @abstractmethod
     def setup(self) -> None:
         """Initialize backend resources."""
+        ...
+
+    @abstractmethod
+    def get_input_shape(self) -> tuple[int, int]:
+        """Get the input shape (width, height) from the loaded model."""
+        ...
+
+    @abstractmethod
+    def get_platform_name(self) -> str:
+        """Get the platform name."""
         ...
 
     @abstractmethod
