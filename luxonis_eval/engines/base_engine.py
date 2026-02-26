@@ -15,14 +15,17 @@ class BaseEngine(
 ):
     """Abstract base class for inference engines."""
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, model_path: str, **kwargs: Any) -> None:
         """Initialize the engine.
 
         Parameters
         ----------
+        model_path : str
+            Path to the model file.
         **kwargs : Any
             Engine basic configuration.
         """
+        self.model_path = model_path
         self.width, self.height = self.get_input_shape()
         if self.width is None or self.height is None:
             raise ValueError(

@@ -1,11 +1,13 @@
 from pathlib import Path
 from typing import Literal
 
+from luxonis_ml.data import BucketStorage, LuxonisDataset
 from luxonis_ml.typing import BaseModelExtraForbid, ConfigItem, Params
 from luxonis_ml.utils.config import LuxonisConfig
 from pydantic import field_validator, model_validator
 
 from luxonis_eval.registry import (
+    DATALOADERS_REGISTRY,
     ENGINES_REGISTRY,
     METRICS_REGISTRY,
     PARSERS_REGISTRY,
@@ -40,8 +42,36 @@ class PreProcessingConfig(BaseModelExtraForbid):
     keep_aspect_ratio: bool = False
 
 
-class DatasetConfig(ConfigItem):
+class DataLoaderConfig(ConfigItem):
     preprocessing: PreProcessingConfig
+
+    @field_validator("name", mode="after")
+    def validate_name(cls, v: str) -> str:
+        if v not in DATALOADERS_REGISTRY:
+            raise ValueError(
+                f"Invalid dataloader name: {v}. Must be one of {list(DATALOADERS_REGISTRY._module_dict)}."
+            )
+        return v
+
+    @model_validator(mode="after")
+    def _validate_dataset(self) -> "DataLoaderConfig":
+        dataset_name = self.params.get("dataset_name")
+        if self.name == "LuxonisLoader":
+            if dataset_name is None or dataset_name == "":
+                raise ValueError(
+                    "LuxonisLoader requires the 'dataset_name' parameter to be set."
+                )
+
+            bucket_storage = self.params.get("bucket_storage", "local")
+            luxonis_datasets = LuxonisDataset.list_datasets(
+                bucket_storage=BucketStorage(bucket_storage)
+            )
+
+            if dataset_name not in luxonis_datasets:
+                raise ValueError(
+                    f"Dataset '{dataset_name}' does not exist in '{bucket_storage}' bucket storage. Available datasets: {luxonis_datasets}"
+                )
+        return self
 
 
 class TaskConfig(ConfigItem):
@@ -123,7 +153,7 @@ class EngineConfig(ConfigItem):
 class EvalConfig(LuxonisConfig):
     """Configuration for evaluation."""
 
-    dataset_cfg: DatasetConfig
+    dataloader_cfg: DataLoaderConfig
     task_cfg: TaskConfig
     parser_cfg: ParserConfig
     metrics_cfg: MetricsConfig

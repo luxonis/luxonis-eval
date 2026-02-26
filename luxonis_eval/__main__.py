@@ -1,3 +1,4 @@
+import types
 from importlib.metadata import version
 from typing import Literal
 
@@ -5,7 +6,7 @@ import numpy as np
 from cyclopts import App, Group
 from loguru import logger
 from luxonis_ml.data import LuxonisDataset
-from luxonis_ml.data.loaders import BaseLoader, LuxonisLoader
+from luxonis_ml.data.loaders import LuxonisLoader
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -14,8 +15,9 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from luxonis_eval import BaseEngine
+from luxonis_eval import BaseEngine, BaseEvalLoader
 from luxonis_eval.registry import (
+    DATALOADERS_REGISTRY,
     ENGINES_REGISTRY,
     TASKS_REGISTRY,
     from_registry,
@@ -32,7 +34,9 @@ app["--help"].group = app.meta.group_parameters
 app["--version"].group = app.meta.group_parameters
 
 
-def eval_setup(eval_cfg: EvalConfig) -> tuple[BaseEngine, BaseLoader]:
+def eval_setup(
+    eval_cfg: EvalConfig,
+) -> tuple[BaseEngine, BaseEvalLoader | LuxonisLoader]:
     """Setup evaluation configuration.
 
     Parameters
@@ -42,7 +46,7 @@ def eval_setup(eval_cfg: EvalConfig) -> tuple[BaseEngine, BaseLoader]:
 
     Returns
     -------
-    tuple[BaseEngine, BaseLoader]
+    tuple[BaseEngine, BaseEvalLoader | LuxonisLoader]
         The initialized inference engine and the initialized dataloader.
     """
     logger.info("Setting up evaluation configuration.")
@@ -50,53 +54,78 @@ def eval_setup(eval_cfg: EvalConfig) -> tuple[BaseEngine, BaseLoader]:
     # -------------------------------------------------------------------------
     # Inference engine initialization
     # -------------------------------------------------------------------------
-    infer_engine = from_registry(
-        ENGINES_REGISTRY,
-        eval_cfg.engine_cfg.name,
-        eval_cfg.engine_cfg.model_path,
-        **eval_cfg.engine_cfg.params,
-    )
+    try:
+        infer_engine = from_registry(
+            ENGINES_REGISTRY,
+            eval_cfg.engine_cfg.name,
+            eval_cfg.engine_cfg.model_path,
+            **eval_cfg.engine_cfg.params,
+        )
+    except KeyError as e:
+        raise ValueError(
+            f"Unknown engine: {eval_cfg.engine_cfg.name}. "
+            f"Available engines: {list(ENGINES_REGISTRY._module_dict)}"
+        ) from e
 
     # -------------------------------------------------------------------------
     # Dataset and dataloader initialization
     # -------------------------------------------------------------------------
-    # TODO: This code is placeholder, we need to implement a proper way to handle different datasets. The datasets should always inherit from BaseDataset (from luxonis_ml).
-    dataset = LuxonisDataset(eval_cfg.dataset_cfg.name)
-    augmentation_config = []
-    if eval_cfg.dataset_cfg.preprocessing.normalize.active:
-        augmentation_config.append(
-            {
-                "name": "Normalize",
-                "params": eval_cfg.dataset_cfg.preprocessing.normalize.params,
-            }
+    try:
+        if eval_cfg.dataloader_cfg.name == "LuxonisLoader":
+            dataset_name: str = eval_cfg.dataloader_cfg.params.get(
+                "dataset_name"
+            )  # type: ignore
+            dataset = LuxonisDataset(dataset_name)
+            augmentation_config = []
+            if eval_cfg.dataloader_cfg.preprocessing.normalize.active:
+                augmentation_config.append(
+                    {
+                        "name": "Normalize",
+                        "params": eval_cfg.dataloader_cfg.preprocessing.normalize.params,
+                    }
+                )
+            dataloader = LuxonisLoader(
+                dataset,
+                view=eval_cfg.dataloader_cfg.params.get("view", ["val"]),  # type: ignore
+                augmentation_config=augmentation_config,
+                height=infer_engine.height,
+                width=infer_engine.width,
+                keep_aspect_ratio=eval_cfg.dataloader_cfg.preprocessing.keep_aspect_ratio,
+                color_space=eval_cfg.dataloader_cfg.preprocessing.color_space,
+            )
+
+            dataloader.get_class_mapping = types.MethodType(  # type: ignore
+                get_class_mapping, dataloader
+            )
+        else:
+            dataloader = from_registry(
+                DATALOADERS_REGISTRY,
+                eval_cfg.dataloader_cfg.name,
+                **eval_cfg.dataloader_cfg.params,
+            )
+        logger.info(f"{eval_cfg.dataloader_cfg.name} dataloader initialized.")
+        logger.info(
+            f"Dataset loaded with {len(dataloader)} samples and images of shape {infer_engine.height}x{infer_engine.width}."
         )
-    # TODO: This code is placeholder, we need to implement a proper way to handle different loaders based on the dataset and model type. The loaders should always inherit from BaseLoader (from luxonis_ml).
-    dataloader = LuxonisLoader(
-        dataset,
-        view=eval_cfg.dataset_cfg.params.get("view", ["val"]),  # type: ignore
-        augmentation_config=augmentation_config,
-        height=infer_engine.height,
-        width=infer_engine.width,
-        keep_aspect_ratio=eval_cfg.dataset_cfg.preprocessing.keep_aspect_ratio,
-        color_space=eval_cfg.dataset_cfg.preprocessing.color_space,
-    )
-    logger.info(
-        f"Dataset loaded with {len(dataloader)} samples with images of size {infer_engine.height}x{infer_engine.width}."
-    )
+    except KeyError as e:
+        raise ValueError(
+            f"Unknown loader: {eval_cfg.dataloader_cfg.name}. "
+            f"Available loaders: {list(DATALOADERS_REGISTRY._module_dict)}"
+        ) from e
 
     # -------------------------------------------------------------------------
     # Configuration compatibility checks
     # -------------------------------------------------------------------------
     if (
         eval_cfg.engine_cfg.name == "depthai"
-        and eval_cfg.dataset_cfg.preprocessing.normalize.active
+        and eval_cfg.dataloader_cfg.preprocessing.normalize.active
     ):
         logger.warning(
             "Normalization is usually part of the model's preprocessing pipeline in DepthAI. Consider disabling normalization in the dataset config."
         )
     if (
         eval_cfg.engine_cfg.name == "depthai"
-        and eval_cfg.dataset_cfg.preprocessing.color_space == "RGB"
+        and eval_cfg.dataloader_cfg.preprocessing.color_space == "RGB"
     ):
         logger.warning(
             "Color space is set to RGB in the dataset config. DepthAI expects BGR color space."
@@ -108,7 +137,7 @@ def eval_setup(eval_cfg: EvalConfig) -> tuple[BaseEngine, BaseLoader]:
 def eval_run(
     eval_cfg: EvalConfig,
     infer_engine: BaseEngine,
-    dataloader: BaseLoader,
+    dataloader: BaseEvalLoader | LuxonisLoader,
 ) -> None:
     """Run evaluation with the given configuration and dataloader.
 
@@ -118,7 +147,7 @@ def eval_run(
         Evaluation configuration.
     infer_engine : BaseEngine
         The inference engine to use for evaluation.
-    dataloader : BaseLoader
+    dataloader : BaseEvalLoader | LuxonisLoader
         The dataloader to use for evaluation.
     """
     # -------------------------------------------------------------------------
@@ -139,8 +168,8 @@ def eval_run(
             f"Available tasks: {list(TASKS_REGISTRY._module_dict)}"
         ) from e
 
-    ldf_class_map, class_map, class_index_map = get_class_mapping(
-        dataloader, **eval_cfg.dataset_cfg.params
+    ldf_class_map, class_map, class_index_map = dataloader.get_class_mapping(  # type: ignore
+        **eval_cfg.dataloader_cfg.params
     )
 
     # -------------------------------------------------------------------------

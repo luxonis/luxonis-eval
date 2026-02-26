@@ -32,7 +32,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self.device_ip = device_ip
         self._pipeline = None
         self.setup()
-        super().__init__(**kwargs)
+        super().__init__(model_path=model_path, **kwargs)
 
     def load_nn_archive(self) -> tuple[dai.NNArchive, dict, str | None]:
         """Load the model from an NNArchive.

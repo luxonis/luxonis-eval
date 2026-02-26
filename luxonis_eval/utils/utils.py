@@ -1,14 +1,19 @@
+from __future__ import annotations
+
 import json
 import os
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import onnxruntime as ort
-from luxonis_ml.data.loaders import BaseLoader, LuxonisLoader
+from luxonis_ml.data.loaders import LuxonisLoader
 from tabulate import tabulate
+
+if TYPE_CHECKING:
+    from luxonis_eval import BaseEvalLoader
 
 
 @contextmanager
@@ -138,14 +143,14 @@ def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:
 
 
 def get_class_mapping(
-    dataloader: BaseLoader,
+    dataloader: BaseEvalLoader | LuxonisLoader,
     **kwargs,
 ) -> tuple[dict, dict, dict | None]:
     """Get native class map and optional class index mapping.
 
     Parameters
     ----------
-    dataloader : BaseLoader
+    dataloader : BaseEvalLoader | LuxonisLoader
         Dataloader to extract class mappings from.
     **kwargs
         Additional dataset-specific parameters.
@@ -156,7 +161,7 @@ def get_class_mapping(
         LDF class map, native class map and class index map (if available).
     """
 
-    # TODO: Support loaders inheriting from BaseLoader. Find a way to get class map from them. If its not provided, go though the dataset, which if it inherits from LuxonisDataset (it should), we can get the native classes from there.
+    # TODO: Support loaders inheriting from BaseEvalLoader. Find a way to get class map from them. If its not provided, go though the dataset, which if it inherits from LuxonisDataset (it should), we can get the native classes from there.
     if isinstance(dataloader, LuxonisLoader):
         ldf_class_map = dataloader.classes[""]
         ldf_class_map = {v: k for k, v in ldf_class_map.items()}

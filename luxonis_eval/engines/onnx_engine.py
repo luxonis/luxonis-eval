@@ -34,7 +34,7 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
         )
         self.providers = providers or ["CPUExecutionProvider"]
         self.setup()
-        super().__init__(**kwargs)
+        super().__init__(model_path=model_path, **kwargs)
 
     def setup(self) -> None:
         """Initialize the ONNX Runtime session."""

@@ -3,12 +3,16 @@ classes."""
 
 from typing import TypeVar
 
+from luxonis_ml.data.loaders import LuxonisLoader
 from luxonis_ml.utils.registry import Registry
 
 import luxonis_eval as lxeval
 
 ENGINES_REGISTRY: Registry[type["lxeval.BaseEngine"]] = Registry(
     name="engines"
+)
+DATALOADERS_REGISTRY: Registry[type["lxeval.BaseEvalLoader"]] = Registry(
+    name="dataloaders"
 )
 METRICS_REGISTRY: Registry[type["lxeval.BaseMetric"]] = Registry(
     name="metrics"
@@ -22,6 +26,8 @@ PARSERS_REGISTRY: Registry[type["lxeval.BaseParser"]] = Registry(
 TASKS_REGISTRY: Registry[type["lxeval.BaseInferTask"]] = Registry(
     name="infer_tasks"
 )
+
+DATALOADERS_REGISTRY.register(module=LuxonisLoader)  # type: ignore
 
 T = TypeVar("T")
 
