@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+import numpy as np
 import onnxruntime as ort
 from luxonis_ml.data.loaders import LuxonisLoader
 from tabulate import tabulate
@@ -113,6 +114,46 @@ def make_report_table(
         colalign=("left", "right"),
         disable_numparse=True,
     )
+
+
+def check_loader_output(output: object) -> None:
+    """
+    Validates the output of a loader.
+
+    Parameters
+    ----------
+    output : object
+        The output to validate.
+
+    Raises
+    ------
+    TypeError
+        If the output is not of type 'luxonis_ml.typing.LoaderOutput': a tuple containing either a single image as a 'np.ndarray or a dictionary mapping image names to 'np.ndarray', along with a dictionary of task group names and their annotations.
+    """
+    if not isinstance(output, tuple) or len(output) != 2:
+        raise TypeError(
+            f"LoaderOutput must be a tuple of length 2, got {type(output)}"
+        )
+
+    images, labels = output
+
+    if isinstance(images, np.ndarray):
+        pass  # LoaderSingleOutput
+    elif isinstance(images, dict) and all(
+        isinstance(k, str) and isinstance(v, np.ndarray)
+        for k, v in images.items()
+    ):
+        pass  # LoaderMultiOutput
+    else:
+        raise TypeError(
+            f"First element must be np.ndarray or dict[str, np.ndarray], got {type(images)}"
+        )
+
+    if not isinstance(labels, dict) or not all(
+        isinstance(k, str) and isinstance(v, np.ndarray)
+        for k, v in labels.items()
+    ):
+        raise TypeError("Labels must be dict[str, np.ndarray]")
 
 
 def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:
