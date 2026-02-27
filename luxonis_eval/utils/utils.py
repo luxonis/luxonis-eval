@@ -142,8 +142,10 @@ def check_loader_output(output: object) -> None:
     elif isinstance(images, dict) and all(
         isinstance(k, str) and isinstance(v, np.ndarray)
         for k, v in images.items()
-    ):
-        pass  # LoaderMultiOutput
+    ):  # LoaderMultiOutput is not yet supported.
+        raise TypeError(
+            "Multi-image loader output (LoaderMultiOutput) is not yet supported."
+        )
     else:
         raise TypeError(
             f"First element must be np.ndarray or dict[str, np.ndarray], got {type(images)}"
