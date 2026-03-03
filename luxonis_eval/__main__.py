@@ -257,41 +257,36 @@ def eval_run(
 
 @app.command()
 def eval(
+    config: str,
     dataset_name: str | None = None,
-    nn_archive: str | None = None,
-    onnx: str | None = None,
+    model_path: str | None = None,
     backend: Literal["depthai", "onnx"] | None = None,
     device_ip: str | None = None,
-    config: str | None = None,
 ):
     """Run evaluation on a dataset using a specified neural network.
 
     Parameters
     ----------
+    config : str
+        Path to the evaluation configuration file in YAML format.
     dataset_name : str | None, optional
         Name of the dataset to evaluate on.
-    nn_archive : str | None, optional
-        Path to the neural network NNArchive file. Required if backend is set to 'depthai' or 'all'.
-    onnx : str | None, optional
-        Path to the ONNX model file, required if backend is 'onnx' or 'all'. Required if backend is set to 'onnx' or 'all'.
+    model_path : str | None, optional
+        Path to the model file (NNArchive or ONNX).
     backend : Literal["depthai", "onnx"] | None, optional
         Backend to use for inference.
     device_ip : str | None, optional
         IP address of the device to connect to. Only applicable for RVC4 devices.
-    config : str | None, optional
-        Path to the evaluation configuration file in YAML format.
     """
     overrides = {}
     if dataset_name is not None:
-        overrides["dataset_name"] = dataset_name
-    if nn_archive is not None:
-        overrides["nn_archive"] = nn_archive
-    if onnx is not None:
-        overrides["onnx"] = onnx
+        overrides["dataloader_cfg.params.dataset_name"] = dataset_name
+    if model_path is not None:
+        overrides["engine_cfg.model_path"] = model_path
     if backend is not None:
-        overrides["backend"] = backend
+        overrides["engine_cfg.name"] = backend
     if device_ip is not None:
-        overrides["device_ip"] = device_ip
+        overrides["engine_cfg.params.device_ip"] = device_ip
 
     eval_cfg = EvalConfig.get_config(cfg=config, overrides=overrides)
 
