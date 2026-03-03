@@ -158,6 +158,39 @@ def check_loader_output(output: object) -> None:
         raise TypeError("Labels must be dict[str, np.ndarray]")
 
 
+def check_loader_classes(classes: dict[str, int]) -> None:
+    """
+    Validates the output of a loader's load_classes method.
+
+    Parameters
+    ----------
+    classes : dict[str, int]
+        The class mapping to validate.
+
+    Raises
+    ------
+    TypeError
+        If the classes are not a dict[str, int].
+    """
+    if not isinstance(classes, dict):
+        raise TypeError(
+            f"`load_classes()` must return a "
+            f"`dict[str, int]`, got {type(classes).__name__}."
+        )
+
+    invalid = {
+        k: v
+        for k, v in classes.items()
+        if not isinstance(k, str) or not isinstance(v, int)
+    }
+    if invalid:
+        raise TypeError(
+            f"`load_classes()` must return a "
+            f"`dict[str, int]` (str name -> int index). "
+            f"Found invalid entries: {invalid}"
+        )
+
+
 def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:
     """Retrieve ONNX model input information.
 
