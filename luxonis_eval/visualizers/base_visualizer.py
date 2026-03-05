@@ -27,8 +27,21 @@ class BaseVisualizer(
     def visualize(
         self,
         predictions: Any,
+        target: Any,
         vis_frame: np.ndarray,
         **kwargs: Any,
     ) -> None:
-        """Visualize the evaluation results."""
+        """Visualize the evaluation results.
+
+        Parameters
+        ----------
+        predictions : Any
+            Model predictions.
+        target : Any
+            Ground truth target.
+        vis_frame : np.ndarray
+            Frame to visualize on.
+        **kwargs : Any
+            Additional visualization options.
+        """
         ...

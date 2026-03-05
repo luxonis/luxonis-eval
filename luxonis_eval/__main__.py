@@ -230,7 +230,9 @@ def eval_run(
                 ):
                     task.visualizer.visualize(
                         predictions,
+                        target,
                         infer_engine.vis_frame(),
+                        **metric_ctx,
                         **eval_cfg.visualizer_cfg.params,
                     )
 
