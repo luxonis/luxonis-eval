@@ -2,6 +2,33 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [CLI](#cli)
+  - [Python API Usage](#python-api-usage)
+- [Architecture](#architecture)
+  - [Key Base Classes](#key-base-classes)
+  - [Evaluation Pipeline: Modular Design](#evaluation-pipeline-modular-design)
+- [Configuration](#configuration)
+  - [Data Loading \& Preprocessing](#data-loading--preprocessing)
+  - [Inference Task](#inference-task)
+  - [Output Parser](#output-parser)
+  - [Evaluation Metrics](#evaluation-metrics)
+  - [Visualization (Optional)](#visualization-optional)
+  - [Inference Engine](#inference-engine)
+  - [Full Example](#full-example)
+- [Extending the Framework](#extending-the-framework)
+  - [Adding a Custom DataLoader](#adding-a-custom-dataloader)
+  - [Adding a Custom Engine](#adding-a-custom-engine)
+  - [Adding a Custom Parser](#adding-a-custom-parser)
+  - [Adding a Custom Metric](#adding-a-custom-metric)
+  - [General Pattern](#general-pattern)
+- [License](#license)
+
 ## Overview
 
 **luxonis-eval** is a modular, extensible model evaluation framework designed to benchmark and evaluate neural network models across multiple inference backends. It supports running inference on Luxonis hardware devices (RVC2/RVC4) through DepthAI and on host through ONNX Runtime, computing standard quality metrics, and reporting throughput/latency performance.
@@ -165,7 +192,7 @@ Evaluation runs are driven by a YAML configuration file. The configuration is pa
 
 A complete configuration file has the following top-level sections:
 
-### `dataloader_cfg` – Data Loading & Preprocessing
+### Data Loading & Preprocessing
 
 Specifies which dataloader to use, the dataset it points to, and any preprocessing applied before inference.
 
@@ -188,7 +215,7 @@ dataloader_cfg:
 > [!NOTE]
 > When using the `depthai` backend, normalization is usually handled by the model's own preprocessing pipeline. The engine will warn you if normalization is enabled alongside DepthAI. Similarly, DepthAI expects `BGR` color space — a warning is emitted if `RGB` is selected.
 
-### `task_cfg` – Inference Task
+### Inference Task
 
 Selects the high-level inference task that orchestrates parsing, metrics, and visualization. The task acts as the glue between all other components.
 
@@ -200,7 +227,7 @@ task_cfg:
 
 Built-in tasks: `ClassificationTask`, `DetectionTask`, `InstanceSegmentationTask`, `KeypointDetectionTask`, `SemanticSegmentationTask`.
 
-### `parser_cfg` – Output Parser
+### Output Parser
 
 Defines how raw model outputs are converted into structured predictions. Different model architectures produce different output tensor layouts; parsers handle this translation.
 
@@ -213,7 +240,7 @@ parser_cfg:
         iou_thres: 0.45
 ```
 
-### `metrics_cfg` – Evaluation Metrics
+### Evaluation Metrics
 
 A list of metrics to compute. Each metric is independently instantiated, updated per sample, and computed at the end. Throughput is always measured automatically.
 
@@ -228,7 +255,7 @@ metrics_cfg:
         iou_type: segm
 ```
 
-### `visualizer_cfg` – Visualization (Optional)
+### Visualization (Optional)
 
 Optionally enables live visualization of predictions during the evaluation loop.
 
@@ -239,7 +266,7 @@ visualizer_cfg:
   params: {}
 ```
 
-### `engine_cfg` – Inference Engine
+### Inference Engine
 
 Specifies the inference backend and the path to the model file. The config validates that the model file format matches the selected backend (`.tar.xz` → `depthai`, `.onnx` → `onnx`).
 
