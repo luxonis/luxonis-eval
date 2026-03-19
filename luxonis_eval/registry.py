@@ -23,9 +23,6 @@ VISUALIZERS_REGISTRY: Registry[type["lxeval.BaseVisualizer"]] = Registry(
 PARSERS_REGISTRY: Registry[type["lxeval.BaseParser"]] = Registry(
     name="parsers"
 )
-TASKS_REGISTRY: Registry[type["lxeval.BaseInferTask"]] = Registry(
-    name="infer_tasks"
-)
 
 DATALOADERS_REGISTRY.register(module=LuxonisLoader)  # type: ignore
 

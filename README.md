@@ -2,11 +2,38 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [CLI](#cli)
+  - [Python API Usage](#python-api-usage)
+- [Architecture](#architecture)
+  - [Key Base Classes](#key-base-classes)
+  - [Evaluation Pipeline: Modular Design](#evaluation-pipeline-modular-design)
+- [Configuration](#configuration)
+  - [Task Name](#task-name)
+  - [Data Loading \& Preprocessing](#data-loading--preprocessing)
+  - [Output Parser](#output-parser)
+  - [Evaluation Metrics](#evaluation-metrics)
+  - [Visualization (Optional)](#visualization-optional)
+  - [Inference Engine](#inference-engine)
+  - [Full Example](#full-example)
+- [Extending the Framework](#extending-the-framework)
+  - [Adding a Custom DataLoader](#adding-a-custom-dataloader)
+  - [Adding a Custom Engine](#adding-a-custom-engine)
+  - [Adding a Custom Parser](#adding-a-custom-parser)
+  - [Adding a Custom Metric](#adding-a-custom-metric)
+  - [General Pattern](#general-pattern)
+- [License](#license)
+
 ## Overview
 
 **luxonis-eval** is a modular, extensible model evaluation framework designed to benchmark and evaluate neural network models across multiple inference backends. It supports running inference on Luxonis hardware devices (RVC2/RVC4) through DepthAI and on host through ONNX Runtime, computing standard quality metrics, and reporting throughput/latency performance.
 
-The framework follows a **registry-based architecture** where every component (engines, dataloaders, tasks, parsers, metrics, and visualizers) is a self-registering module. This means you can swap, extend, or add any part of the pipeline without modifying the core evaluation logic. Just implement a new class inheriting from the respective base class, and it becomes available by name in your configuration.
+The framework follows a **registry-based architecture** where each pluggable component (engines, dataloaders, parsers, metrics, and visualizers) is a self-registering module. This means you can swap, extend, or add any part of the pipeline without modifying the core evaluation logic. Just implement a new class inheriting from the respective base class, and it becomes available by name in your configuration.
 
 ## Features
 
@@ -15,15 +42,15 @@ The framework follows a **registry-based architecture** where every component (e
   - [**ONNX Engine**](luxonis_eval/engines/onnx_engine.py) – Run models on CPU/GPU using ONNX Runtime
 
 - **DataLoaders**
-  - [**LuxonisLoader**]([luxonis_eval/dataloaders/luxonis_loader.py](https://github.com/luxonis/luxonis-ml/tree/main/luxonis_ml/data/loaders#luxonisml-loader)) – Load datasets in a Luxonis Data Format (LDF)
-  - [**BaseEvalLoader**](luxonis_eval/dataloaders/base_eval_loader.py) – Base class for custom dataloaders
+  - [**LuxonisLoader**](https://github.com/luxonis/luxonis-ml/tree/main/luxonis_ml/data/loaders#luxonisml-loader) – Load datasets in a Luxonis Data Format (LDF)
+  - [**BaseEvalLoader**](luxonis_eval/loaders/base_loader.py) – Base class for custom dataloaders
 
 - **Supported Tasks**
-  - [**Classification**](luxonis_eval/tasks/classification.py) – Image classification
-  - [**Object Detection**](luxonis_eval/tasks/detection.py) – Bounding box detection
-  - [**Semantic Segmentation**](luxonis_eval/tasks/semantic_seg.py) – Per-pixel class labeling
-  - [**Instance Segmentation**](luxonis_eval/tasks/instance_seg.py) – Per-instance masks with detection
-  - [**Keypoint Detection**](luxonis_eval/tasks/keypoint_detection.py) – Body/object keypoint localization
+  - `Classification` – Image classification
+  - `Detection` – Bounding box detection
+  - `SemanticSegmentation` – Per-pixel class labeling
+  - `InstanceSegmentation` – Per-instance masks with detection
+  - `KeypointDetection` – Body/object keypoint localization
 
 - **Metrics**
   - [`TopKAccuracy`](luxonis_eval/metrics/topk_accuracy.py) – Top-1/Top-5 accuracy for classification
@@ -34,7 +61,7 @@ The framework follows a **registry-based architecture** where every component (e
   - [`DiceCoefficient`](luxonis_eval/metrics/dice_coef.py) – Dice score for semantic segmentation
   - [`ThroughputMetric`](luxonis_eval/metrics/throughput.py) – Inference throughput and latency
 
-- **Extensible Architecture** – Registry-based design using [`AutoRegisterMeta`](luxonis_eval/registry.py) for easy addition of custom engines, tasks, parsers, metrics, loaders, and visualizers
+- **Extensible Architecture** – Registry-based design using [`AutoRegisterMeta`](luxonis_eval/registry.py) for easy addition of custom engines, parsers, metrics, loaders, and visualizers
 
 ## Installation
 
@@ -100,7 +127,6 @@ luxonis_eval/
 ├── loaders/          # Dataset loaders
 ├── metrics/          # Evaluation metrics
 ├── parsers/          # Model output parsers
-├── tasks/            # Inference task orchestration
 ├── utils/            # Configuration, helper functions
 ├── visualizers/      # Result visualization
 └── metadata/         # Class mapping files
@@ -111,7 +137,6 @@ luxonis_eval/
 | Base Class | Location | Purpose |
 | ---------- | -------- | ------- |
 | [`BaseEngine`](luxonis_eval/engines/base_engine.py) | `engines/` | Abstract inference engine |
-| [`BaseInferTask`](luxonis_eval/tasks/base_task.py) | `tasks/` | Abstract inference task |
 | [`BaseParser`](luxonis_eval/parsers/base_parser.py) | `parsers/` | Abstract output parser |
 | [`BaseMetric`](luxonis_eval/metrics/base_metric.py) | `metrics/` | Abstract evaluation metric |
 | [`BaseEvalLoader`](luxonis_eval/loaders/base_loader.py) | `loaders/` | Abstract dataset loader |
@@ -142,13 +167,11 @@ Here is how the pipeline flows:
 
 2. **Engine** runs model inference on the image and returns raw outputs. The choice of backend (DepthAI, ONNX Runtime, or a custom one) is transparent to the rest of the pipeline.
 
-3. **Task** acts as the orchestrator — it connects the parser, metrics, and visualizer together and drives the per-sample evaluation loop.
+3. **Parser** translates the engine's raw outputs into structured predictions that downstream components can consume. Each model architecture can have its own parser.
 
-4. **Parser** translates the engine's raw outputs into structured predictions that downstream components can consume. Each model architecture can have its own parser.
+4. **Metrics** accumulate per-sample results and produce final scores at the end of the run. Multiple metrics can run in parallel, and each one declares which annotation keys it requires.
 
-5. **Metrics** accumulate per-sample results and produce final scores at the end of the run. Multiple metrics can run in parallel, and each one declares which annotation keys it requires.
-
-6. **Visualizer** optionally renders predictions on the input frame for visual inspection.
+5. **Visualizer** optionally renders predictions on the input frame for visual inspection.
 
 Because every component is resolved from a registry at runtime based on its **name** in the config, you can mix and match components freely. For example, you can:
 
@@ -165,7 +188,15 @@ Evaluation runs are driven by a YAML configuration file. The configuration is pa
 
 A complete configuration file has the following top-level sections:
 
-### `dataloader_cfg` – Data Loading & Preprocessing
+### Task Name
+
+Defines a human-readable task label used in progress reporting and run output.
+
+```yaml
+task_name: InstanceSegmentation
+```
+
+### Data Loading & Preprocessing
 
 Specifies which dataloader to use, the dataset it points to, and any preprocessing applied before inference.
 
@@ -188,32 +219,20 @@ dataloader_cfg:
 > [!NOTE]
 > When using the `depthai` backend, normalization is usually handled by the model's own preprocessing pipeline. The engine will warn you if normalization is enabled alongside DepthAI. Similarly, DepthAI expects `BGR` color space — a warning is emitted if `RGB` is selected.
 
-### `task_cfg` – Inference Task
-
-Selects the high-level inference task that orchestrates parsing, metrics, and visualization. The task acts as the glue between all other components.
-
-```yaml
-task_cfg:
-  name: InstanceSegmentationTask  # Registered task name
-  params: {}                      # Task-specific parameters
-```
-
-Built-in tasks: `ClassificationTask`, `DetectionTask`, `InstanceSegmentationTask`, `KeypointDetectionTask`, `SemanticSegmentationTask`.
-
-### `parser_cfg` – Output Parser
+### Output Parser
 
 Defines how raw model outputs are converted into structured predictions. Different model architectures produce different output tensor layouts; parsers handle this translation.
 
 ```yaml
 parser_cfg:
   name: YOLOInstanceSegmentationParser  # Registered parser name
-    params:
-        conf_thres: 0.25                # Parser-specific parameters
-        mask_thres: 0.25
-        iou_thres: 0.45
+  params:
+    conf_thres: 0.25                    # Parser-specific parameters
+    mask_thres: 0.25
+    iou_thres: 0.45
 ```
 
-### `metrics_cfg` – Evaluation Metrics
+### Evaluation Metrics
 
 A list of metrics to compute. Each metric is independently instantiated, updated per sample, and computed at the end. Throughput is always measured automatically.
 
@@ -228,7 +247,7 @@ metrics_cfg:
         iou_type: segm
 ```
 
-### `visualizer_cfg` – Visualization (Optional)
+### Visualization (Optional)
 
 Optionally enables live visualization of predictions during the evaluation loop.
 
@@ -239,7 +258,7 @@ visualizer_cfg:
   params: {}
 ```
 
-### `engine_cfg` – Inference Engine
+### Inference Engine
 
 Specifies the inference backend and the path to the model file. The config validates that the model file format matches the selected backend (`.tar.xz` → `depthai`, `.onnx` → `onnx`).
 
@@ -253,6 +272,8 @@ engine_cfg:
 ### Full Example
 
 ```yaml
+task_name: InstanceSegmentation
+
 dataloader_cfg:
   name: LuxonisLoader
   params:
@@ -263,10 +284,6 @@ dataloader_cfg:
       active: false
     color_space: BGR
     keep_aspect_ratio: false
-
-task_cfg:
-  name: InstanceSegmentationTask
-  params: {}
 
 parser_cfg:
   name: YOLOInstanceSegmentationParser
@@ -293,7 +310,7 @@ engine_cfg:
 
 ## Extending the Framework
 
-The framework is designed around a principle: **implement a new class inheriting from the respective base class, and the registry takes care of the rest**. Every component type (`BaseEngine`, `BaseEvalLoader`, `BaseParser`, `BaseMetric`, `BaseInferTask`, `BaseVisualizer`) uses `AutoRegisterMeta`, which automatically registers new subclasses in the appropriate registry when they are defined. There is no manual registration step — simply subclassing is enough.
+The framework is designed around a principle: **implement a new class inheriting from the respective base class, and the registry takes care of the rest**. Every component type (`BaseEngine`, `BaseEvalLoader`, `BaseParser`, `BaseMetric`, `BaseVisualizer`) uses `AutoRegisterMeta`, which automatically registers new subclasses in the appropriate registry when they are defined. There is no manual registration step — simply subclassing is enough.
 
 ### Adding a Custom DataLoader
 
@@ -331,15 +348,15 @@ Subclass [`BaseEngine`](luxonis_eval/engines/base_engine.py) and implement the s
 
 Subclass [`BaseParser`](luxonis_eval/parsers/base_parser.py) and implement the single abstract method:
 
-- **`parse(raw_output, **kwargs)`** – Converts the raw backend output into a structured prediction. The `raw_output` type depends on the engine being used (`dai.NNData` for DepthAI, `list[np.ndarray]` for ONNX Runtime, or whatever a custom engine returns). Additional keyword arguments are forwarded from `parser_cfg.params` in the config and from the task's parse call.
+- **`parse(raw_output, **kwargs)`** – Converts the raw backend output into a structured prediction. The `raw_output` type depends on the engine being used (`dai.NNData` for DepthAI, `list[np.ndarray]` for ONNX Runtime, or whatever a custom engine returns). Additional keyword arguments are forwarded from `parser_cfg.params` in the config and the evaluation loop.
 
-The parser bridges the gap between a specific model architecture's raw tensor layout and the standardized format that downstream metrics expect. The standardized format used for the build-in supported parsers are as follows:
+The parser bridges the gap between a specific model architecture's raw tensor layout and the standardized format that downstream metrics expect. The standardized format used for the built-in supported parsers are as follows:
 
 - [**ClassificationParser**](luxonis_eval/parsers/classification.py) –> [depthai_nodes.Classifications](https://github.com/luxonis/depthai-nodes/tree/main/depthai_nodes/message#classifications)
 - [**YOLODetectionParser**](luxonis_eval/parsers/detection.py) –> [dai.ImgDetections](https://docs.luxonis.com/software-v3/depthai/api/cpp/#classdai_1_1ImgDetections)
-- [**YOLOInstanceSegmentationParser**](luxonis_eval/tasks/instance_seg.py) –> [dai.ImgDetections](https://docs.luxonis.com/software-v3/depthai/api/cpp/#classdai_1_1ImgDetections)
-- [**YOLOKeypointDetectionParser**](luxonis_eval/tasks/keypoint_detection.py) –> [dai.ImgDetections](https://docs.luxonis.com/software-v3/depthai/api/cpp/#classdai_1_1ImgDetections)
-- [**SemanticSegmentationParser**](luxonis_eval/tasks/semantic_seg.py) –> [depthai_nodes.SegmentationMask](https://github.com/luxonis/depthai-nodes/tree/main/depthai_nodes/message#segmentationmask)
+- [**YOLOInstanceSegmentationParser**](luxonis_eval/parsers/instance_seg.py) –> [dai.ImgDetections](https://docs.luxonis.com/software-v3/depthai/api/cpp/#classdai_1_1ImgDetections)
+- [**YOLOKeypointDetectionParser**](luxonis_eval/parsers/keypoint_detection.py) –> [dai.ImgDetections](https://docs.luxonis.com/software-v3/depthai/api/cpp/#classdai_1_1ImgDetections)
+- [**SemanticSegmentationParser**](luxonis_eval/parsers/semantic_seg.py) –> [depthai_nodes.SegmentationMask](https://github.com/luxonis/depthai-nodes/tree/main/depthai_nodes/message#segmentationmask)
 
 > [!IMPORTANT]
 > The parser must produce predictions in the format that the configured metrics expect. For example, for the detection metric `BboxMeanAveragePrecision`, the parser should return a message of type `dai.ImgDetections` which is what the metric expects at its input. Mismatches between annotation keys and metric requirements are caught early by `BaseMetric.validate_target_keys()`.

@@ -11,7 +11,6 @@ from luxonis_eval.registry import (
     ENGINES_REGISTRY,
     METRICS_REGISTRY,
     PARSERS_REGISTRY,
-    TASKS_REGISTRY,
     VISUALIZERS_REGISTRY,
 )
 
@@ -72,16 +71,6 @@ class DataLoaderConfig(ConfigItem):
                     f"Dataset '{dataset_name}' does not exist in '{bucket_storage}' bucket storage. Available datasets: {luxonis_datasets}"
                 )
         return self
-
-
-class TaskConfig(ConfigItem):
-    @field_validator("name", mode="after")
-    def validate_name(cls, v: str) -> str:
-        if v not in TASKS_REGISTRY:
-            raise ValueError(
-                f"Invalid task name: {v}. Must be one of {list(TASKS_REGISTRY._module_dict)}."
-            )
-        return v
 
 
 class ParserConfig(ConfigItem):
@@ -153,8 +142,8 @@ class EngineConfig(ConfigItem):
 class EvalConfig(LuxonisConfig):
     """Configuration for evaluation."""
 
+    task_name: str
     dataloader_cfg: DataLoaderConfig
-    task_cfg: TaskConfig
     parser_cfg: ParserConfig
     metrics_cfg: MetricsConfig
     visualizer_cfg: VisualizerConfig | None = None

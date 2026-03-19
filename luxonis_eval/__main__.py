@@ -15,15 +15,28 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from luxonis_eval import BaseEngine, BaseEvalLoader
+from luxonis_eval import (
+    BaseEngine,
+    BaseEvalLoader,
+    BaseMetric,
+    BaseParser,
+    BaseVisualizer,
+)
+from luxonis_eval.metrics import ThroughputMetric
 from luxonis_eval.registry import (
     DATALOADERS_REGISTRY,
     ENGINES_REGISTRY,
-    TASKS_REGISTRY,
+    METRICS_REGISTRY,
+    PARSERS_REGISTRY,
+    VISUALIZERS_REGISTRY,
     from_registry,
 )
 from luxonis_eval.utils.config import EvalConfig
-from luxonis_eval.utils.utils import get_class_mapping, make_report_table
+from luxonis_eval.utils.utils import (
+    get_class_mapping,
+    get_metric_ctx,
+    make_report_table,
+)
 
 app = App(
     help="Luxonis Eval CLI",
@@ -36,7 +49,14 @@ app["--version"].group = app.meta.group_parameters
 
 def eval_setup(
     eval_cfg: EvalConfig,
-) -> tuple[BaseEngine, BaseEvalLoader | LuxonisLoader]:
+) -> tuple[
+    BaseEngine,
+    BaseEvalLoader | LuxonisLoader,
+    BaseParser,
+    list[BaseMetric],
+    ThroughputMetric,
+    BaseVisualizer | None,
+]:
     """Setup evaluation configuration.
 
     Parameters
@@ -46,8 +66,8 @@ def eval_setup(
 
     Returns
     -------
-    tuple[BaseEngine, BaseEvalLoader | LuxonisLoader]
-        The initialized inference engine and the initialized dataloader.
+    tuple[BaseEngine, BaseEvalLoader | LuxonisLoader, BaseParser, list[BaseMetric], ThroughputMetric, BaseVisualizer | None]
+        The initialized inference engine, dataloader, parser, metrics, throughput metric, and visualizer (if enabled).
     """
     logger.info("Setting up evaluation configuration.")
 
@@ -114,6 +134,74 @@ def eval_setup(
         ) from e
 
     # -------------------------------------------------------------------------
+    # Parser initialization
+    # -------------------------------------------------------------------------
+    try:
+        parser = from_registry(
+            PARSERS_REGISTRY,
+            eval_cfg.parser_cfg.name,
+            **eval_cfg.parser_cfg.params,
+        )
+        logger.info(f"{eval_cfg.parser_cfg.name} parser initialized.")
+    except KeyError as e:
+        raise ValueError(
+            f"Unknown parser: {eval_cfg.parser_cfg.name}. "
+            f"Available parsers: {list(PARSERS_REGISTRY._module_dict)}"
+        ) from e
+
+    # -------------------------------------------------------------------------
+    # Metrics initialization
+    # -------------------------------------------------------------------------
+    metrics = []
+    for metric_cfg in eval_cfg.metrics_cfg.metrics:
+        metric_name = metric_cfg.name
+        try:
+            metric = from_registry(
+                METRICS_REGISTRY,
+                metric_name,
+                **metric_cfg.params,
+            )
+            logger.info(f"{metric_name} metric initialized.")
+        except KeyError as e:
+            raise ValueError(
+                f"Unknown metric: {metric_name}. "
+                f"Available metrics: {list(METRICS_REGISTRY._module_dict)}"
+            ) from e
+        metrics.append(metric)
+    if not metrics:
+        raise ValueError(
+            "At least one metric must be specified in the configuration."
+        )
+
+    # -------------------------------------------------------------------------
+    # Throughput metric initialization
+    # -------------------------------------------------------------------------
+    throughput_metric = ThroughputMetric()
+    logger.info("Throughput metric initialized.")
+
+    # -------------------------------------------------------------------------
+    # Visualizer initialization
+    # -------------------------------------------------------------------------
+    if eval_cfg.visualizer_cfg and eval_cfg.visualizer_cfg.visualize:
+        try:
+            visualizer = from_registry(
+                VISUALIZERS_REGISTRY,
+                eval_cfg.visualizer_cfg.name,
+                **eval_cfg.visualizer_cfg.params,
+            )
+            logger.info(
+                f"{eval_cfg.visualizer_cfg.name} visualizer initialized."
+            )
+        except KeyError as e:
+            raise ValueError(
+                f"Unknown visualizer: {eval_cfg.visualizer_cfg.name}. "
+                f"Available visualizers: {list(VISUALIZERS_REGISTRY._module_dict)}"
+            ) from e
+    else:
+        visualizer = None
+        logger.info("Visualization is disabled.")
+
+    # -------------------------------------------------------------------------
     # Configuration compatibility checks
     # -------------------------------------------------------------------------
     if (
@@ -131,13 +219,18 @@ def eval_setup(
             "Color space is set to RGB in the dataset config. DepthAI expects BGR color space."
         )
 
-    return infer_engine, dataloader
+    return (
+        infer_engine,
+        dataloader,
+        parser,
+        metrics,
+        throughput_metric,
+        visualizer,
+    )
 
 
 def eval_run(
     eval_cfg: EvalConfig,
-    infer_engine: BaseEngine,
-    dataloader: BaseEvalLoader | LuxonisLoader,
 ) -> None:
     """Run evaluation with the given configuration and dataloader.
 
@@ -145,43 +238,26 @@ def eval_run(
     ----------
     eval_cfg : EvalConfig
         Evaluation configuration.
-    infer_engine : BaseEngine
-        The inference engine to use for evaluation.
-    dataloader : BaseEvalLoader | LuxonisLoader
-        The dataloader to use for evaluation.
     """
-    # -------------------------------------------------------------------------
-    # Task initialization
-    # -------------------------------------------------------------------------
-    task_name = eval_cfg.task_cfg.name
-    if not task_name:
-        raise ValueError("Task configuration must include a 'name' key.")
 
-    try:
-        task = from_registry(
-            TASKS_REGISTRY, task_name, **eval_cfg.task_cfg.params
-        )
-        logger.info(f"Loading inference task: {task_name}")
-    except KeyError as e:
-        raise ValueError(
-            f"Unknown task: {task_name}. "
-            f"Available tasks: {list(TASKS_REGISTRY._module_dict)}"
-        ) from e
+    # -------------------------------------------------------------------------
+    # Inference engine and dataloader setup
+    # -------------------------------------------------------------------------
+    (
+        infer_engine,
+        dataloader,
+        parser,
+        metrics,
+        throughput_metric,
+        visualizer,
+    ) = eval_setup(eval_cfg)
+
+    backend: str = eval_cfg.engine_cfg.name
+    task_name: str = eval_cfg.task_name
 
     ldf_class_map, class_map, class_index_map = dataloader.get_class_mapping(  # type: ignore
         **eval_cfg.dataloader_cfg.params
     )
-
-    # -------------------------------------------------------------------------
-    # Parser, Metrics, and Visualizer initialization
-    # -------------------------------------------------------------------------
-    task.build_parser(**eval_cfg.parser_cfg.model_dump())
-    task.build_metrics(**eval_cfg.metrics_cfg.model_dump())
-    task.build_throughput_metric()
-    if eval_cfg.visualizer_cfg and eval_cfg.visualizer_cfg.visualize:
-        task.build_visualizer(**eval_cfg.visualizer_cfg.model_dump())
-
-    backend: str = eval_cfg.engine_cfg.name
 
     # -------------------------------------------------------------------------
     # Main evaluation loop
@@ -194,7 +270,7 @@ def eval_run(
             TimeElapsedColumn(),
         ) as progress:
             ptask = progress.add_task(
-                f"Running {backend.upper()} inference ({task.__class__.__name__})...",
+                f"Running {backend.upper()} inference ({task_name})...",
                 total=len(dataloader),
             )
 
@@ -203,37 +279,39 @@ def eval_run(
                 target = sample[1]
 
                 raw_output = infer_engine.infer_once(img)
-                predictions = task.parse_predictions(
+                predictions = parser.parse(
                     raw_output,
                     class_map=class_map,
                     **eval_cfg.parser_cfg.params,
                 )
 
-                metric_ctx = task.metric_extra_context(
-                    width=infer_engine.width,
-                    height=infer_engine.height,
-                    ldf_class_map=ldf_class_map,
-                    class_map=class_map,
-                    class_index_map=class_index_map,
-                )
-                for metric in task.metrics:
+                for metric in metrics:
+                    base_metric_ctx = eval_cfg.metrics_cfg.metrics[
+                        metrics.index(metric)
+                    ].params
+                    metric_ctx = get_metric_ctx(
+                        base_ctx=base_metric_ctx,
+                        width=infer_engine.width,
+                        height=infer_engine.height,
+                        ldf_class_map=ldf_class_map,
+                        class_map=class_map,
+                        class_index_map=class_index_map,
+                    )
                     metric.update(
                         predictions=predictions,
                         target=target,
                         **metric_ctx,
                     )
-                task.throughput_metric.update()
 
-                if (
-                    eval_cfg.visualizer_cfg
-                    and eval_cfg.visualizer_cfg.visualize
-                ):
-                    task.visualizer.visualize(
+                throughput_metric.update()
+
+                if visualizer:
+                    visualizer.visualize(
                         predictions,
                         target,
                         infer_engine.vis_frame(),
                         **metric_ctx,
-                        **eval_cfg.visualizer_cfg.params,
+                        **eval_cfg.visualizer_cfg.params,  # type: ignore
                     )
 
                 progress.update(ptask, advance=1)
@@ -243,12 +321,12 @@ def eval_run(
     # -------------------------------------------------------------------------
     # Results computation and reporting
     # -------------------------------------------------------------------------
-    results = [metric.compute() for metric in task.metrics]
-    tp = task.throughput_metric.compute()
+    results = [metric.compute() for metric in metrics]
+    tp = throughput_metric.compute()
 
     table = make_report_table(
         backend=backend,
-        task_name=task.__class__.__name__,
+        task_name=task_name,
         device=infer_engine.platform_name,
         tp=tp,
         results=results,
@@ -292,9 +370,7 @@ def eval(
 
     eval_cfg = EvalConfig.get_config(cfg=config, overrides=overrides)
 
-    infer_engine, dataloader = eval_setup(eval_cfg)
-
-    eval_run(eval_cfg, infer_engine, dataloader)
+    eval_run(eval_cfg)
 
 
 if __name__ == "__main__":

@@ -1,10 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
-import sys
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -13,23 +9,10 @@ import onnxruntime as ort
 from luxonis_ml.data.loaders import LuxonisLoader
 from tabulate import tabulate
 
+from luxonis_eval.metrics.metrics_utils import yolo_norm_to_coco_xywh
+
 if TYPE_CHECKING:
     from luxonis_eval import BaseEvalLoader
-
-
-@contextmanager
-def suppress_stdout() -> Iterator[None]:
-    """Suppress stdout within a context."""
-    fd = sys.stdout.fileno()
-    saved_fd = os.dup(fd)
-
-    try:
-        with open(os.devnull, "w") as devnull:
-            os.dup2(devnull.fileno(), fd)
-        yield
-    finally:
-        os.dup2(saved_fd, fd)
-        os.close(saved_fd)
 
 
 def section(
@@ -334,3 +317,39 @@ def get_class_index_mapping(
             raise ValueError(f"Label {v} not found in native class map.")
 
     return ldf_to_native_index_map
+
+
+def get_metric_ctx(base_ctx: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+    """Get additional context for metric updates.
+
+    Parameters
+    ----------
+    base_ctx : dict[str, Any]
+        Base context dictionary.
+    **kwargs : Any
+        Additional context parameters.
+
+    Returns
+    -------
+    dict[str, Any]
+        Context dictionary to pass to metric updates.
+    """
+    class_index_map = kwargs.get("class_index_map", {})
+    class_map = kwargs.get("class_map", {})
+    ldf_class_map = kwargs.get("ldf_class_map", {})
+    width = kwargs.get("width", -1)
+    height = kwargs.get("height", -1)
+
+    ldf_name_to_idx = {v: k for k, v in ldf_class_map.items()}
+
+    return {
+        **base_ctx,
+        "class_map": class_map,
+        "class_index_map": class_index_map,
+        "width": width,
+        "height": height,
+        "category_ids": sorted(class_map.keys()),
+        "target_converter": yolo_norm_to_coco_xywh,
+        "target_bg": ldf_name_to_idx.get("background"),
+        "target_class_map": ldf_class_map,
+    }
