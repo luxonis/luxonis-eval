@@ -81,6 +81,12 @@ def eval_setup(
             eval_cfg.engine_cfg.model_path,
             **eval_cfg.engine_cfg.params,
         )
+        assert isinstance(infer_engine, BaseEngine), (
+            f"{eval_cfg.engine_cfg.name} engine must be an instance of BaseEngine."
+        )
+        logger.info(
+            f"{eval_cfg.engine_cfg.name} inference engine initialized."
+        )
     except KeyError as e:
         raise ValueError(
             f"Unknown engine: {eval_cfg.engine_cfg.name}. "
@@ -123,6 +129,9 @@ def eval_setup(
                 eval_cfg.dataloader_cfg.name,
                 **eval_cfg.dataloader_cfg.params,
             )
+            assert isinstance(dataloader, BaseEvalLoader), (
+                f"{eval_cfg.dataloader_cfg.name} custom dataloader must be an instance of BaseEvalLoader."
+            )
         logger.info(f"{eval_cfg.dataloader_cfg.name} dataloader initialized.")
         logger.info(
             f"Dataset loaded with {len(dataloader)} samples and images of shape {infer_engine.height}x{infer_engine.width}."
@@ -142,6 +151,9 @@ def eval_setup(
             eval_cfg.parser_cfg.name,
             **eval_cfg.parser_cfg.params,
         )
+        assert isinstance(parser, BaseParser), (
+            f"{eval_cfg.parser_cfg.name} parser must be an instance of BaseParser."
+        )
         logger.info(f"{eval_cfg.parser_cfg.name} parser initialized.")
     except KeyError as e:
         raise ValueError(
@@ -160,6 +172,9 @@ def eval_setup(
                 METRICS_REGISTRY,
                 metric_name,
                 **metric_cfg.params,
+            )
+            assert isinstance(metric, BaseMetric), (
+                f"{metric_name} metric must be an instance of BaseMetric."
             )
             logger.info(f"{metric_name} metric initialized.")
         except KeyError as e:
@@ -188,6 +203,9 @@ def eval_setup(
                 VISUALIZERS_REGISTRY,
                 eval_cfg.visualizer_cfg.name,
                 **eval_cfg.visualizer_cfg.params,
+            )
+            assert isinstance(visualizer, BaseVisualizer), (
+                f"{eval_cfg.visualizer_cfg.name} visualizer must be an instance of BaseVisualizer."
             )
             logger.info(
                 f"{eval_cfg.visualizer_cfg.name} visualizer initialized."
