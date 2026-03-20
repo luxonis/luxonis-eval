@@ -1,18 +1,14 @@
-from __future__ import annotations
-
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import numpy as np
 import onnxruntime as ort
+from loguru import logger
 from luxonis_ml.data.loaders import LuxonisLoader
 from tabulate import tabulate
 
 from luxonis_eval.metrics.metrics_utils import yolo_norm_to_coco_xywh
-
-if TYPE_CHECKING:
-    from luxonis_eval import BaseEvalLoader
 
 
 def section(
@@ -202,14 +198,14 @@ def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:
 
 
 def get_class_mapping(
-    dataloader: BaseEvalLoader | LuxonisLoader,
+    dataloader: LuxonisLoader,
     **kwargs,
 ) -> tuple[dict, dict, dict | None]:
     """Get native class map and optional class index mapping.
 
     Parameters
     ----------
-    dataloader : BaseEvalLoader | LuxonisLoader
+    dataloader : LuxonisLoader
         Dataloader to extract class mappings from.
     **kwargs
         Additional dataset-specific parameters.
@@ -220,25 +216,32 @@ def get_class_mapping(
         LDF class map, native class map and class index map (if available).
     """
 
-    # TODO: Support loaders inheriting from BaseEvalLoader. Find a way to get class map from them. If its not provided, go though the dataset, which if it inherits from LuxonisDataset (it should), we can get the native classes from there.
     if isinstance(dataloader, LuxonisLoader):
         ldf_class_map = dataloader.classes[""]
         ldf_class_map = {v: k for k, v in ldf_class_map.items()}
     else:
-        raise NotImplementedError("Only LuxonisLoader is currently supported.")
+        raise NotImplementedError(
+            "Built-in `get_class_mapping` is only implemented for `LuxonisLoader`. Please provide a custom implementation for other loader types inheriting from `BaseEvalLoader`."
+        )
 
-    # TODO: Find a better way to determine dataset type/name because the dataset name can be arbitrary and may not contain 'imagenet' or 'coco'.
     if "imagenet" in dataloader.dataset.dataset_name:
         native_class_map = get_dataset_class_mapping("imagenet")
     elif "coco" in dataloader.dataset.dataset_name:
         native_class_map = get_dataset_class_mapping("coco")
     else:
+        logger.info(
+            f"Dataset '{dataloader.dataset.dataset_name}' does not match known datasets for automatic class mapping. Attempting to use provided class mapping from the 'dataloader_cfg.params.class_mapping' argument."
+        )
         native_class_map = kwargs.get("class_mapping", {})
 
     class_index_map = None
     if native_class_map:
         class_index_map = get_class_index_mapping(
             ldf_class_map, native_class_map
+        )
+    else:
+        logger.warning(
+            "No native class map found. Class index mapping will not be available, which may affect metric calculations that require the mapping of LDF class indices to native dataset indices."
         )
 
     return ldf_class_map, native_class_map, class_index_map
@@ -259,7 +262,6 @@ def get_dataset_class_mapping(
     dict[int, str]
         Mapping from class index to class name.
     """
-    # TODO: Find a better way to set the type of the dataset parameter to be dynamic and extensible to other datasets may be intorduced in the future.
     if dataset_name == "coco":
         mapping_path = (
             Path(__file__).parent.parent

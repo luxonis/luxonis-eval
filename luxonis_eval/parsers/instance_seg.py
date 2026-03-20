@@ -104,7 +104,7 @@ class YOLOInstanceSegmentationParser(BaseParser):
             protos_len = protos_output.shape[1]
         else:
             raise TypeError(
-                "raw_output must be dai.NNData or list[np.ndarray]"
+                f"Unsupported raw_output type: {type(raw_output)}. Expected dai.NNData or list[np.ndarray]."
             )
 
         strides = (

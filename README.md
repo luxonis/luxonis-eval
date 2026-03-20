@@ -106,17 +106,14 @@ python -m luxonis_eval eval \
 ### Python API Usage
 
 ```python
-from luxonis_eval.__main__ import eval_setup, eval_run
+from luxonis_eval.__main__ import eval_run
 from luxonis_eval.utils.config import EvalConfig
 
 # Load configuration
 eval_cfg = EvalConfig.get_config(cfg="path/to/config.yaml")
 
-# Setup engine and dataloader
-infer_engine, dataloader = eval_setup(eval_cfg)
-
-# Run evaluation
-eval_run(eval_cfg, infer_engine, dataloader)
+# Setup and run evaluation
+eval_run(eval_cfg)
 ```
 
 ## Architecture

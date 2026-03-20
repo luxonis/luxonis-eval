@@ -48,6 +48,10 @@ class SemanticSegmentationParser(BaseParser):
             )  # type: ignore
         elif isinstance(raw_output, list):
             segmentation_mask: np.ndarray = raw_output[0]
+        else:
+            raise TypeError(
+                f"Unsupported raw_output type: {type(raw_output)}. Expected dai.NNData or list[np.ndarray]."
+            )
 
         if len(segmentation_mask.shape) == 4:
             segmentation_mask = segmentation_mask[0]

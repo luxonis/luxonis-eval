@@ -72,7 +72,7 @@ class ClassificationParser(BaseParser):
             scores = raw_output[0]
         else:
             raise TypeError(
-                "raw_output must be dai.NNData or list[np.ndarray]"
+                f"Unsupported raw_output type: {type(raw_output)}. Expected dai.NNData or list[np.ndarray]."
             )
 
         scores = np.array(scores).flatten()

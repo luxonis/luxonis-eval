@@ -106,7 +106,7 @@ class YOLOKeypointDetectionParser(BaseParser):
             kpts_outputs = raw_output[3:]
         else:
             raise TypeError(
-                "raw_output must be dai.NNData or list[np.ndarray]"
+                f"Unsupported raw_output type: {type(raw_output)}. Expected dai.NNData or list[np.ndarray]."
             )
 
         strides = (
