@@ -1,5 +1,6 @@
 cyclopts
 depthai>=3.3.0
+luxonis-ml[data,nn_archive,utils]>=0.8.2
 loguru
 depthai-nodes
 tabulate
