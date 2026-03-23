@@ -45,7 +45,10 @@ class KeypointMeanAveragePrecision(BaseMetric):
         self._store.reset()
 
     def _update_impl(
-        self, predictions: dai.ImgDetections, target: Any, **kwargs: Any
+        self,
+        predictions: dai.ImgDetections,
+        target: dict[str, np.ndarray],
+        **kwargs: Any,
     ) -> None:
         """Update internal metric state.
 
@@ -53,7 +56,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
         ----------
         predictions : dai.ImgDetections
             Model predictions.
-        target : Any
+        target : dict[str, np.ndarray]
             Ground-truth data.
         **kwargs : Any
             Additional context.
@@ -101,7 +104,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
                 }
             )
 
-        # --- DT ---
+        # --- Predictions ---
         detections = predictions.detections
         scores = [det.confidence for det in detections]
         classes = [det.label for det in detections]
@@ -131,7 +134,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
             if not any(kpts_flat):
                 continue
 
-            self._store.add_dt(
+            self._store.add_pred(
                 {
                     "image_id": img_id,
                     "category_id": cls,

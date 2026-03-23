@@ -65,13 +65,13 @@ The framework follows a **registry-based architecture** where each pluggable com
 ## Installation
 
 ```sh
-pip install -e .
+pip install .
 ```
 
 For development:
 
 ```sh
-pip install -e ".[dev]"
+pip install ".[dev]"
 ```
 
 ## Usage
@@ -80,24 +80,24 @@ pip install -e ".[dev]"
 
 ```sh
 # Run evaluation with a config file
-python -m luxonis_eval eval --config path/to/config.yaml
+luxonis_eval eval --config path/to/config.yaml
 
 # Run with CLI overrides
-python -m luxonis_eval eval \
+luxonis_eval eval \
     --config path/to/config.yaml \
     --dataset-name coco \
     --model-path path/to/model.tar.xz \
     --backend depthai
 
 # Using ONNX backend
-python -m luxonis_eval eval \
+luxonis_eval eval \
     --config path/to/config.yaml \
     --dataset-name coco \
     --model-path path/to/model.onnx \
     --backend onnx
 
 # Specify device IP for RVC4
-python -m luxonis_eval eval \
+luxonis_eval eval \
     --config path/to/config.yaml \
     --device-ip 192.168.1.100
 ```

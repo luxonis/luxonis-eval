@@ -39,7 +39,7 @@ class COCOStore:
         self.iou_type = iou_type
         self.images: list[dict[str, Any]] = []
         self.gt_annotations: list[dict[str, Any]] = []
-        self.dt_results: list[dict[str, Any]] = []
+        self.pred_results: list[dict[str, Any]] = []
         self.categories: list[dict[str, Any]] | None = None
         self.category_ids_set: set[int] | None = None
         self.next_ann_id: int = 1
@@ -49,7 +49,7 @@ class COCOStore:
         """Reset internal storage."""
         self.images.clear()
         self.gt_annotations.clear()
-        self.dt_results.clear()
+        self.pred_results.clear()
         self.categories = None
         self.category_ids_set = None
         self.next_ann_id = 1
@@ -119,18 +119,18 @@ class COCOStore:
         self.gt_annotations.append(ann)
         self.next_ann_id = max(self.next_ann_id, int(ann["id"]) + 1)
 
-    def add_dt(self, res: dict[str, Any]) -> None:
-        """Add a detection result.
+    def add_pred(self, res: dict[str, Any]) -> None:
+        """Add a prediction result.
 
         Parameters
         ----------
         res : dict[str, Any]
-            Detection result in COCO format.
+            Prediction result in COCO format.
         """
-        self.dt_results.append(res)
+        self.pred_results.append(res)
 
     def evaluate(self) -> dict[str, float]:
-        """Evaluate detection results using COCO evaluation.
+        """Evaluate prediction results using COCO evaluation.
 
         Returns
         -------
@@ -149,11 +149,11 @@ class COCOStore:
             coco_target.dataset = coco_target_dict  # type: ignore
             coco_target.createIndex()
 
-            if len(self.dt_results) == 0:
+            if len(self.pred_results) == 0:
                 return {"AP": 0.0, "AP50": 0.0}
 
-            coco_dt = coco_target.loadRes(self.dt_results)  # type: ignore
-            coco_eval = COCOeval(coco_target, coco_dt, iouType=self.iou_type)  # type: ignore
+            coco_pred = coco_target.loadRes(self.pred_results)  # type: ignore
+            coco_eval = COCOeval(coco_target, coco_pred, iouType=self.iou_type)  # type: ignore
             coco_eval.evaluate()
             coco_eval.accumulate()
             coco_eval.summarize()

@@ -34,84 +34,11 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self.setup()
         super().__init__(model_path=model_path, **kwargs)
 
-    def load_nn_archive(self) -> tuple[dai.NNArchive, dict, str | None]:
-        """Load the model from an NNArchive.
-
-        Returns
-        -------
-        tuple[dai.NNArchive, dict, str | None]
-            Loaded NNArchive, input info, and inferred platform.
-        """
-
-        logger.info(f"Loading NNArchive model from: {self.model_path!s}")
-
-        if not self.model_path.exists():  # type: ignore
-            raise FileNotFoundError(f"Model file not found: {self.model_path}")
-
-        try:
-            nn_archive = dai.NNArchive(self.model_path)  # type: ignore
-        except Exception as e:
-            logger.error(f"Failed to load model: {e}")
-            raise
-
-        input_info = {}
-        infered_platform = None
-        try:
-            inputs = nn_archive.getConfig().model.inputs
-            if inputs:
-                input_shape = inputs[0].shape
-                input_info = {
-                    "shape": input_shape,
-                    "name": inputs[0].name
-                    if hasattr(inputs[0], "name")
-                    else "input",
-                }
-                logger.info(f"Model input shape: {input_shape}")
-                if inputs[0].layout and inputs[0].layout == "NHWC":
-                    infered_platform = "RVC4"
-                elif inputs[0].layout and inputs[0].layout == "NCHW":
-                    infered_platform = "RVC2"
-        except AttributeError:
-            logger.warning("Could not extract input shape from model")
-
-        return nn_archive, input_info, infered_platform
-
-    def setup_device(self) -> tuple[dai.Device, str]:
-        """Set up and connect to a DepthAI device.
-
-        Returns
-        -------
-        tuple[dai.Device, str]
-            Connected device and its platform name.
-        """
-
-        logger.info("Setting up device connection...")
-
-        try:
-            if self.device_ip:
-                device_info = dai.DeviceInfo(self.device_ip)
-                device = dai.Device(device_info)
-            else:
-                device = dai.Device()
-
-            platform = device.getPlatform()
-            platform_name = platform.name
-
-            logger.info(
-                f"Connected to [{platform.name}]: Name: {device.getDeviceName()} - IP: {device.getDeviceInfo().name} - ID: {device.getDeviceInfo().deviceId}"
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to connect to device: {e}")
-            raise
-
-        return device, platform_name
-
     def setup(self) -> None:
         """Set up the DepthAI pipeline."""
-        self.device, self.device_platform = self.setup_device()
+        self.device, self.device_platform = self._setup_device()
         self.nn_archive, self.input_info, self.model_platform = (
-            self.load_nn_archive()
+            self._load_nn_archive()
         )
 
         self._pipeline = dai.Pipeline(self.device)
@@ -224,3 +151,76 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
     def teardown(self) -> None:
         """Tear down the DepthAI pipeline."""
         self._pipeline = None
+
+    def _setup_device(self) -> tuple[dai.Device, str]:
+        """Set up and connect to a DepthAI device.
+
+        Returns
+        -------
+        tuple[dai.Device, str]
+            Connected device and its platform name.
+        """
+
+        logger.info("Setting up device connection...")
+
+        try:
+            if self.device_ip:
+                device_info = dai.DeviceInfo(self.device_ip)
+                device = dai.Device(device_info)
+            else:
+                device = dai.Device()
+
+            platform = device.getPlatform()
+            platform_name = platform.name
+
+            logger.info(
+                f"Connected to [{platform.name}]: Name: {device.getDeviceName()} - IP: {device.getDeviceInfo().name} - ID: {device.getDeviceInfo().deviceId}"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to connect to device: {e}")
+            raise
+
+        return device, platform_name
+
+    def _load_nn_archive(self) -> tuple[dai.NNArchive, dict, str | None]:
+        """Load the model from an NNArchive.
+
+        Returns
+        -------
+        tuple[dai.NNArchive, dict, str | None]
+            Loaded NNArchive, input info, and inferred platform.
+        """
+
+        logger.info(f"Loading NNArchive model from: {self.model_path!s}")
+
+        if not self.model_path.exists():  # type: ignore
+            raise FileNotFoundError(f"Model file not found: {self.model_path}")
+
+        try:
+            nn_archive = dai.NNArchive(self.model_path)  # type: ignore
+        except Exception as e:
+            logger.error(f"Failed to load model: {e}")
+            raise
+
+        input_info = {}
+        infered_platform = None
+        try:
+            inputs = nn_archive.getConfig().model.inputs
+            if inputs:
+                input_shape = inputs[0].shape
+                input_info = {
+                    "shape": input_shape,
+                    "name": inputs[0].name
+                    if hasattr(inputs[0], "name")
+                    else "input",
+                }
+                logger.info(f"Model input shape: {input_shape}")
+                if inputs[0].layout and inputs[0].layout == "NHWC":
+                    infered_platform = "RVC4"
+                elif inputs[0].layout and inputs[0].layout == "NCHW":
+                    infered_platform = "RVC2"
+        except AttributeError:
+            logger.warning("Could not extract input shape from model")
+
+        return nn_archive, input_info, infered_platform

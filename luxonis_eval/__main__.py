@@ -343,6 +343,9 @@ def eval_run(
         results=results,
     )
 
+    logger.warning(
+        "Throughput values are end-to-end pipeline measurements and not isolated model-only benchmarks. Lower numbers than modelconverter benchmark results are expected."
+    )
     logger.info(f"\n{table}")
 
 
