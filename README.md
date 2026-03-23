@@ -14,7 +14,6 @@
   - [Key Base Classes](#key-base-classes)
   - [Evaluation Pipeline: Modular Design](#evaluation-pipeline-modular-design)
 - [Configuration](#configuration)
-  - [Task Name](#task-name)
   - [Data Loading \& Preprocessing](#data-loading--preprocessing)
   - [Output Parser](#output-parser)
   - [Evaluation Metrics](#evaluation-metrics)
@@ -185,14 +184,6 @@ Evaluation runs are driven by a YAML configuration file. The configuration is pa
 
 A complete configuration file has the following top-level sections:
 
-### Task Name
-
-Defines a human-readable task label used in progress reporting and run output.
-
-```yaml
-task_name: InstanceSegmentation
-```
-
 ### Data Loading & Preprocessing
 
 Specifies which dataloader to use, the dataset it points to, and any preprocessing applied before inference.
@@ -269,8 +260,6 @@ engine_cfg:
 ### Full Example
 
 ```yaml
-task_name: InstanceSegmentation
-
 dataloader_cfg:
   name: LuxonisLoader
   params:

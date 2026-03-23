@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import Any, Literal
 
@@ -9,6 +10,11 @@ from luxonis_ml.data.loaders import LuxonisLoader
 from tabulate import tabulate
 
 from luxonis_eval.metrics.metrics_utils import yolo_norm_to_coco_xywh
+
+
+def get_model_name(path: str) -> str:
+    name = Path(path).name
+    return re.sub(r"\.((rvc\d+)?\.?tar\.xz|onnx)$", "", name)
 
 
 def section(
@@ -38,7 +44,7 @@ def section(
 def make_report_table(
     *,
     backend: str,
-    task_name: str,
+    model_name: str,
     device: str,
     tp: dict[str, float],
     results: list[dict[str, Any]],
@@ -49,8 +55,8 @@ def make_report_table(
     ----------
     backend : str
         Backend identifier.
-    task_name : str
-        Inference task name.
+    model_name : str
+        Model name.
     device : str
         Inference device descriptor.
     tp : dict[str, float]
@@ -67,8 +73,8 @@ def make_report_table(
 
     rows += section("SETTINGS")
     rows += [
+        ["Model", model_name],
         ["Backend", str(backend).upper()],
-        ["Task", task_name],
         ["Device", str(device)],
     ]
 

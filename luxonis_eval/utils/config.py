@@ -142,7 +142,6 @@ class EngineConfig(ConfigItem):
 class EvalConfig(LuxonisConfig):
     """Configuration for evaluation."""
 
-    task_name: str
     dataloader_cfg: DataLoaderConfig
     parser_cfg: ParserConfig
     metrics_cfg: MetricsConfig

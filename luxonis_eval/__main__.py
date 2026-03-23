@@ -35,6 +35,7 @@ from luxonis_eval.utils.config import EvalConfig
 from luxonis_eval.utils.utils import (
     get_class_mapping,
     get_metric_ctx,
+    get_model_name,
     make_report_table,
 )
 
@@ -271,7 +272,7 @@ def eval_run(
     ) = eval_setup(eval_cfg)
 
     backend: str = eval_cfg.engine_cfg.name
-    task_name: str = eval_cfg.task_name
+    model_name: str = get_model_name(eval_cfg.engine_cfg.model_path)
 
     ldf_class_map, class_map, class_index_map = dataloader.get_class_mapping(  # type: ignore
         **eval_cfg.dataloader_cfg.params
@@ -288,7 +289,7 @@ def eval_run(
             TimeElapsedColumn(),
         ) as progress:
             ptask = progress.add_task(
-                f"Running {backend.upper()} inference ({task_name})...",
+                f"Running {backend.upper()} inference ({model_name})...",
                 total=len(dataloader),
             )
 
@@ -342,7 +343,7 @@ def eval_run(
 
     table = make_report_table(
         backend=backend,
-        task_name=task_name,
+        model_name=model_name,
         device=infer_engine.platform_name,
         tp=tp,
         results=results,
