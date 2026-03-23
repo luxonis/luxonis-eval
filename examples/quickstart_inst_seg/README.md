@@ -9,11 +9,14 @@ This example provides a minimal end-to-end run of `luxonis-eval` without a Luxon
 
 ## Prerequisites
 
-Install `luxonis_eval` from the repository root (`luxonis_ml` and other dependencies are pulled in automatically):
+Install `luxonis_eval` from the repository root (`luxonis_ml` and other dependencies are pulled in automatically), and `fiftyone` for dataset handling:
 
 ```bash
-# standard install
+# luxonis_eval install
 pip install .
+
+# install fiftyone
+pip install fiftyone
 ```
 
 The setup script also requires `wget` and `tar` to be available on your system.

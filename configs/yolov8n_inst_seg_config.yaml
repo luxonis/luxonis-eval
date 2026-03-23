@@ -31,7 +31,7 @@ metrics:
         iou_type: segm
 
 engine:
-  model_path: examples/quickstart_example/models/yolov8n-seg.onnx
+  model_path: examples/quickstart_inst_seg/models/yolov8n-seg.onnx
   name: onnx
   params:
     providers: [CPUExecutionProvider]
