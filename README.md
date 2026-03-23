@@ -46,9 +46,10 @@ Get started with `LuxonisEval` in a few steps:
    pip install .
    ```
 
-2. **Prepare the example model and dataset**
+2. **Prepare the example model and dataset (requires the `fiftyone` package)**
 
    ```bash
+   pip install fiftyone
    bash examples/quickstart_inst_seg/setup_example.sh
    ```
 
