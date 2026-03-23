@@ -315,7 +315,7 @@ The setup script performs three steps:
 2. Downloads small COCO-2017 splits through FiftyOne.
 3. Parses the dataset into LDF format as `coco-2017` using `luxonis_ml data parse`.
 
-For full details, see [`examples/quickstart_inst_seg/README.md`](examples/quickstart_inst_seg/README.md).
+For full details, see the [quickstart example README](examples/quickstart_inst_seg/README.md).
 
 ## Extending the Framework
 
