@@ -1,5 +1,6 @@
 import json
 import re
+from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal
 
@@ -256,41 +257,18 @@ def get_class_mapping(
 def get_dataset_class_mapping(
     dataset_name: Literal["coco", "imagenet"],
 ) -> dict[int, str]:
-    """Load class index-to-name mapping for a dataset.
-
-    Parameters
-    ----------
-    dataset_name : Literal["coco", "imagenet"]
-        Dataset identifier.
-
-    Returns
-    -------
-    dict[int, str]
-        Mapping from class index to class name.
-    """
-    if dataset_name == "coco":
-        mapping_path = (
-            Path(__file__).parent.parent
-            / "metadata"
-            / "coco_class_mappings.json"
+    supported = {"coco", "imagenet"}
+    if dataset_name not in supported:
+        raise ValueError(
+            f"Unsupported dataset '{dataset_name}'. Supported values are {supported}."
         )
-        with open(mapping_path) as f:
-            class_mapping = json.load(f)
-        return {int(k): v for k, v in class_mapping.items()}
 
-    if dataset_name == "imagenet":
-        mapping_path = (
-            Path(__file__).parent.parent
-            / "metadata"
-            / "imagenet_class_mappings.json"
-        )
-        with open(mapping_path) as f:
-            class_mapping = json.load(f)
-        return {int(k): v for k, v in class_mapping.items()}
-
-    raise ValueError(
-        f"Unsupported dataset '{dataset_name}'. Supported values are 'coco' and 'imagenet'."
+    mapping_file = files("luxonis_eval.metadata").joinpath(
+        f"{dataset_name}_class_mappings.json"
     )
+    with mapping_file.open() as f:
+        class_mapping = json.load(f)
+    return {int(k): v for k, v in class_mapping.items()}
 
 
 def get_class_index_mapping(
