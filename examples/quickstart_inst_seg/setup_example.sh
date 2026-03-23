@@ -89,4 +89,4 @@ luxonis_ml data parse --delete "${COCO_ROOT}" --name "${DATASET_NAME}" --split-r
 
 echo ""
 echo "Setup complete. Run evaluation with:"
-echo "  luxonis_eval eval --config examples/quickstart_inst_seg/yolov8n_inst_seg_config.yaml"
+echo "  luxonis_eval eval --config configs/yolov8n_inst_seg_config.yaml"

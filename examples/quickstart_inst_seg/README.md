@@ -41,7 +41,7 @@ bash examples/quickstart_inst_seg/setup_example.sh --force
 ## 2. Run Evaluation
 
 ```bash
-luxonis_eval eval --config examples/quickstart_inst_seg/yolov8n_inst_seg_config.yaml
+luxonis_eval eval --config configs/yolov8n_inst_seg_config.yaml
 ```
 
 This runs instance segmentation metrics with ONNX Runtime on CPU.
