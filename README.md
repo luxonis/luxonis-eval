@@ -171,8 +171,8 @@ Here is how the pipeline flows:
 
 Because every component is resolved from a registry at runtime based on its **name** in the config, you can mix and match components freely. For example, you can:
 
-- Swap `depthai` for `onnx` in `engine_cfg` without changing anything else
-- Add a new metric to `metrics_cfg.metrics` alongside existing ones
+- Swap `depthai` for `onnx` in `engine` without changing anything else
+- Add a new metric to `metrics.metrics` alongside existing ones
 - Write a custom parser and reference it by name
 - Replace the LDF-based LuxonisLoader dataloader with your own dataset-specific loader
 
@@ -189,7 +189,7 @@ A complete configuration file has the following top-level sections:
 Specifies which dataloader to use, the dataset it points to, and any preprocessing applied before inference.
 
 ```yaml
-dataloader_cfg:
+loader:
   name: LuxonisLoader            # Registered dataloader name
   params:
     dataset_name: coco-2017       # Dataset identifier (required for LuxonisLoader)
@@ -212,7 +212,7 @@ dataloader_cfg:
 Defines how raw model outputs are converted into structured predictions. Different model architectures produce different output tensor layouts; parsers handle this translation.
 
 ```yaml
-parser_cfg:
+parser:
   name: YOLOInstanceSegmentationParser  # Registered parser name
   params:
     conf_thres: 0.25                    # Parser-specific parameters
@@ -225,7 +225,7 @@ parser_cfg:
 A list of metrics to compute. Each metric is independently instantiated, updated per sample, and computed at the end. Throughput is always measured automatically.
 
 ```yaml
-metrics_cfg:
+metrics:
   metrics:
     - name: BboxMeanAveragePrecision
       params:
@@ -240,7 +240,7 @@ metrics_cfg:
 Optionally enables live visualization of predictions during the evaluation loop.
 
 ```yaml
-visualizer_cfg:
+visualizer:
   name: InstanceSegmentationVisualizer
   visualize: true                 # Set to false to disable
   params: {}
@@ -251,7 +251,7 @@ visualizer_cfg:
 Specifies the inference backend and the path to the model file. The config validates that the model file format matches the selected backend (`.tar.xz` → `depthai`, `.onnx` → `onnx`).
 
 ```yaml
-engine_cfg:
+engine:
   name: onnx                     # Registered engine name (onnx | depthai)
   model_path: ./models/yolov11n/yolov11n.onnx
   params: {}                      # Engine-specific parameters (e.g., device_ip for RVC4)
@@ -260,7 +260,7 @@ engine_cfg:
 ### Full Example
 
 ```yaml
-dataloader_cfg:
+loader:
   name: LuxonisLoader
   params:
     dataset_name: coco-2017
@@ -271,14 +271,14 @@ dataloader_cfg:
     color_space: BGR
     keep_aspect_ratio: false
 
-parser_cfg:
+parser:
   name: YOLOInstanceSegmentationParser
   params:
     conf_thres: 0.25
     mask_thres: 0.25
     iou_thres: 0.45
 
-metrics_cfg:
+metrics:
   metrics:
     - name: BboxMeanAveragePrecision
       params:
@@ -287,7 +287,7 @@ metrics_cfg:
       params:
         iou_type: segm
 
-engine_cfg:
+engine:
   name: depthai
   model_path: ./models/yolov11n-seg.rvc4.tar.xz
   params:
@@ -334,7 +334,7 @@ Subclass [`BaseEngine`](luxonis_eval/engines/base_engine.py) and implement the s
 
 Subclass [`BaseParser`](luxonis_eval/parsers/base_parser.py) and implement the single abstract method:
 
-- **`parse(raw_output, **kwargs)`** – Converts the raw backend output into a structured prediction. The `raw_output` type depends on the engine being used (`dai.NNData` for DepthAI, `list[np.ndarray]` for ONNX Runtime, or whatever a custom engine returns). Additional keyword arguments are forwarded from `parser_cfg.params` in the config and the evaluation loop.
+- **`parse(raw_output, **kwargs)`** – Converts the raw backend output into a structured prediction. The `raw_output` type depends on the engine being used (`dai.NNData` for DepthAI, `list[np.ndarray]` for ONNX Runtime, or whatever a custom engine returns). Additional keyword arguments are forwarded from `parser.params` in the config and the evaluation loop.
 
 The parser bridges the gap between a specific model architecture's raw tensor layout and the standardized format that downstream metrics expect. The standardized format used for the built-in supported parsers are as follows:
 

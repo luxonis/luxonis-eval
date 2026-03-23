@@ -236,7 +236,7 @@ def get_class_mapping(
         native_class_map = get_dataset_class_mapping("coco")
     else:
         logger.info(
-            f"Dataset '{dataloader.dataset.dataset_name}' does not match known datasets for automatic class mapping. Attempting to use provided class mapping from the 'dataloader_cfg.params.class_mapping' argument."
+            f"Dataset '{dataloader.dataset.dataset_name}' does not match known datasets for automatic class mapping. Attempting to use provided class mapping from the 'loader.params.class_mapping' argument."
         )
         native_class_map = kwargs.get("class_mapping", {})
 
