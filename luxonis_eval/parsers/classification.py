@@ -16,28 +16,6 @@ class ClassificationParser(BaseParser):
         """Initialize the classification parser."""
         super().__init__(**kwargs)
 
-    def softmax(
-        self, x: np.ndarray, axis: int | None = None, keep_dims: bool = False
-    ) -> np.ndarray:
-        """Apply softmax to an array.
-
-        Parameters
-        ----------
-        x : np.ndarray
-            Input array.
-        axis : int | None, optional
-            Axis over which to apply softmax.
-        keep_dims : bool, default=False
-            Whether to keep reduced dimensions.
-
-        Returns
-        -------
-        np.ndarray
-            Softmax-normalized array.
-        """
-        ex = np.exp(x)
-        return ex / np.sum(ex, axis=axis, keepdims=keep_dims)
-
     def parse(
         self,
         raw_output: dai.NNData | list[np.ndarray],
@@ -72,12 +50,34 @@ class ClassificationParser(BaseParser):
             scores = raw_output[0]
         else:
             raise TypeError(
-                "raw_output must be dai.NNData or list[np.ndarray]"
+                f"Unsupported raw_output type: {type(raw_output)}. Expected dai.NNData or list[np.ndarray]."
             )
 
         scores = np.array(scores).flatten()
 
         if apply_softmax:
-            scores = self.softmax(scores)
+            scores = self._softmax(scores)
 
         return create_classification_message(classes=classes, scores=scores)
+
+    def _softmax(
+        self, x: np.ndarray, axis: int | None = None, keep_dims: bool = False
+    ) -> np.ndarray:
+        """Apply softmax to an array.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Input array.
+        axis : int | None, optional
+            Axis over which to apply softmax.
+        keep_dims : bool, default=False
+            Whether to keep reduced dimensions.
+
+        Returns
+        -------
+        np.ndarray
+            Softmax-normalized array.
+        """
+        ex = np.exp(x)
+        return ex / np.sum(ex, axis=axis, keepdims=keep_dims)

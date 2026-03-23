@@ -46,7 +46,10 @@ class MaskMeanAveragePrecision(BaseMetric):
         self._store.reset()
 
     def _update_impl(
-        self, predictions: dai.ImgDetections, target: Any, **kwargs: Any
+        self,
+        predictions: dai.ImgDetections,
+        target: dict[str, np.ndarray],
+        **kwargs: Any,
     ) -> None:
         """Update internal metric state.
 
@@ -54,7 +57,7 @@ class MaskMeanAveragePrecision(BaseMetric):
         ----------
         predictions : dai.ImgDetections
             Model predictions.
-        target : Any
+        target : dict[str, np.ndarray]
             Ground-truth data.
         **kwargs : Any
             Additional context.
@@ -68,11 +71,6 @@ class MaskMeanAveragePrecision(BaseMetric):
         class_map: dict[int, str] = kwargs.get("class_map", {})
         category_ids: Sequence[int] | None = kwargs.get("category_ids")
         class_index_map = kwargs.get("class_index_map")
-        target_converter = kwargs.get("target_converter")
-        if target_converter is None:
-            raise ValueError(
-                "MaskMeanAveragePrecision requires target_converter in ctx."
-            )
 
         self._store.init_categories_once(
             class_map=class_map, category_ids=category_ids
@@ -80,12 +78,9 @@ class MaskMeanAveragePrecision(BaseMetric):
         img_id = self._store.new_image(width=width, height=height)
 
         # --- GT ---
-        target_classes, target_boxes_xywh = target_converter(
-            target_boxes, width, height
-        )
-        for mask, box, cls in zip(
-            target_masks, target_boxes_xywh, target_classes, strict=True
-        ):
+        target_classes = target_boxes[:, 0].astype(np.int64)
+
+        for mask, cls in zip(target_masks, target_classes, strict=True):
             cls = int(cls)
             if class_index_map is not None:
                 cls = int(class_index_map[cls])
@@ -110,7 +105,7 @@ class MaskMeanAveragePrecision(BaseMetric):
                 }
             )
 
-        # --- DT ---
+        # --- Predictions ---
         detections = predictions.detections
         scores = [det.confidence for det in detections]
         classes = [det.label for det in detections]
@@ -141,7 +136,7 @@ class MaskMeanAveragePrecision(BaseMetric):
             rle = binary_mask_to_rle(mask.astype(bool))
             coco_bbox = bbox_from_rle(rle)
 
-            self._store.add_dt(
+            self._store.add_pred(
                 {
                     "image_id": img_id,
                     "category_id": cls,

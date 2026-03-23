@@ -64,7 +64,10 @@ class DiceCoefficient(BaseMetric):
         self.metric.reset()
 
     def _update_impl(
-        self, predictions: SegmentationMask, target: Any, **kwargs: Any
+        self,
+        predictions: SegmentationMask,
+        target: dict[str, np.ndarray],
+        **kwargs: Any,
     ) -> None:
         """Update internal metric state.
 
@@ -72,7 +75,7 @@ class DiceCoefficient(BaseMetric):
         ----------
         predictions : SegmentationMask
             Model predictions (logits or probabilities).
-        target : Any
+        target : dict[str, np.ndarray]
             Ground-truth labels.
         **kwargs : Any
             Additional context.

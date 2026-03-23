@@ -39,7 +39,10 @@ class TopKAccuracy(BaseMetric):
         self.total = 0
 
     def _update_impl(
-        self, predictions: Classifications, target: Any, **kwargs: Any
+        self,
+        predictions: Classifications,
+        target: dict[str, np.ndarray],
+        **kwargs: Any,
     ) -> None:
         """Update internal metric state.
 
@@ -47,7 +50,7 @@ class TopKAccuracy(BaseMetric):
         ----------
         predictions : Classifications
             Model predictions (logits or probabilities).
-        target : Any
+        target : dict[str, np.ndarray]
             Ground-truth labels.
         **kwargs : Any
             Additional context.

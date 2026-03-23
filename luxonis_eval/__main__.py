@@ -35,6 +35,7 @@ from luxonis_eval.utils.config import EvalConfig
 from luxonis_eval.utils.utils import (
     get_class_mapping,
     get_metric_ctx,
+    get_model_name,
     make_report_table,
 )
 
@@ -77,13 +78,17 @@ def eval_setup(
     try:
         infer_engine = from_registry(
             ENGINES_REGISTRY,
-            eval_cfg.engine_cfg.name,
-            eval_cfg.engine_cfg.model_path,
-            **eval_cfg.engine_cfg.params,
+            eval_cfg.engine.name,
+            eval_cfg.engine.model_path,
+            **eval_cfg.engine.params,
         )
+        assert isinstance(infer_engine, BaseEngine), (
+            f"{eval_cfg.engine.name} engine must be an instance of BaseEngine."
+        )
+        logger.info(f"{eval_cfg.engine.name} inference engine initialized.")
     except KeyError as e:
         raise ValueError(
-            f"Unknown engine: {eval_cfg.engine_cfg.name}. "
+            f"Unknown engine: {eval_cfg.engine.name}. "
             f"Available engines: {list(ENGINES_REGISTRY._module_dict)}"
         ) from e
 
@@ -91,27 +96,25 @@ def eval_setup(
     # Dataset and dataloader initialization
     # -------------------------------------------------------------------------
     try:
-        if eval_cfg.dataloader_cfg.name == "LuxonisLoader":
-            dataset_name: str = eval_cfg.dataloader_cfg.params.get(
-                "dataset_name"
-            )  # type: ignore
+        if eval_cfg.loader.name == "LuxonisLoader":
+            dataset_name: str = eval_cfg.loader.params.get("dataset_name")  # type: ignore
             dataset = LuxonisDataset(dataset_name)
             augmentation_config = []
-            if eval_cfg.dataloader_cfg.preprocessing.normalize.active:
+            if eval_cfg.loader.preprocessing.normalize.active:
                 augmentation_config.append(
                     {
                         "name": "Normalize",
-                        "params": eval_cfg.dataloader_cfg.preprocessing.normalize.params,
+                        "params": eval_cfg.loader.preprocessing.normalize.params,
                     }
                 )
             dataloader = LuxonisLoader(
                 dataset,
-                view=eval_cfg.dataloader_cfg.params.get("view", ["val"]),  # type: ignore
+                view=eval_cfg.loader.params.get("view", ["val"]),  # type: ignore
                 augmentation_config=augmentation_config,
                 height=infer_engine.height,
                 width=infer_engine.width,
-                keep_aspect_ratio=eval_cfg.dataloader_cfg.preprocessing.keep_aspect_ratio,
-                color_space=eval_cfg.dataloader_cfg.preprocessing.color_space,
+                keep_aspect_ratio=eval_cfg.loader.preprocessing.keep_aspect_ratio,
+                color_space=eval_cfg.loader.preprocessing.color_space,
             )
 
             dataloader.get_class_mapping = types.MethodType(  # type: ignore
@@ -120,16 +123,19 @@ def eval_setup(
         else:
             dataloader = from_registry(
                 DATALOADERS_REGISTRY,
-                eval_cfg.dataloader_cfg.name,
-                **eval_cfg.dataloader_cfg.params,
+                eval_cfg.loader.name,
+                **eval_cfg.loader.params,
             )
-        logger.info(f"{eval_cfg.dataloader_cfg.name} dataloader initialized.")
+            assert isinstance(dataloader, BaseEvalLoader), (
+                f"{eval_cfg.loader.name} custom dataloader must be an instance of BaseEvalLoader."
+            )
+        logger.info(f"{eval_cfg.loader.name} dataloader initialized.")
         logger.info(
             f"Dataset loaded with {len(dataloader)} samples and images of shape {infer_engine.height}x{infer_engine.width}."
         )
     except KeyError as e:
         raise ValueError(
-            f"Unknown loader: {eval_cfg.dataloader_cfg.name}. "
+            f"Unknown loader: {eval_cfg.loader.name}. "
             f"Available loaders: {list(DATALOADERS_REGISTRY._module_dict)}"
         ) from e
 
@@ -139,13 +145,16 @@ def eval_setup(
     try:
         parser = from_registry(
             PARSERS_REGISTRY,
-            eval_cfg.parser_cfg.name,
-            **eval_cfg.parser_cfg.params,
+            eval_cfg.parser.name,
+            **eval_cfg.parser.params,
         )
-        logger.info(f"{eval_cfg.parser_cfg.name} parser initialized.")
+        assert isinstance(parser, BaseParser), (
+            f"{eval_cfg.parser.name} parser must be an instance of BaseParser."
+        )
+        logger.info(f"{eval_cfg.parser.name} parser initialized.")
     except KeyError as e:
         raise ValueError(
-            f"Unknown parser: {eval_cfg.parser_cfg.name}. "
+            f"Unknown parser: {eval_cfg.parser.name}. "
             f"Available parsers: {list(PARSERS_REGISTRY._module_dict)}"
         ) from e
 
@@ -153,13 +162,16 @@ def eval_setup(
     # Metrics initialization
     # -------------------------------------------------------------------------
     metrics = []
-    for metric_cfg in eval_cfg.metrics_cfg.metrics:
+    for metric_cfg in eval_cfg.metrics.metrics:
         metric_name = metric_cfg.name
         try:
             metric = from_registry(
                 METRICS_REGISTRY,
                 metric_name,
                 **metric_cfg.params,
+            )
+            assert isinstance(metric, BaseMetric), (
+                f"{metric_name} metric must be an instance of BaseMetric."
             )
             logger.info(f"{metric_name} metric initialized.")
         except KeyError as e:
@@ -182,19 +194,20 @@ def eval_setup(
     # -------------------------------------------------------------------------
     # Visualizer initialization
     # -------------------------------------------------------------------------
-    if eval_cfg.visualizer_cfg and eval_cfg.visualizer_cfg.visualize:
+    if eval_cfg.visualizer and eval_cfg.visualizer.visualize:
         try:
             visualizer = from_registry(
                 VISUALIZERS_REGISTRY,
-                eval_cfg.visualizer_cfg.name,
-                **eval_cfg.visualizer_cfg.params,
+                eval_cfg.visualizer.name,
+                **eval_cfg.visualizer.params,
             )
-            logger.info(
-                f"{eval_cfg.visualizer_cfg.name} visualizer initialized."
+            assert isinstance(visualizer, BaseVisualizer), (
+                f"{eval_cfg.visualizer.name} visualizer must be an instance of BaseVisualizer."
             )
+            logger.info(f"{eval_cfg.visualizer.name} visualizer initialized.")
         except KeyError as e:
             raise ValueError(
-                f"Unknown visualizer: {eval_cfg.visualizer_cfg.name}. "
+                f"Unknown visualizer: {eval_cfg.visualizer.name}. "
                 f"Available visualizers: {list(VISUALIZERS_REGISTRY._module_dict)}"
             ) from e
     else:
@@ -205,15 +218,15 @@ def eval_setup(
     # Configuration compatibility checks
     # -------------------------------------------------------------------------
     if (
-        eval_cfg.engine_cfg.name == "depthai"
-        and eval_cfg.dataloader_cfg.preprocessing.normalize.active
+        eval_cfg.engine.name == "depthai"
+        and eval_cfg.loader.preprocessing.normalize.active
     ):
         logger.warning(
             "Normalization is usually part of the model's preprocessing pipeline in DepthAI. Consider disabling normalization in the dataset config."
         )
     if (
-        eval_cfg.engine_cfg.name == "depthai"
-        and eval_cfg.dataloader_cfg.preprocessing.color_space == "RGB"
+        eval_cfg.engine.name == "depthai"
+        and eval_cfg.loader.preprocessing.color_space == "RGB"
     ):
         logger.warning(
             "Color space is set to RGB in the dataset config. DepthAI expects BGR color space."
@@ -252,11 +265,11 @@ def eval_run(
         visualizer,
     ) = eval_setup(eval_cfg)
 
-    backend: str = eval_cfg.engine_cfg.name
-    task_name: str = eval_cfg.task_name
+    backend: str = eval_cfg.engine.name
+    model_name: str = get_model_name(eval_cfg.engine.model_path)
 
     ldf_class_map, class_map, class_index_map = dataloader.get_class_mapping(  # type: ignore
-        **eval_cfg.dataloader_cfg.params
+        **eval_cfg.loader.params
     )
 
     # -------------------------------------------------------------------------
@@ -270,7 +283,7 @@ def eval_run(
             TimeElapsedColumn(),
         ) as progress:
             ptask = progress.add_task(
-                f"Running {backend.upper()} inference ({task_name})...",
+                f"Running {backend.upper()} inference ({model_name})...",
                 total=len(dataloader),
             )
 
@@ -282,11 +295,11 @@ def eval_run(
                 predictions = parser.parse(
                     raw_output,
                     class_map=class_map,
-                    **eval_cfg.parser_cfg.params,
+                    **eval_cfg.parser.params,
                 )
 
                 for metric in metrics:
-                    base_metric_ctx = eval_cfg.metrics_cfg.metrics[
+                    base_metric_ctx = eval_cfg.metrics.metrics[
                         metrics.index(metric)
                     ].params
                     metric_ctx = get_metric_ctx(
@@ -310,8 +323,7 @@ def eval_run(
                         predictions,
                         target,
                         infer_engine.vis_frame(),
-                        **metric_ctx,
-                        **eval_cfg.visualizer_cfg.params,  # type: ignore
+                        **eval_cfg.visualizer.params,  # type: ignore
                     )
 
                 progress.update(ptask, advance=1)
@@ -326,12 +338,15 @@ def eval_run(
 
     table = make_report_table(
         backend=backend,
-        task_name=task_name,
+        model_name=model_name,
         device=infer_engine.platform_name,
         tp=tp,
         results=results,
     )
 
+    logger.warning(
+        "Throughput values are end-to-end pipeline measurements and not isolated model-only benchmarks. Lower numbers than modelconverter benchmark results are expected."
+    )
     logger.info(f"\n{table}")
 
 
@@ -360,13 +375,13 @@ def eval(
     """
     overrides = {}
     if dataset_name is not None:
-        overrides["dataloader_cfg.params.dataset_name"] = dataset_name
+        overrides["loader.params.dataset_name"] = dataset_name
     if model_path is not None:
-        overrides["engine_cfg.model_path"] = model_path
+        overrides["engine.model_path"] = model_path
     if backend is not None:
-        overrides["engine_cfg.name"] = backend
+        overrides["engine.name"] = backend
     if device_ip is not None:
-        overrides["engine_cfg.params.device_ip"] = device_ip
+        overrides["engine.params.device_ip"] = device_ip
 
     eval_cfg = EvalConfig.get_config(cfg=config, overrides=overrides)
 

@@ -1,18 +1,21 @@
-from __future__ import annotations
-
 import json
+import re
+from importlib.resources import files
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import numpy as np
 import onnxruntime as ort
+from loguru import logger
 from luxonis_ml.data.loaders import LuxonisLoader
 from tabulate import tabulate
 
 from luxonis_eval.metrics.metrics_utils import yolo_norm_to_coco_xywh
 
-if TYPE_CHECKING:
-    from luxonis_eval import BaseEvalLoader
+
+def get_model_name(path: str) -> str:
+    name = Path(path).name
+    return re.sub(r"\.((rvc\d+)?\.?tar\.xz|onnx)$", "", name)
 
 
 def section(
@@ -42,7 +45,7 @@ def section(
 def make_report_table(
     *,
     backend: str,
-    task_name: str,
+    model_name: str,
     device: str,
     tp: dict[str, float],
     results: list[dict[str, Any]],
@@ -53,8 +56,8 @@ def make_report_table(
     ----------
     backend : str
         Backend identifier.
-    task_name : str
-        Inference task name.
+    model_name : str
+        Model name.
     device : str
         Inference device descriptor.
     tp : dict[str, float]
@@ -71,8 +74,8 @@ def make_report_table(
 
     rows += section("SETTINGS")
     rows += [
+        ["Model", model_name],
         ["Backend", str(backend).upper()],
-        ["Task", task_name],
         ["Device", str(device)],
     ]
 
@@ -202,14 +205,14 @@ def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:
 
 
 def get_class_mapping(
-    dataloader: BaseEvalLoader | LuxonisLoader,
+    dataloader: LuxonisLoader,
     **kwargs,
 ) -> tuple[dict, dict, dict | None]:
     """Get native class map and optional class index mapping.
 
     Parameters
     ----------
-    dataloader : BaseEvalLoader | LuxonisLoader
+    dataloader : LuxonisLoader
         Dataloader to extract class mappings from.
     **kwargs
         Additional dataset-specific parameters.
@@ -220,25 +223,32 @@ def get_class_mapping(
         LDF class map, native class map and class index map (if available).
     """
 
-    # TODO: Support loaders inheriting from BaseEvalLoader. Find a way to get class map from them. If its not provided, go though the dataset, which if it inherits from LuxonisDataset (it should), we can get the native classes from there.
     if isinstance(dataloader, LuxonisLoader):
         ldf_class_map = dataloader.classes[""]
         ldf_class_map = {v: k for k, v in ldf_class_map.items()}
     else:
-        raise NotImplementedError("Only LuxonisLoader is currently supported.")
+        raise NotImplementedError(
+            "Built-in `get_class_mapping` is only implemented for `LuxonisLoader`. Please provide a custom implementation for other loader types inheriting from `BaseEvalLoader`."
+        )
 
-    # TODO: Find a better way to determine dataset type/name because the dataset name can be arbitrary and may not contain 'imagenet' or 'coco'.
     if "imagenet" in dataloader.dataset.dataset_name:
         native_class_map = get_dataset_class_mapping("imagenet")
     elif "coco" in dataloader.dataset.dataset_name:
         native_class_map = get_dataset_class_mapping("coco")
     else:
+        logger.info(
+            f"Dataset '{dataloader.dataset.dataset_name}' does not match known datasets for automatic class mapping. Attempting to use provided class mapping from the 'loader.params.class_mapping' argument."
+        )
         native_class_map = kwargs.get("class_mapping", {})
 
     class_index_map = None
     if native_class_map:
         class_index_map = get_class_index_mapping(
             ldf_class_map, native_class_map
+        )
+    else:
+        logger.warning(
+            "No native class map found. Class index mapping will not be available, which may affect metric calculations that require the mapping of LDF class indices to native dataset indices."
         )
 
     return ldf_class_map, native_class_map, class_index_map
@@ -247,42 +257,18 @@ def get_class_mapping(
 def get_dataset_class_mapping(
     dataset_name: Literal["coco", "imagenet"],
 ) -> dict[int, str]:
-    """Load class index-to-name mapping for a dataset.
-
-    Parameters
-    ----------
-    dataset_name : Literal["coco", "imagenet"]
-        Dataset identifier.
-
-    Returns
-    -------
-    dict[int, str]
-        Mapping from class index to class name.
-    """
-    # TODO: Find a better way to set the type of the dataset parameter to be dynamic and extensible to other datasets may be intorduced in the future.
-    if dataset_name == "coco":
-        mapping_path = (
-            Path(__file__).parent.parent
-            / "metadata"
-            / "coco_class_mappings.json"
+    supported = {"coco", "imagenet"}
+    if dataset_name not in supported:
+        raise ValueError(
+            f"Unsupported dataset '{dataset_name}'. Supported values are {supported}."
         )
-        with open(mapping_path) as f:
-            class_mapping = json.load(f)
-        return {int(k): v for k, v in class_mapping.items()}
 
-    if dataset_name == "imagenet":
-        mapping_path = (
-            Path(__file__).parent.parent
-            / "metadata"
-            / "imagenet_class_mappings.json"
-        )
-        with open(mapping_path) as f:
-            class_mapping = json.load(f)
-        return {int(k): v for k, v in class_mapping.items()}
-
-    raise ValueError(
-        f"Unsupported dataset '{dataset_name}'. Supported values are 'coco' and 'imagenet'."
+    mapping_file = files("luxonis_eval.metadata").joinpath(
+        f"{dataset_name}_class_mappings.json"
     )
+    with mapping_file.open() as f:
+        class_mapping = json.load(f)
+    return {int(k): v for k, v in class_mapping.items()}
 
 
 def get_class_index_mapping(

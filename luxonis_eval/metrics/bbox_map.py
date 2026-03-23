@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import depthai as dai
+import numpy as np
 
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.utils.coco_utils import COCOStore
@@ -40,7 +41,10 @@ class BboxMeanAveragePrecision(BaseMetric):
         self._store.reset()
 
     def _update_impl(
-        self, predictions: dai.ImgDetections, target: Any, **kwargs: Any
+        self,
+        predictions: dai.ImgDetections,
+        target: dict[str, np.ndarray],
+        **kwargs: Any,
     ) -> None:
         """Update internal metric state.
 
@@ -48,7 +52,7 @@ class BboxMeanAveragePrecision(BaseMetric):
         ----------
         predictions : dai.ImgDetections
             Model predictions.
-        target : Any
+        target : dict[str, np.ndarray]
             Ground-truth data.
         **kwargs : Any
             Additional context.
@@ -97,7 +101,7 @@ class BboxMeanAveragePrecision(BaseMetric):
                 }
             )
 
-        # --- DT ---
+        # --- Predictions ---
         for pred in predictions.detections:
             cls = int(pred.label)
             if (
@@ -111,7 +115,7 @@ class BboxMeanAveragePrecision(BaseMetric):
             box = [box[0].x, box[0].y, box[1].width, box[1].height]
             if box[2] <= 0 or box[3] <= 0:
                 continue
-            self._store.add_dt(
+            self._store.add_pred(
                 {
                     "image_id": img_id,
                     "category_id": cls,

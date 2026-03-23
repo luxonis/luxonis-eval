@@ -88,7 +88,7 @@ class YOLODetectionParser(BaseParser):
             outputs_values = raw_output
         else:
             raise TypeError(
-                "raw_output must be dai.NNData or list[np.ndarray]"
+                f"Unsupported raw_output type: {type(raw_output)}. Expected dai.NNData or list[np.ndarray]."
             )
 
         strides = (

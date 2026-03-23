@@ -14,13 +14,13 @@
   - [Key Base Classes](#key-base-classes)
   - [Evaluation Pipeline: Modular Design](#evaluation-pipeline-modular-design)
 - [Configuration](#configuration)
-  - [Task Name](#task-name)
   - [Data Loading \& Preprocessing](#data-loading--preprocessing)
   - [Output Parser](#output-parser)
   - [Evaluation Metrics](#evaluation-metrics)
   - [Visualization (Optional)](#visualization-optional)
   - [Inference Engine](#inference-engine)
   - [Full Example](#full-example)
+  - [E2E Quickstart Example](#e2e-quickstart-example)
 - [Extending the Framework](#extending-the-framework)
   - [Adding a Custom DataLoader](#adding-a-custom-dataloader)
   - [Adding a Custom Engine](#adding-a-custom-engine)
@@ -66,13 +66,13 @@ The framework follows a **registry-based architecture** where each pluggable com
 ## Installation
 
 ```sh
-pip install -e .
+pip install .
 ```
 
 For development:
 
 ```sh
-pip install -e ".[dev]"
+pip install ".[dev]"
 ```
 
 ## Usage
@@ -81,24 +81,24 @@ pip install -e ".[dev]"
 
 ```sh
 # Run evaluation with a config file
-python -m luxonis_eval eval --config path/to/config.yaml
+luxonis_eval eval --config path/to/config.yaml
 
 # Run with CLI overrides
-python -m luxonis_eval eval \
+luxonis_eval eval \
     --config path/to/config.yaml \
     --dataset-name coco \
     --model-path path/to/model.tar.xz \
     --backend depthai
 
 # Using ONNX backend
-python -m luxonis_eval eval \
+luxonis_eval eval \
     --config path/to/config.yaml \
     --dataset-name coco \
     --model-path path/to/model.onnx \
     --backend onnx
 
 # Specify device IP for RVC4
-python -m luxonis_eval eval \
+luxonis_eval eval \
     --config path/to/config.yaml \
     --device-ip 192.168.1.100
 ```
@@ -106,17 +106,14 @@ python -m luxonis_eval eval \
 ### Python API Usage
 
 ```python
-from luxonis_eval.__main__ import eval_setup, eval_run
+from luxonis_eval.__main__ import eval_run
 from luxonis_eval.utils.config import EvalConfig
 
 # Load configuration
 eval_cfg = EvalConfig.get_config(cfg="path/to/config.yaml")
 
-# Setup engine and dataloader
-infer_engine, dataloader = eval_setup(eval_cfg)
-
-# Run evaluation
-eval_run(eval_cfg, infer_engine, dataloader)
+# Setup and run evaluation
+eval_run(eval_cfg)
 ```
 
 ## Architecture
@@ -175,8 +172,8 @@ Here is how the pipeline flows:
 
 Because every component is resolved from a registry at runtime based on its **name** in the config, you can mix and match components freely. For example, you can:
 
-- Swap `depthai` for `onnx` in `engine_cfg` without changing anything else
-- Add a new metric to `metrics_cfg.metrics` alongside existing ones
+- Swap `depthai` for `onnx` in `engine` without changing anything else
+- Add a new metric to `metrics.metrics` alongside existing ones
 - Write a custom parser and reference it by name
 - Replace the LDF-based LuxonisLoader dataloader with your own dataset-specific loader
 
@@ -188,20 +185,12 @@ Evaluation runs are driven by a YAML configuration file. The configuration is pa
 
 A complete configuration file has the following top-level sections:
 
-### Task Name
-
-Defines a human-readable task label used in progress reporting and run output.
-
-```yaml
-task_name: InstanceSegmentation
-```
-
 ### Data Loading & Preprocessing
 
 Specifies which dataloader to use, the dataset it points to, and any preprocessing applied before inference.
 
 ```yaml
-dataloader_cfg:
+loader:
   name: LuxonisLoader            # Registered dataloader name
   params:
     dataset_name: coco-2017       # Dataset identifier (required for LuxonisLoader)
@@ -224,7 +213,7 @@ dataloader_cfg:
 Defines how raw model outputs are converted into structured predictions. Different model architectures produce different output tensor layouts; parsers handle this translation.
 
 ```yaml
-parser_cfg:
+parser:
   name: YOLOInstanceSegmentationParser  # Registered parser name
   params:
     conf_thres: 0.25                    # Parser-specific parameters
@@ -237,7 +226,7 @@ parser_cfg:
 A list of metrics to compute. Each metric is independently instantiated, updated per sample, and computed at the end. Throughput is always measured automatically.
 
 ```yaml
-metrics_cfg:
+metrics:
   metrics:
     - name: BboxMeanAveragePrecision
       params:
@@ -252,7 +241,7 @@ metrics_cfg:
 Optionally enables live visualization of predictions during the evaluation loop.
 
 ```yaml
-visualizer_cfg:
+visualizer:
   name: InstanceSegmentationVisualizer
   visualize: true                 # Set to false to disable
   params: {}
@@ -263,7 +252,7 @@ visualizer_cfg:
 Specifies the inference backend and the path to the model file. The config validates that the model file format matches the selected backend (`.tar.xz` → `depthai`, `.onnx` → `onnx`).
 
 ```yaml
-engine_cfg:
+engine:
   name: onnx                     # Registered engine name (onnx | depthai)
   model_path: ./models/yolov11n/yolov11n.onnx
   params: {}                      # Engine-specific parameters (e.g., device_ip for RVC4)
@@ -272,9 +261,7 @@ engine_cfg:
 ### Full Example
 
 ```yaml
-task_name: InstanceSegmentation
-
-dataloader_cfg:
+loader:
   name: LuxonisLoader
   params:
     dataset_name: coco-2017
@@ -285,14 +272,14 @@ dataloader_cfg:
     color_space: BGR
     keep_aspect_ratio: false
 
-parser_cfg:
+parser:
   name: YOLOInstanceSegmentationParser
   params:
     conf_thres: 0.25
     mask_thres: 0.25
     iou_thres: 0.45
 
-metrics_cfg:
+metrics:
   metrics:
     - name: BboxMeanAveragePrecision
       params:
@@ -301,12 +288,34 @@ metrics_cfg:
       params:
         iou_type: segm
 
-engine_cfg:
+engine:
   name: depthai
   model_path: ./models/yolov11n-seg.rvc4.tar.xz
   params:
     device_ip: 192.168.1.100
 ```
+
+### E2E Quickstart Example
+
+An end-to-end example is available under [`examples/quickstart_inst_seg`](examples/quickstart_inst_seg/README.md). It runs instance segmentation evaluation with ONNX Runtime on CPU and does not require Luxonis hardware.
+
+From the repository root:
+
+```bash
+# 1) Prepare model + dataset (HubAI model download, COCO subset download, LDF parsing)
+bash examples/quickstart_inst_seg/setup_example.sh
+
+# 2) Run evaluation
+luxonis_eval eval --config configs/yolov8n_inst_seg_config.yaml
+```
+
+The setup script performs three steps:
+
+1. Downloads the YOLOv8n-seg ONNX model into `examples/quickstart_inst_seg/models/`.
+2. Downloads small COCO-2017 splits through FiftyOne.
+3. Parses the dataset into LDF format as `coco-2017` using `luxonis_ml data parse`.
+
+For full details, see the [quickstart example README](examples/quickstart_inst_seg/README.md).
 
 ## Extending the Framework
 
@@ -348,7 +357,7 @@ Subclass [`BaseEngine`](luxonis_eval/engines/base_engine.py) and implement the s
 
 Subclass [`BaseParser`](luxonis_eval/parsers/base_parser.py) and implement the single abstract method:
 
-- **`parse(raw_output, **kwargs)`** – Converts the raw backend output into a structured prediction. The `raw_output` type depends on the engine being used (`dai.NNData` for DepthAI, `list[np.ndarray]` for ONNX Runtime, or whatever a custom engine returns). Additional keyword arguments are forwarded from `parser_cfg.params` in the config and the evaluation loop.
+- **`parse(raw_output, **kwargs)`** – Converts the raw backend output into a structured prediction. The `raw_output` type depends on the engine being used (`dai.NNData` for DepthAI, `list[np.ndarray]` for ONNX Runtime, or whatever a custom engine returns). Additional keyword arguments are forwarded from `parser.params` in the config and the evaluation loop.
 
 The parser bridges the gap between a specific model architecture's raw tensor layout and the standardized format that downstream metrics expect. The standardized format used for the built-in supported parsers are as follows:
 

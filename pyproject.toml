@@ -4,14 +4,14 @@ description = ""
 readme = "README.md"
 license-files = ["LICENSE"]
 license = "Apache-2.0"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [{ name = "Luxonis", email = "support@luxonis.com" }]
 maintainers = [{ name = "Luxonis", email = "support@luxonis.com" }]
 keywords = ["ml", "inference", "luxonis", "oak"]
 dynamic = ["dependencies", "optional-dependencies", "version"]
 classifiers = [
   "Development Status :: 4 - Beta",
-  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Topic :: Scientific/Engineering :: Image Processing",
   "Topic :: Scientific/Engineering :: Image Recognition",
@@ -30,6 +30,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.setuptools.package-data]
+"luxonis_eval.metadata" = ["*.json"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }

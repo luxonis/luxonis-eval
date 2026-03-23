@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
+import numpy as np
 from luxonis_ml.utils.registry import AutoRegisterMeta
 
 from luxonis_eval.registry import METRICS_REGISTRY
@@ -28,14 +29,16 @@ class BaseMetric(
         """Reset the metric state."""
         self._reset_impl()
 
-    def update(self, predictions: Any, target: Any, **kwargs: Any) -> None:
+    def update(
+        self, predictions: Any, target: dict[str, np.ndarray], **kwargs: Any
+    ) -> None:
         """Update the metric with predictions and ground truths.
 
         Parameters
         ----------
         predictions : Any
             Model predictions.
-        target : Any
+        target : dict[str, np.ndarray]
             Ground-truth data.
         **kwargs : Any
             Additional context.
@@ -55,25 +58,12 @@ class BaseMetric(
         results["metric"] = self.__class__.__name__  # type: ignore
         return results
 
-    def as_log(self) -> dict[str, Any]:
-        """Return metric results formatted for logging.
-
-        Returns
-        -------
-        dict[str, Any]
-            Metric results and throughput information.
-        """
-        return {
-            "metric": self.__class__.__name__,
-            **self.compute(),
-        }
-
-    def validate_target_keys(self, target: Any) -> None:
+    def validate_target_keys(self, target: dict[str, np.ndarray]) -> None:
         """Validate that the target contains the required keys for the metric.
 
         Parameters
         ----------
-        target : Any
+        target : dict[str, np.ndarray]
             Ground-truth data.
         """
         metric_keys = set(self.metric_keys())
@@ -96,7 +86,7 @@ class BaseMetric(
 
     @abstractmethod
     def _update_impl(
-        self, predictions: Any, target: Any, **kwargs: Any
+        self, predictions: Any, target: dict[str, np.ndarray], **kwargs: Any
     ) -> None:
         """Update internal metric state."""
         ...
