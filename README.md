@@ -20,6 +20,7 @@
   - [Visualization (Optional)](#visualization-optional)
   - [Inference Engine](#inference-engine)
   - [Full Example](#full-example)
+  - [E2E Quickstart Example](#e2e-quickstart-example)
 - [Extending the Framework](#extending-the-framework)
   - [Adding a Custom DataLoader](#adding-a-custom-dataloader)
   - [Adding a Custom Engine](#adding-a-custom-engine)
@@ -293,6 +294,28 @@ engine:
   params:
     device_ip: 192.168.1.100
 ```
+
+### E2E Quickstart Example
+
+An end-to-end example is available under [`examples/quickstart_inst_seg`](examples/quickstart_inst_seg/README.md). It runs instance segmentation evaluation with ONNX Runtime on CPU and does not require Luxonis hardware.
+
+From the repository root:
+
+```bash
+# 1) Prepare model + dataset (HubAI model download, COCO subset download, LDF parsing)
+bash examples/quickstart_inst_seg/setup_example.sh
+
+# 2) Run evaluation
+luxonis_eval eval --config configs/yolov8n_inst_seg_config.yaml
+```
+
+The setup script performs three steps:
+
+1. Downloads the YOLOv8n-seg ONNX model into `examples/quickstart_inst_seg/models/`.
+2. Downloads small COCO-2017 splits through FiftyOne.
+3. Parses the dataset into LDF format as `coco-2017` using `luxonis_ml data parse`.
+
+For full details, see [`examples/quickstart_inst_seg/README.md`](examples/quickstart_inst_seg/README.md).
 
 ## Extending the Framework
 
