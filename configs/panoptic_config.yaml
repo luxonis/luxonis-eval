@@ -1,0 +1,40 @@
+loader:
+  name: LuxonisLoader
+  preprocessing:
+    keep_aspect_ratio: true
+    color_space: RGB
+    normalize:
+      active: true
+      params:
+        mean: 0.0
+        std: 1.0
+  params:
+    dataset_name: coco-people-pose-seg
+    view: [val]
+
+parser:
+  name: YOLOPanopticParser
+  params:
+    subtype: yolov8
+    n_classes: 1
+    conf_thres: 0.25
+    mask_thres: 0.25
+    iou_thres: 0.7
+
+metrics:
+  metrics:
+    - name: BboxMeanAveragePrecision
+      params:
+        iou_type: bbox
+    - name: MaskMeanAveragePrecision
+      params:
+        iou_type: segm
+    - name: KeypointMeanAveragePrecision
+      params:
+        iou_type: keypoints
+
+engine:
+  model_path: models/multitask_pose_seg_bbox/multitask_pose_seg_bbox.onnx
+  name: onnx
+  params:
+    providers: [CPUExecutionProvider]
