@@ -13,7 +13,7 @@ loader:
     view: [val]
 
 parser:
-  name: YOLOPanopticParser
+  name: YOLOUnifiedInstanceParser
   params:
     subtype: yolov8
     n_classes: 1

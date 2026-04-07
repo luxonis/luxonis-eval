@@ -19,7 +19,7 @@ from loguru import logger
 from .base_parser import BaseParser
 
 
-class YOLOPanopticParser(BaseParser):
+class YOLOUnifiedInstanceParser(BaseParser):
     """Parser for YOLO-based panoptic models that jointly output object detections, instance segmentation masks, and keypoints."""
 
     def __init__(self, **kwargs: Any) -> None:
