@@ -73,6 +73,7 @@ This quickstart runs instance segmentation evaluation with `ONNX Runtime` on CPU
 - [🏗️ Architecture](#architecture)
   - [🧩 Key Base Classes](#key-base-classes)
   - [🔄 Evaluation Pipeline](#evaluation-pipeline)
+  - [📊 Throughput Metric Semantics](#throughput-metric-semantics)
 - [⚙️ Configuration](#configuration)
   - [📦 Data Loading And Preprocessing](#data-loading-and-preprocessing)
   - [🧠 Output Parser](#output-parser)
@@ -183,12 +184,12 @@ luxonis_eval/
 
 ### 🧩 Key Base Classes
 
-| Base Class | Location | Purpose |
-| ---------- | -------- | ------- |
-| [`BaseEngine`](luxonis_eval/engines/base_engine.py) | `engines/` | Abstract inference engine |
-| [`BaseParser`](luxonis_eval/parsers/base_parser.py) | `parsers/` | Abstract output parser |
-| [`BaseMetric`](luxonis_eval/metrics/base_metric.py) | `metrics/` | Abstract evaluation metric |
-| [`BaseEvalLoader`](luxonis_eval/loaders/base_loader.py) | `loaders/` | Abstract dataset loader |
+| Base Class                                                      | Location       | Purpose                    |
+| --------------------------------------------------------------- | -------------- | -------------------------- |
+| [`BaseEngine`](luxonis_eval/engines/base_engine.py)             | `engines/`     | Abstract inference engine  |
+| [`BaseParser`](luxonis_eval/parsers/base_parser.py)             | `parsers/`     | Abstract output parser     |
+| [`BaseMetric`](luxonis_eval/metrics/base_metric.py)             | `metrics/`     | Abstract evaluation metric |
+| [`BaseEvalLoader`](luxonis_eval/loaders/base_loader.py)         | `loaders/`     | Abstract dataset loader    |
 | [`BaseVisualizer`](luxonis_eval/visualizers/base_visualizer.py) | `visualizers/` | Abstract result visualizer |
 
 All base classes use the [AutoRegisterMeta](https://github.com/luxonis/luxonis-ml/blob/8b89655497faca6d94e261d49c4d4f96e9078d9b/luxonis_ml/utils/registry.py#L162) metaclass. Any subclass is registered automatically and becomes available by name in configuration files, with no manual wiring required.
@@ -226,6 +227,25 @@ Because each component is resolved from a registry at runtime, you can mix and m
 - replace `LuxonisLoader` with a dataset-specific custom loader
 
 The main constraint is compatibility: the parser must produce predictions in the format the configured metrics expect, and the dataloader must provide the annotation keys those metrics require. `BaseMetric.validate_target_keys()` catches mismatches early and raises a clear error message.
+
+<a name="throughput-metric-semantics"></a>
+
+### 📊 Throughput Metric Semantics
+
+`ThroughputMetric` measures end-to-end pipeline timing rather than isolated model-only benchmarks. The reported rows mean:
+
+> [!WARNING]
+> Throughput values are end-to-end pipeline measurements and not isolated model-only benchmarks. Lower numbers than `modelconverter` benchmark results are expected.
+
+- **Throughput** - Samples processed per second across the full evaluation pipeline
+- **End-to-end Latency** - Average wall-clock time per sample for the whole run
+- **Inference** - Time spent inside the inference engine
+- **Parsing** - Time spent converting raw model outputs into predictions
+- **Metric Update** - Time spent updating metrics for each sample
+- **Metric Compute** - Time spent in the final metric aggregation after the sample loop
+- **Pipeline Overhead** - Remaining time not covered by the rows above; this typically includes dataloader iteration, image decode, preprocessing such as resize or normalization, annotation reconstruction, visualization, progress bar updates, and general loop bookkeeping
+
+Rule of thumb: `End-to-end Latency ≈ Inference + Parsing + Metric Update + Metric Compute + Pipeline Overhead`
 
 <a name="configuration"></a>
 
