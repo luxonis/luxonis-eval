@@ -325,9 +325,9 @@ def eval_run(
                 metric_update_elapsed = time.perf_counter() - metric_update_t0
 
                 throughput_metric.update(
-                    inference_s=inference_elapsed,
-                    parsing_s=parsing_elapsed,
-                    metric_update_s=metric_update_elapsed,
+                    inference=inference_elapsed,
+                    parsing=parsing_elapsed,
+                    metric_update=metric_update_elapsed,
                 )
 
                 if visualizer:
@@ -347,7 +347,7 @@ def eval_run(
     metric_compute_t0 = time.perf_counter()
     results = [metric.compute() for metric in metrics]
     metric_compute_elapsed = time.perf_counter() - metric_compute_t0
-    tp = throughput_metric.compute(metric_compute_s=metric_compute_elapsed)
+    tp = throughput_metric.compute(metric_compute=metric_compute_elapsed)
 
     table = make_report_table(
         backend=backend,

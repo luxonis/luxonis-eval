@@ -72,10 +72,10 @@ def make_report_table(
     """
 
     def format_stage(name: str) -> str:
-        return (
-            f"{tp[f'{name}_ms_per_sample']:.2f} ms/sample "
-            f"({tp[f'{name}_elapsed_s']:.2f} s total)"
-        )
+        ms = float(tp[f"{name}_ms_per_sample"])
+        total = float(tp["ms_per_sample"])
+        pct = (ms / total * 100.0) if total else 0.0
+        return f"{ms:5.2f} ms | {pct:4.1f}%"
 
     rows: list[list[str]] = []
 
@@ -90,6 +90,10 @@ def make_report_table(
     rows += [
         ["Throughput", f"{tp['samples_per_s']:.2f} samples/s"],
         ["End-to-end Latency", f"{tp['ms_per_sample']:.2f} ms/sample"],
+    ]
+
+    rows += section("STAGE BREAKDOWN", line_char="-")
+    rows += [
         ["Inference", format_stage("inference")],
         ["Parsing", format_stage("parsing")],
         ["Metric Update", format_stage("metric_update")],
