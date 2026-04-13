@@ -47,7 +47,7 @@ def make_report_table(
     backend: str,
     model_name: str,
     device: str,
-    tp: dict[str, float],
+    tp: dict[str, float | int],
     results: list[dict[str, Any]],
 ) -> str:
     """Build a formatted report table.
@@ -60,7 +60,7 @@ def make_report_table(
         Model name.
     device : str
         Inference device descriptor.
-    tp : dict[str, float]
+    tp : dict[str, float | int]
         Throughput and latency related metrics.
     results : list[dict[str, Any]]
         Quality metric results.
@@ -70,6 +70,13 @@ def make_report_table(
     str
         Rendered table as text.
     """
+
+    def format_stage(name: str) -> str:
+        ms = float(tp[f"{name}_ms_per_sample"])
+        total = float(tp["ms_per_sample"])
+        pct = (ms / total * 100.0) if total else 0.0
+        return f"{ms:5.2f} ms | {pct:4.1f}%"
+
     rows: list[list[str]] = []
 
     rows += section("SETTINGS")
@@ -82,7 +89,16 @@ def make_report_table(
     rows += section("PERFORMANCE")
     rows += [
         ["Throughput", f"{tp['samples_per_s']:.2f} samples/s"],
-        ["Latency", f"{tp['ms_per_sample']:.2f} ms/sample"],
+        ["End-to-end Latency", f"{tp['ms_per_sample']:.2f} ms/sample"],
+    ]
+
+    rows += section("STAGE BREAKDOWN", line_char="-")
+    rows += [
+        ["Inference", format_stage("inference")],
+        ["Parsing", format_stage("parsing")],
+        ["Metric Update", format_stage("metric_update")],
+        ["Metric Compute", format_stage("metric_compute")],
+        ["Pipeline Overhead", format_stage("overhead")],
     ]
 
     rows += section("QUALITY")
@@ -103,8 +119,7 @@ def make_report_table(
 
 
 def check_loader_output(output: object) -> None:
-    """
-    Validates the output of a loader.
+    """Validates the output of a loader.
 
     Parameters
     ----------
@@ -145,8 +160,7 @@ def check_loader_output(output: object) -> None:
 
 
 def check_loader_classes(classes: dict[str, int]) -> None:
-    """
-    Validates the output of a loader's load_classes method.
+    """Validates the output of a loader's load_classes method.
 
     Parameters
     ----------
