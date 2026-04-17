@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any
 
+import cv2
 import numpy as np
 from luxonis_ml.utils.registry import AutoRegisterMeta
 
@@ -15,13 +17,19 @@ class BaseVisualizer(
 ):
     """Base class for evaluation visualizers."""
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, *, save_dir: Path | None = None, **kwargs: Any) -> None:
         """Initialize the visualizer.
+
         Parameters
         ----------
+        save_dir : Path | None, optional
+            Directory to save visualization frames to.
         **kwargs : Any
             Visualizer basic configuration.
         """
+        self.save_dir = save_dir
+        if save_dir is not None:
+            save_dir.mkdir(parents=True, exist_ok=True)
 
     @abstractmethod
     def visualize(
@@ -45,3 +53,29 @@ class BaseVisualizer(
             Additional visualization options.
         """
         ...
+
+    def _render(
+        self,
+        frame: np.ndarray,
+        filename: str,
+        window_title: str = "Visualization",
+    ) -> None:
+        """Display a frame interactively or save it to disk.
+
+        Parameters
+        ----------
+        frame : np.ndarray
+            Image to display or save.
+        filename : str
+            Output filename used when saving to disk.
+        window_title : str, optional
+            Window title used when displaying interactively.
+        """
+        if self.save_dir is not None:
+            if frame.dtype != np.uint8:
+                frame = np.clip(frame * 255.0, 0, 255).astype(np.uint8)
+            cv2.imwrite(str(self.save_dir / filename), frame)
+        else:
+            cv2.imshow(window_title, frame)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()

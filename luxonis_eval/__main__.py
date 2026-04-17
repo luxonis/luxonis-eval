@@ -1,6 +1,7 @@
 import time
 import types
 from importlib.metadata import version
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -195,17 +196,30 @@ def eval_setup(
     # -------------------------------------------------------------------------
     # Visualizer initialization
     # -------------------------------------------------------------------------
-    if eval_cfg.visualizer and eval_cfg.visualizer.visualize:
+    if eval_cfg.visualizer:
         try:
+            vis_save_dir = (
+                Path(eval_cfg.visualizer.save_dir) / get_model_name(eval_cfg.engine.model_path)
+                if eval_cfg.visualizer.mode == "save"
+                else None
+            )
             visualizer = from_registry(
                 VISUALIZERS_REGISTRY,
                 eval_cfg.visualizer.name,
+                save_dir=vis_save_dir,
                 **eval_cfg.visualizer.params,
             )
             assert isinstance(visualizer, BaseVisualizer), (
                 f"{eval_cfg.visualizer.name} visualizer must be an instance of BaseVisualizer."
             )
-            logger.info(f"{eval_cfg.visualizer.name} visualizer initialized.")
+            if vis_save_dir is not None:
+                logger.info(
+                    f"{eval_cfg.visualizer.name} visualizer initialized. Results will be saved to '{vis_save_dir}'."
+                )
+            else:
+                logger.info(
+                    f"{eval_cfg.visualizer.name} visualizer initialized. Results will be displayed interactively."
+                )
         except KeyError as e:
             raise ValueError(
                 f"Unknown visualizer: {eval_cfg.visualizer.name}. "

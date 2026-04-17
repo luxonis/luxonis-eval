@@ -98,7 +98,8 @@ class MetricsConfig(BaseModelExtraForbid):
 
 
 class VisualizerConfig(ConfigItem):
-    visualize: bool = True
+    mode: Literal["display", "save"] = "display"
+    save_dir: str = "visualizations"
 
     @field_validator("name", mode="after")
     def validate_name(cls, v: str) -> str:

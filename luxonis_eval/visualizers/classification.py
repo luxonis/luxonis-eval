@@ -123,9 +123,11 @@ class ClassificationVisualizer(BaseVisualizer):
                 outline_thickness,
             )
 
-        cv2.imshow("Classification Visualization", vis_frame)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        self._render(
+            vis_frame,
+            f"vis_result_{self.num_visualized:05d}.png",
+            "Classification Visualization",
+        )
         self.num_visualized += 1
 
     @staticmethod
