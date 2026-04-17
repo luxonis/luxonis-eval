@@ -58,21 +58,23 @@ class ClassificationVisualizer(BaseVisualizer):
 
         if resize_ratio is not None:
             h, w = vis_frame.shape[:2]
-            new_w = int(w * resize_ratio)
-            new_h = int(h * resize_ratio)
-            vis_frame = cv2.resize(vis_frame, (new_w, new_h))
+            vis_frame = cv2.resize(
+                vis_frame, (int(w * resize_ratio), int(h * resize_ratio))
+            )
 
         top_k = kwargs.get("top_k", 5)
+        class_map = kwargs.get("class_map", {})
+        class_index_map = kwargs.get("class_index_map")
+
         font = cv2.FONT_HERSHEY_SIMPLEX
         img_w = vis_frame.shape[1]
         font_scale = max(0.3, img_w / 1000)
         thickness = max(1, int(img_w / 500))
+        outline_thickness = thickness + 2
         line_height = int(font_scale * 40)
         y_offset = line_height + 5
         margin = 10
         max_text_w = img_w - 2 * margin
-
-        outline_thickness = thickness + 2
 
         pred_classes = predictions.classes[:top_k]
         pred_scores = predictions.scores[:top_k]
@@ -87,11 +89,10 @@ class ClassificationVisualizer(BaseVisualizer):
                 thickness,
                 max_text_w,
             )
-            y = y_offset + i * line_height
             self._draw_text(
                 vis_frame,
                 text,
-                (margin, y),
+                (margin, y_offset + i * line_height),
                 (0, 255, 0),
                 font,
                 font_scale,
@@ -100,26 +101,9 @@ class ClassificationVisualizer(BaseVisualizer):
             )
 
         if target is not None:
-            class_index_map = kwargs.get("class_index_map")
-            class_map = kwargs.get("class_map", {})
-
-            cls_target = target.get("/classification") if isinstance(target, dict) else None
-            if cls_target is not None:
-                tgt = np.asarray(cls_target)
-                ldf_idx = (
-                    int(np.argmax(tgt))
-                    if tgt.ndim > 0 and tgt.size > 1
-                    else int(tgt)
-                )
-                target_idx = (
-                    int(class_index_map[ldf_idx])
-                    if class_index_map is not None
-                    else ldf_idx
-                )
-                gt_label = class_map.get(target_idx, str(target_idx))
-            else:
-                gt_label = str(target)
-
+            gt_label = self._resolve_gt_label(
+                target, class_map=class_map, class_index_map=class_index_map
+            )
             gt_text = self._fit_text(
                 f"GT: {self._short_name(gt_label)}",
                 font,
@@ -143,6 +127,45 @@ class ClassificationVisualizer(BaseVisualizer):
         cv2.waitKey(0)
         cv2.destroyAllWindows()
         self.num_visualized += 1
+
+    @staticmethod
+    def _resolve_gt_label(
+        target: Any,
+        *,
+        class_map: dict[int, str],
+        class_index_map: dict[int, int] | None,
+    ) -> str:
+        """Resolve the ground-truth label string from a raw target.
+
+        Parameters
+        ----------
+        target : Any
+            Ground truth target, either a dict with a ``/classification`` key or a raw value.
+        class_map : dict[int, str]
+            Mapping from model class index to class name.
+        class_index_map : dict[int, int] | None
+            Optional mapping from dataset index to model class index.
+
+        Returns
+        -------
+        str
+            Human-readable ground-truth label.
+        """
+        cls_target = (
+            target.get("/classification") if isinstance(target, dict) else None
+        )
+        if cls_target is None:
+            return str(target)
+        tgt = np.asarray(cls_target)
+        ldf_idx = (
+            int(np.argmax(tgt)) if tgt.ndim > 0 and tgt.size > 1 else int(tgt)
+        )
+        target_idx = (
+            int(class_index_map[ldf_idx])
+            if class_index_map is not None
+            else ldf_idx
+        )
+        return class_map.get(target_idx, str(target_idx))
 
     @staticmethod
     def _fit_text(
@@ -190,10 +213,10 @@ class ClassificationVisualizer(BaseVisualizer):
         text: str,
         pos: tuple[int, int],
         color: tuple[int, int, int],
-        font: int = cv2.FONT_HERSHEY_SIMPLEX,
-        font_scale: float = 0.5,
-        thickness: int = 1,
-        outline_thickness: int = 3,
+        font: int,
+        font_scale: float,
+        thickness: int,
+        outline_thickness: int,
     ) -> None:
         """Draw text with a dark outline for readability.
 
@@ -207,14 +230,14 @@ class ClassificationVisualizer(BaseVisualizer):
             Bottom-left corner of the text.
         color : tuple[int, int, int]
             Text color in BGR format.
-        font : int, optional
-            Font to use, by default cv2.FONT_HERSHEY_SIMPLEX
-        font_scale : float, optional
-            Font scale, by default 0.5
-        thickness : int, optional
-            Text thickness, by default 1
-        outline_thickness : int, optional
-            Thickness of the text outline, by default 3
+        font : int
+            OpenCV font identifier.
+        font_scale : float
+            Font scale.
+        thickness : int
+            Text thickness.
+        outline_thickness : int
+            Thickness of the dark outline drawn behind the text.
         """
         cv2.putText(
             frame,
@@ -245,6 +268,7 @@ class ClassificationVisualizer(BaseVisualizer):
         ----------
         name : str
             Original name.
+
         Returns
         -------
         str
