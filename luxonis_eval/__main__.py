@@ -1,3 +1,4 @@
+import time
 import types
 from importlib.metadata import version
 from typing import Literal
@@ -291,13 +292,19 @@ def eval_run(
                 img: np.ndarray = sample[0]  # type: ignore
                 target = sample[1]
 
+                inference_t0 = time.perf_counter()
                 raw_output = infer_engine.infer_once(img)
+                inference_elapsed = time.perf_counter() - inference_t0
+
+                parsing_t0 = time.perf_counter()
                 predictions = parser.parse(
                     raw_output,
                     class_map=class_map,
                     **eval_cfg.parser.params,
                 )
+                parsing_elapsed = time.perf_counter() - parsing_t0
 
+                metric_update_t0 = time.perf_counter()
                 for metric in metrics:
                     base_metric_ctx = eval_cfg.metrics.metrics[
                         metrics.index(metric)
@@ -315,8 +322,13 @@ def eval_run(
                         target=target,
                         **metric_ctx,
                     )
+                metric_update_elapsed = time.perf_counter() - metric_update_t0
 
-                throughput_metric.update()
+                throughput_metric.update(
+                    inference=inference_elapsed,
+                    parsing=parsing_elapsed,
+                    metric_update=metric_update_elapsed,
+                )
 
                 if visualizer:
                     visualizer.visualize(
@@ -333,8 +345,10 @@ def eval_run(
     # -------------------------------------------------------------------------
     # Results computation and reporting
     # -------------------------------------------------------------------------
+    metric_compute_t0 = time.perf_counter()
     results = [metric.compute() for metric in metrics]
-    tp = throughput_metric.compute()
+    metric_compute_elapsed = time.perf_counter() - metric_compute_t0
+    tp = throughput_metric.compute(metric_compute=metric_compute_elapsed)
 
     table = make_report_table(
         backend=backend,
