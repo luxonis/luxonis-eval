@@ -26,6 +26,124 @@ class ClassificationVisualizer(BaseVisualizer):
         self.num_visualized = 0
         super().__init__(**kwargs)
 
+    def visualize(
+        self,
+        predictions: Classifications,
+        target: Any,
+        vis_frame: np.ndarray,
+        *,
+        resize_ratio: float | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Visualize the classification results.
+
+        Parameters
+        ----------
+        predictions : Classifications
+            Model predictions.
+        target : Any
+            Ground truth target.
+        vis_frame : np.ndarray
+            Frame to visualize on.
+        resize_ratio : float | None, optional
+            Ratio to resize the visualization frame by.
+        **kwargs : Any
+            Additional visualization options.
+        """
+        if (
+            self.max_visualizations is not None
+            and self.num_visualized >= self.max_visualizations
+        ):
+            return
+
+        if resize_ratio is not None:
+            h, w = vis_frame.shape[:2]
+            new_w = int(w * resize_ratio)
+            new_h = int(h * resize_ratio)
+            vis_frame = cv2.resize(vis_frame, (new_w, new_h))
+
+        top_k = kwargs.get("top_k", 5)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        img_w = vis_frame.shape[1]
+        font_scale = max(0.3, img_w / 1000)
+        thickness = max(1, int(img_w / 500))
+        line_height = int(font_scale * 40)
+        y_offset = line_height + 5
+        margin = 10
+        max_text_w = img_w - 2 * margin
+
+        outline_thickness = thickness + 2
+
+        pred_classes = predictions.classes[:top_k]
+        pred_scores = predictions.scores[:top_k]
+
+        for i, (cls_name, score) in enumerate(
+            zip(pred_classes, pred_scores, strict=True)
+        ):
+            text = self._fit_text(
+                f"{self._short_name(cls_name)}: {score:.2%}",
+                font,
+                font_scale,
+                thickness,
+                max_text_w,
+            )
+            y = y_offset + i * line_height
+            self._draw_text(
+                vis_frame,
+                text,
+                (margin, y),
+                (0, 255, 0),
+                font,
+                font_scale,
+                thickness,
+                outline_thickness,
+            )
+
+        if target is not None:
+            class_index_map = kwargs.get("class_index_map")
+            class_map = kwargs.get("class_map", {})
+
+            cls_target = target.get("/classification") if isinstance(target, dict) else None
+            if cls_target is not None:
+                tgt = np.asarray(cls_target)
+                ldf_idx = (
+                    int(np.argmax(tgt))
+                    if tgt.ndim > 0 and tgt.size > 1
+                    else int(tgt)
+                )
+                target_idx = (
+                    int(class_index_map[ldf_idx])
+                    if class_index_map is not None
+                    else ldf_idx
+                )
+                gt_label = class_map.get(target_idx, str(target_idx))
+            else:
+                gt_label = str(target)
+
+            gt_text = self._fit_text(
+                f"GT: {self._short_name(gt_label)}",
+                font,
+                font_scale,
+                thickness,
+                max_text_w,
+            )
+            gt_y = y_offset + len(pred_classes) * line_height + 10
+            self._draw_text(
+                vis_frame,
+                gt_text,
+                (margin, gt_y),
+                (0, 0, 255),
+                font,
+                font_scale,
+                thickness,
+                outline_thickness,
+            )
+
+        cv2.imshow("Classification Visualization", vis_frame)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        self.num_visualized += 1
+
     @staticmethod
     def _fit_text(
         text: str,
@@ -133,119 +251,3 @@ class ClassificationVisualizer(BaseVisualizer):
             Shortened name.
         """
         return name.split(",", maxsplit=1)[0].strip()
-
-    def visualize(
-        self,
-        predictions: Classifications,
-        target: Any,
-        vis_frame: np.ndarray,
-        *,
-        resize_ratio: float | None = None,
-        **kwargs: Any,
-    ) -> None:
-        """Visualize the classification results.
-
-        Parameters
-        ----------
-        predictions : Classifications
-            Model predictions.
-        target : Any
-            Ground truth target.
-        vis_frame : np.ndarray
-            Frame to visualize on.
-        resize_ratio : float | None, optional
-            Ratio to resize the visualization frame by.
-        **kwargs : Any
-            Additional visualization options.
-        """
-        if (
-            self.max_visualizations is not None
-            and self.num_visualized >= self.max_visualizations
-        ):
-            return
-
-        if resize_ratio is not None:
-            h, w = vis_frame.shape[:2]
-            new_w = int(w * resize_ratio)
-            new_h = int(h * resize_ratio)
-            vis_frame = cv2.resize(vis_frame, (new_w, new_h))
-
-        top_k = kwargs.get("top_k", 5)
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        img_w = vis_frame.shape[1]
-        font_scale = max(0.3, img_w / 1000)
-        thickness = max(1, int(img_w / 500))
-        line_height = int(font_scale * 40)
-        y_offset = line_height + 5
-        margin = 10
-        max_text_w = img_w - 2 * margin
-
-        outline_thickness = thickness + 2
-
-        pred_classes = predictions.classes[:top_k]
-        pred_scores = predictions.scores[:top_k]
-
-        for i, (cls_name, score) in enumerate(
-            zip(pred_classes, pred_scores, strict=True)
-        ):
-            text = self._fit_text(
-                f"{self._short_name(cls_name)}: {score:.2%}",
-                font,
-                font_scale,
-                thickness,
-                max_text_w,
-            )
-            y = y_offset + i * line_height
-            self._draw_text(
-                vis_frame,
-                text,
-                (margin, y),
-                (0, 255, 0),
-                font,
-                font_scale,
-                thickness,
-                outline_thickness,
-            )
-
-        if target is not None:
-            class_index_map = kwargs.get("class_index_map")
-            class_map = kwargs.get("class_map", {})
-            inv_class_map = {v: k for k, v in class_map.items()}
-
-            cls_target = target.get("/classification")
-            if cls_target is not None:
-                tgt = np.asarray(cls_target)
-                target_idx = (
-                    int(np.argmax(tgt))
-                    if tgt.ndim > 0 and tgt.size > 1
-                    else int(tgt)
-                )
-                if class_index_map is not None:
-                    target_idx = int(class_index_map[target_idx])
-                gt_label = inv_class_map.get(target_idx, str(target_idx))
-            else:
-                gt_label = str(target)
-
-            gt_text = self._fit_text(
-                f"GT: {self._short_name(gt_label)}",
-                font,
-                font_scale,
-                thickness,
-                max_text_w,
-            )
-            gt_y = y_offset + len(pred_classes) * line_height + 10
-            self._draw_text(
-                vis_frame,
-                gt_text,
-                (margin, gt_y),
-                (0, 0, 255),
-                font,
-                font_scale,
-                thickness,
-                outline_thickness,
-            )
-
-        cv2.imshow("Classification Visualization", vis_frame)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-        self.num_visualized += 1

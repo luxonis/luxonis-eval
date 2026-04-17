@@ -335,6 +335,8 @@ def eval_run(
                         predictions,
                         target,
                         infer_engine.vis_frame(),
+                        class_map=class_map,
+                        class_index_map=class_index_map,
                         **eval_cfg.visualizer.params,  # type: ignore
                     )
 
