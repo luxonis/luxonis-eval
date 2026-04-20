@@ -29,6 +29,12 @@ class YOLOKeypointDetectionParser(BaseParser):
         self._debug_raw_values = debug_raw_values
         self._debug_decoded_detections = debug_decoded_detections
         self._debug_raw_logged = 0
+        logger.warning(
+            "YOLOKeypointDetectionParser init: debug_raw_outputs_samples={}, debug_raw_values={}, debug_decoded_detections={}",
+            self._debug_raw_outputs_samples,
+            self._debug_raw_values,
+            self._debug_decoded_detections,
+        )
         super().__init__(**kwargs)
 
     def parse(
