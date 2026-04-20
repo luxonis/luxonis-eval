@@ -17,24 +17,8 @@ from .base_parser import BaseParser
 class YOLOKeypointDetectionParser(BaseParser):
     """Parser for YOLO-based keypoint detection model outputs."""
 
-    def __init__(
-        self,
-        debug_raw_outputs_samples: int = 0,
-        debug_raw_values: int = 8,
-        debug_decoded_detections: int = 3,
-        **kwargs: Any,
-    ) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         """Initialize the YOLO keypoint detection parser."""
-        self._debug_raw_outputs_samples = debug_raw_outputs_samples
-        self._debug_raw_values = debug_raw_values
-        self._debug_decoded_detections = debug_decoded_detections
-        self._debug_raw_logged = 0
-        logger.warning(
-            "YOLOKeypointDetectionParser init: debug_raw_outputs_samples={}, debug_raw_values={}, debug_decoded_detections={}",
-            self._debug_raw_outputs_samples,
-            self._debug_raw_values,
-            self._debug_decoded_detections,
-        )
         super().__init__(**kwargs)
 
     def parse(
@@ -95,7 +79,7 @@ class YOLOKeypointDetectionParser(BaseParser):
             layer_names = raw_output.getAllLayerNames()
             logger.debug(f"Processing output with layers: {layer_names}")
 
-            det_output_names = sorted(
+            outputs_names = sorted(
                 [n for n in layer_names if "_yolo" in n or "yolo-" in n]
             )
             outputs_values = [
@@ -104,9 +88,9 @@ class YOLOKeypointDetectionParser(BaseParser):
                     dequantize=True,
                     storageOrder=dai.TensorInfo.StorageOrder.NCHW,
                 ).astype(np.float32)  # type: ignore
-                for o in det_output_names
+                for o in outputs_names
             ]
-            kpt_output_names = sorted(
+            kpts_output_names = sorted(
                 [name for name in layer_names if "kpt_output" in name]
             )
             kpts_outputs = [
@@ -114,26 +98,12 @@ class YOLOKeypointDetectionParser(BaseParser):
                     o,
                     dequantize=True,
                 ).astype(np.float32)  # type: ignore
-                for o in kpt_output_names
+                for o in kpts_output_names
             ]
-            native_outputs = None
-            native_kpts_outputs = None
-            if self._debug_raw_logged < self._debug_raw_outputs_samples:
-                native_outputs = [
-                    raw_output.getTensor(o, dequantize=True).astype(np.float32)  # type: ignore
-                    for o in det_output_names
-                ]
-                native_kpts_outputs = [
-                    raw_output.getTensor(o, dequantize=True).astype(np.float32)  # type: ignore
-                    for o in kpt_output_names
-                ]
         elif isinstance(raw_output, list):
-            det_output_names = [f"output_{i}" for i in range(3)]
-            kpt_output_names = [f"kpt_output{i}" for i in range(1, 4)]
+            outputs_names = [f"output_{i}" for i in range(len(raw_output))]
             outputs_values = raw_output[:3]
             kpts_outputs = raw_output[3:]
-            native_outputs = None
-            native_kpts_outputs = None
         else:
             raise TypeError(
                 f"Unsupported raw_output type: {type(raw_output)}. Expected dai.NNData or list[np.ndarray]."
@@ -162,22 +132,6 @@ class YOLOKeypointDetectionParser(BaseParser):
             )
         num_keypoints = kpts_outputs[0].shape[1] // 3
 
-        if self._debug_raw_logged < self._debug_raw_outputs_samples:
-            self._log_raw_outputs(
-                source_type=type(raw_output).__name__,
-                det_output_names=det_output_names,
-                kpt_output_names=kpt_output_names,
-                outputs_values=outputs_values,
-                kpts_outputs=kpts_outputs,
-                native_outputs=native_outputs,
-                native_kpts_outputs=native_kpts_outputs,
-                input_shape=input_shape,
-                inferred_n_classes=inferred_n_classes,
-                num_keypoints=num_keypoints,
-                conf_thres=conf_thres,
-                iou_thres=iou_thres,
-            )
-
         results = decode_yolo_output(
             yolo_outputs=outputs_values,
             strides=strides,
@@ -190,10 +144,6 @@ class YOLOKeypointDetectionParser(BaseParser):
             subtype=subtype,
             max_nms=max_det,
         )
-
-        if self._debug_raw_logged < self._debug_raw_outputs_samples:
-            self._log_decoded_results(results)
-            self._debug_raw_logged += 1
 
         bboxes, labels, label_names, scores, additional_output = (
             [],
@@ -233,8 +183,6 @@ class YOLOKeypointDetectionParser(BaseParser):
             else np.array([])
         )
 
-        # logger.warning(f"Num Keypoints: {num_keypoints}, Results: {results.shape}, Keypoints: {keypoints.shape}, Scores: {keypoints_scores.shape}")
-
         return create_detection_message(
             bboxes=np.array(bboxes),
             scores=np.array(scores),
@@ -244,180 +192,4 @@ class YOLOKeypointDetectionParser(BaseParser):
             keypoints_scores=keypoints_scores,
             keypoint_label_names=keypoint_label_names,
             keypoint_edges=keypoint_edges,
-        )
-
-    def _summarize_array(self, arr: np.ndarray) -> dict[str, Any]:
-        flat = arr.reshape(-1)
-        head = flat[: self._debug_raw_values]
-        return {
-            "shape": tuple(arr.shape),
-            "min": float(arr.min()) if arr.size else None,
-            "max": float(arr.max()) if arr.size else None,
-            "mean": float(arr.mean()) if arr.size else None,
-            "head": np.round(head, 5).tolist(),
-        }
-
-    def _summarize_det_channels(self, arr: np.ndarray) -> dict[str, Any]:
-        if arr.ndim != 4:
-            return {"error": f"expected 4D NCHW tensor, got {tuple(arr.shape)}"}
-
-        channel_stats: dict[str, Any] = {}
-        flat = arr.reshape(arr.shape[0], arr.shape[1], -1)
-        for channel_idx in range(arr.shape[1]):
-            values = flat[:, channel_idx, :].reshape(-1)
-            if channel_idx < 4:
-                channel_name = f"bbox_{channel_idx}"
-            elif channel_idx == 4:
-                channel_name = "confidence"
-            else:
-                channel_name = f"class_{channel_idx - 5}"
-
-            channel_stats[channel_name] = {
-                "min": float(values.min()),
-                "max": float(values.max()),
-                "mean": float(values.mean()),
-                "head": np.round(values[: self._debug_raw_values], 5).tolist(),
-            }
-
-        return channel_stats
-
-    def _summarize_kpt_triplets(self, arr: np.ndarray) -> dict[str, Any]:
-        if arr.ndim != 3:
-            return {"error": f"expected 3D NCD tensor, got {tuple(arr.shape)}"}
-
-        if arr.shape[1] % 3 != 0:
-            return {"error": f"channel dimension {arr.shape[1]} is not divisible by 3"}
-
-        triplet_stats: dict[str, Any] = {}
-        n_keypoints = arr.shape[1] // 3
-        flat = arr.reshape(arr.shape[0], arr.shape[1], -1)
-        for keypoint_idx in range(n_keypoints):
-            base_idx = keypoint_idx * 3
-            for offset, suffix in enumerate(("x", "y", "conf")):
-                values = flat[:, base_idx + offset, :].reshape(-1)
-                triplet_stats[f"kpt_{keypoint_idx}_{suffix}"] = {
-                    "min": float(values.min()),
-                    "max": float(values.max()),
-                    "mean": float(values.mean()),
-                    "head": np.round(values[: self._debug_raw_values], 5).tolist(),
-                }
-
-        return triplet_stats
-
-    def _compare_tensor_views(
-        self, parsed: np.ndarray, native: np.ndarray
-    ) -> dict[str, Any]:
-        comparisons: dict[str, Any] = {
-            "parsed_shape": tuple(parsed.shape),
-            "native_shape": tuple(native.shape),
-        }
-
-        if parsed.shape == native.shape:
-            comparisons["identity_max_abs_diff"] = float(
-                np.max(np.abs(parsed - native))
-            )
-
-        if native.ndim == 4:
-            nhwc_to_nchw = np.transpose(native, (0, 3, 1, 2))
-            if parsed.shape == nhwc_to_nchw.shape:
-                comparisons["nhwc_to_nchw_max_abs_diff"] = float(
-                    np.max(np.abs(parsed - nhwc_to_nchw))
-                )
-
-            nchw_to_nhwc = np.transpose(native, (0, 2, 3, 1))
-            if parsed.shape == nchw_to_nhwc.shape:
-                comparisons["nchw_to_nhwc_max_abs_diff"] = float(
-                    np.max(np.abs(parsed - nchw_to_nhwc))
-                )
-
-        return comparisons
-
-    def _log_raw_outputs(
-        self,
-        *,
-        source_type: str,
-        det_output_names: list[str],
-        kpt_output_names: list[str],
-        outputs_values: list[np.ndarray],
-        kpts_outputs: list[np.ndarray],
-        native_outputs: list[np.ndarray] | None,
-        native_kpts_outputs: list[np.ndarray] | None,
-        input_shape: tuple[int, int],
-        inferred_n_classes: int,
-        num_keypoints: int,
-        conf_thres: float,
-        iou_thres: float,
-    ) -> None:
-        sample_idx = self._debug_raw_logged + 1
-        logger.warning(
-            "Parser raw debug sample {}: source={}, input_shape={}, inferred_n_classes={}, num_keypoints={}, conf_thres={}, iou_thres={}",
-            sample_idx,
-            source_type,
-            input_shape,
-            inferred_n_classes,
-            num_keypoints,
-            conf_thres,
-            iou_thres,
-        )
-
-        for name, arr in zip(det_output_names, outputs_values, strict=True):
-            logger.info(
-                "Parsed det tensor {}: {}",
-                name,
-                self._summarize_array(arr),
-            )
-            logger.info(
-                "Parsed det tensor {} channels: {}",
-                name,
-                self._summarize_det_channels(arr),
-            )
-        for name, arr in zip(kpt_output_names, kpts_outputs, strict=True):
-            logger.info(
-                "Parsed kpt tensor {}: {}",
-                name,
-                self._summarize_array(arr),
-            )
-            logger.info(
-                "Parsed kpt tensor {} channels: {}",
-                name,
-                self._summarize_kpt_triplets(arr),
-            )
-
-        if native_outputs is not None:
-            for name, parsed_arr, native_arr in zip(
-                det_output_names, outputs_values, native_outputs, strict=True
-            ):
-                logger.info(
-                    "Native det tensor {}: {}",
-                    name,
-                    self._summarize_array(native_arr),
-                )
-                logger.info(
-                    "Det tensor {} layout comparison: {}",
-                    name,
-                    self._compare_tensor_views(parsed_arr, native_arr),
-                )
-        if native_kpts_outputs is not None:
-            for name, parsed_arr, native_arr in zip(
-                kpt_output_names,
-                kpts_outputs,
-                native_kpts_outputs,
-                strict=True,
-            ):
-                logger.info(
-                    "Native kpt tensor {}: {}",
-                    name,
-                    self._summarize_array(native_arr),
-                )
-                logger.info(
-                    "Kpt tensor {} layout comparison: {}",
-                    name,
-                    self._compare_tensor_views(parsed_arr, native_arr),
-                )
-
-    def _log_decoded_results(self, results: np.ndarray) -> None:
-        logger.info(
-            "Decoded results summary: shape={}, first_rows={}",
-            tuple(results.shape),
-            np.round(results[: self._debug_decoded_detections], 5).tolist(),
         )
