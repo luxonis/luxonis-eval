@@ -5,15 +5,15 @@ import numpy as np
 from pycocotools import mask as mask_utils
 
 
-def ldf_norm_to_coco_xywh(
+def yolo_norm_to_coco_xywh(
     target: np.ndarray, img_w: int, img_h: int
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Convert LDF-normalized labels to COCO xywh boxes.
+    """Convert YOLO-normalized labels to COCO xywh boxes.
 
     Parameters
     ----------
     target : np.ndarray
-        Array of shape ``(N, 5)`` as ``(class_id, x_min, y_min, w, h)``.
+        Array of shape ``(N, 5)`` as ``(class_id, x_center, y_center, w, h)``.
     img_w : int
         Image width in pixels.
     img_h : int
@@ -31,52 +31,12 @@ def ldf_norm_to_coco_xywh(
         )
 
     cls_idc = target[:, 0].astype(np.int64)
-    x = target[:, 1] * img_w
-    y = target[:, 2] * img_h
+    xc = target[:, 1] * img_w
+    yc = target[:, 2] * img_h
     bw = target[:, 3] * img_w
     bh = target[:, 4] * img_h
-    boxes_xywh = np.stack([x, y, bw, bh], axis=-1)
+    boxes_xywh = np.stack([xc, yc, bw, bh], axis=-1)
     return cls_idc, boxes_xywh
-
-
-def ldf_norm_kpts_to_coco_kpts_flat(
-    kpts: np.ndarray, img_w: int, img_h: int
-) -> list[float]:
-    """Convert LDF-normalized keypoints to COCO flat keypoints in pixels.
-
-    Parameters
-    ----------
-    kpts : np.ndarray
-        Keypoints array, either flat (3K,) or shaped (K,3), with x/y
-        normalized to [0, 1].
-    img_w : int
-        Image width in pixels.
-    img_h : int
-        Image height in pixels.
-
-    Returns
-    -------
-    list[float]
-        Flattened keypoints list in COCO format [x,y,v,...] in pixels.
-    """
-    kpts = np.asarray(kpts, dtype=float)
-
-    if kpts.ndim == 1:
-        if kpts.size % 3 != 0:
-            raise ValueError(
-                f"Keypoints flat array must have length multiple of 3; got {kpts.size}."
-            )
-        reshaped = kpts.reshape(-1, 3).copy()
-    elif kpts.ndim == 2 and kpts.shape[1] == 3:
-        reshaped = kpts.copy()
-    else:
-        raise ValueError(
-            f"Unsupported keypoints shape {kpts.shape}; expected (K,3) or (3K,)."
-        )
-
-    reshaped[:, 0] *= img_w
-    reshaped[:, 1] *= img_h
-    return [float(x) for x in reshaped.reshape(-1).tolist()]
 
 
 def binary_mask_to_rle(binary_mask: np.ndarray) -> Any:

@@ -144,7 +144,6 @@ def eval_setup(
     # Parser initialization
     # -------------------------------------------------------------------------
     try:
-        logger.warning(f"Parser config params: {eval_cfg.parser.params}")
         parser = from_registry(
             PARSERS_REGISTRY,
             eval_cfg.parser.name,
