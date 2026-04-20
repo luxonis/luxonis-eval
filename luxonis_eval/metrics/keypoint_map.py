@@ -7,6 +7,7 @@ import numpy as np
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import (
     bbox_area_from_keypoints,
+    ldf_norm_kpts_to_coco_kpts_flat,
     to_coco_kpts_flat,
 )
 from luxonis_eval.utils.coco_utils import COCOStore
@@ -99,7 +100,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
             ):
                 continue
 
-            kpts_flat = to_coco_kpts_flat(kpts)
+            kpts_flat = ldf_norm_kpts_to_coco_kpts_flat(kpts, width, height)
             bbox, area, num_kpts = bbox_area_from_keypoints(kpts_flat)
 
             self._store.add_gt(
@@ -140,6 +141,11 @@ class KeypointMeanAveragePrecision(BaseMetric):
             ):
                 continue
 
+            # Parser keypoints are normalized to [0, 1]; COCO expects pixels.
+            kpts = kpts.copy()
+            if kpts.size != 0:
+                kpts[:, 0] *= width
+                kpts[:, 1] *= height
             kpts_flat = to_coco_kpts_flat(kpts)
             if not any(kpts_flat):
                 continue
