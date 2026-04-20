@@ -17,17 +17,27 @@ class KeypointMeanAveragePrecision(BaseMetric):
     Uses COCO evaluation metrics for keypoint detection (OKS-based).
     """
 
-    def __init__(self, iou_type: str = "keypoints", **kwargs: Any) -> None:
+    def __init__(
+        self,
+        iou_type: str = "keypoints",
+        kpt_oks_sigmas: Sequence[float] | None = None,
+        **kwargs: Any,
+    ) -> None:
         """Initialize the keypoint mAP metric.
 
         Parameters
         ----------
         iou_type : str, optional
             Type of IoU to use for evaluation.
+        kpt_oks_sigmas : Sequence[float] | None, optional
+            OKS sigma values used by COCO keypoint evaluation. Provide one
+            value per keypoint for non-COCO keypoint schemas.
         **kwargs : Any
             Additional metric configuration.
         """
-        self._store = COCOStore(iou_type=iou_type)
+        self._store = COCOStore(
+            iou_type=iou_type, kpt_oks_sigmas=kpt_oks_sigmas
+        )
         super().__init__(**kwargs)
 
     def metric_keys(self) -> list[str]:

@@ -183,6 +183,8 @@ class YOLOKeypointDetectionParser(BaseParser):
             else np.array([])
         )
 
+        # logger.warning(f"Num Keypoints: {num_keypoints}, Results: {results.shape}, Keypoints: {keypoints.shape}, Scores: {keypoints_scores.shape}")
+
         return create_detection_message(
             bboxes=np.array(bboxes),
             scores=np.array(scores),
