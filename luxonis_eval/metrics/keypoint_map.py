@@ -5,10 +5,7 @@ import depthai as dai
 import numpy as np
 
 from luxonis_eval.metrics.base_metric import BaseMetric
-from luxonis_eval.metrics.metrics_utils import (
-    bbox_area_from_keypoints,
-    to_coco_kpts_flat,
-)
+from luxonis_eval.metrics.metrics_utils import to_coco_kpts_flat
 from luxonis_eval.utils.coco_utils import COCOStore
 
 
@@ -21,6 +18,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
         self,
         iou_type: str = "keypoints",
         kpt_oks_sigmas: Sequence[float] | None = None,
+        area_factor: float = 0.53,
         **kwargs: Any,
     ) -> None:
         """Initialize the keypoint mAP metric.
@@ -32,9 +30,13 @@ class KeypointMeanAveragePrecision(BaseMetric):
         kpt_oks_sigmas : Sequence[float] | None, optional
             OKS sigma values used by COCO keypoint evaluation. Provide one
             value per keypoint for non-COCO keypoint schemas.
+        area_factor : float, default=0.53
+            Scale factor applied to the target bounding-box area when
+            computing OKS.
         **kwargs : Any
             Additional metric configuration.
         """
+        self.area_factor = area_factor
         self._store = COCOStore(
             iou_type=iou_type, kpt_oks_sigmas=kpt_oks_sigmas
         )
@@ -79,6 +81,11 @@ class KeypointMeanAveragePrecision(BaseMetric):
         class_map: dict[int, str] = kwargs.get("class_map", {})
         category_ids: Sequence[int] | None = kwargs.get("category_ids")
         class_index_map = kwargs.get("class_index_map")
+        target_converter = kwargs.get("target_converter")
+        if target_converter is None:
+            raise ValueError(
+                "KeypointMeanAveragePrecision requires target_converter in ctx."
+            )
 
         self._store.init_categories_once(
             class_map=class_map, category_ids=category_ids
@@ -86,9 +93,13 @@ class KeypointMeanAveragePrecision(BaseMetric):
         img_id = self._store.new_image(width=width, height=height)
 
         # --- GT ---
-        target_classes = target_boxes[:, 0].astype(np.int64)
+        target_classes, target_boxes_xywh = target_converter(
+            target_boxes, width, height
+        )
 
-        for kpts, cls in zip(target_kpts, target_classes, strict=True):
+        for kpts, box_xywh, cls in zip(
+            target_kpts, target_boxes_xywh, target_classes, strict=True
+        ):
             cls = int(cls)
             if class_index_map is not None:
                 cls = int(class_index_map[cls])
@@ -100,16 +111,18 @@ class KeypointMeanAveragePrecision(BaseMetric):
                 continue
 
             kpts_flat = to_coco_kpts_flat(kpts)
-            bbox, area, num_kpts = bbox_area_from_keypoints(kpts_flat)
+            num_kpts = int(np.count_nonzero(np.asarray(kpts_flat)[2::3] > 0))
+            x, y, w, h = map(float, box_xywh)
+            area = float(max(w, 0.0) * max(h, 0.0) * self.area_factor)
 
             self._store.add_gt(
                 {
                     "image_id": img_id,
                     "category_id": cls,
                     "keypoints": kpts_flat,
-                    "num_keypoints": int(num_kpts),
-                    "bbox": bbox,
-                    "area": float(area),
+                    "num_keypoints": num_kpts,
+                    "bbox": [x, y, w, h],
+                    "area": area,
                     "iscrowd": 0,
                 }
             )
