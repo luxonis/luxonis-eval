@@ -118,6 +118,32 @@ def make_report_table(
     )
 
 
+def make_metrics_table(
+    *,
+    results: list[dict[str, Any]],
+) -> str:
+    """Build a formatted table containing only quality metric results."""
+    rows: list[list[str]] = []
+
+    rows += section("QUALITY")
+    for result in results:
+        metric_name = result.get("metric", "")
+        rows += section(metric_name, line_char="-")
+        for k, v in result.items():
+            if k == "metric":
+                continue
+            val = f"{v * 100:.2f}%" if isinstance(v, float) else str(v)
+            rows.append([str(k), val])
+
+    return tabulate(
+        rows,
+        headers=["Metric", "Value"],
+        tablefmt="rounded_outline",
+        colalign=("left", "right"),
+        disable_numparse=True,
+    )
+
+
 def check_loader_output(output: object) -> None:
     """Validates the output of a loader.
 

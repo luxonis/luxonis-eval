@@ -37,6 +37,7 @@ from luxonis_eval.utils.utils import (
     get_class_mapping,
     get_metric_ctx,
     get_model_name,
+    make_metrics_table,
     make_report_table,
 )
 
@@ -245,6 +246,8 @@ def eval_setup(
 
 def eval_run(
     eval_cfg: EvalConfig,
+    *,
+    metrics_only: bool = False,
 ) -> None:
     """Run evaluation with the given configuration and dataloader.
 
@@ -349,17 +352,20 @@ def eval_run(
     metric_compute_elapsed = time.perf_counter() - metric_compute_t0
     tp = throughput_metric.compute(metric_compute=metric_compute_elapsed)
 
-    table = make_report_table(
-        backend=backend,
-        model_name=model_name,
-        device=infer_engine.platform_name,
-        tp=tp,
-        results=results,
-    )
+    if metrics_only:
+        table = make_metrics_table(results=results)
+    else:
+        table = make_report_table(
+            backend=backend,
+            model_name=model_name,
+            device=infer_engine.platform_name,
+            tp=tp,
+            results=results,
+        )
 
-    logger.warning(
-        "Throughput values are end-to-end pipeline measurements and not isolated model-only benchmarks. Lower numbers than modelconverter benchmark results are expected."
-    )
+        logger.warning(
+            "Throughput values are end-to-end pipeline measurements and not isolated model-only benchmarks. Lower numbers than modelconverter benchmark results are expected."
+        )
     logger.info(f"\n{table}")
 
 
@@ -370,6 +376,7 @@ def eval(
     model_path: str | None = None,
     backend: Literal["depthai", "onnx"] | None = None,
     device_ip: str | None = None,
+    metrics_only: bool = False,
 ):
     """Run evaluation on a dataset using a specified neural network.
 
@@ -385,6 +392,8 @@ def eval(
         Backend to use for inference.
     device_ip : str | None, optional
         IP address of the device to connect to. Only applicable for RVC4 devices.
+    metrics_only : bool, optional
+        Print only quality metric results.
     """
     overrides = {}
     if dataset_name is not None:
@@ -398,7 +407,7 @@ def eval(
 
     eval_cfg = EvalConfig.get_config(cfg=config, overrides=overrides)
 
-    eval_run(eval_cfg)
+    eval_run(eval_cfg, metrics_only=metrics_only)
 
 
 if __name__ == "__main__":
