@@ -31,6 +31,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         )
         self.device_ip = device_ip
         self._pipeline = None
+        self._logged_input_frame_stats = False
         self.setup()
         super().__init__(model_path=model_path, **kwargs)
 
@@ -128,6 +129,18 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         else:
             img_frame_type = dai.ImgFrame.Type.BGR888i
             img_for_device = img
+
+        if not self._logged_input_frame_stats:
+            logger.info(
+                "DepthAI input frame stats before send: "
+                f"platform={self.get_platform_name()}, "
+                f"shape={img.shape}, "
+                f"dtype={img.dtype}, "
+                f"min={img.min()}, "
+                f"max={img.max()}, "
+                f"frame_type={img_frame_type}"
+            )
+            self._logged_input_frame_stats = True
 
         new_input = dai.ImgFrame()
         new_input.setFrame(img_for_device)
