@@ -32,6 +32,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self.device_ip = device_ip
         self._pipeline = None
         self._logged_input_frame_stats = False
+        self.input_dai_type = None
         self.setup()
         super().__init__(model_path=model_path, **kwargs)
 
@@ -123,7 +124,14 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         assert img.shape[0] == self.height
         assert img.shape[1] == self.width
 
-        if self.get_platform_name() == "RVC2":
+        if self.input_dai_type is not None:
+            img_frame_type = getattr(dai.ImgFrame.Type, self.input_dai_type)
+            img_for_device = (
+                np.transpose(img, (2, 0, 1))
+                if self.input_dai_type.endswith("p")
+                else img
+            )
+        elif self.get_platform_name() == "RVC2":
             img_frame_type = dai.ImgFrame.Type.BGR888p
             img_for_device = np.transpose(img, (2, 0, 1))
         else:
@@ -138,6 +146,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
                 f"dtype={img.dtype}, "
                 f"min={img.min()}, "
                 f"max={img.max()}, "
+                f"archive_dai_type={self.input_dai_type}, "
                 f"frame_type={img_frame_type}"
             )
             self._logged_input_frame_stats = True
@@ -228,7 +237,12 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
                     if hasattr(inputs[0], "name")
                     else "input",
                 }
+                if hasattr(inputs[0], "preprocessing") and hasattr(
+                    inputs[0].preprocessing, "dai_type"
+                ):
+                    self.input_dai_type = inputs[0].preprocessing.dai_type
                 logger.info(f"Model input shape: {input_shape}")
+                logger.info(f"Model input dai_type: {self.input_dai_type}")
                 if inputs[0].layout and inputs[0].layout == "NHWC":
                     infered_platform = "RVC4"
                 elif inputs[0].layout and inputs[0].layout == "NCHW":
