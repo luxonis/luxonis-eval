@@ -14,6 +14,18 @@ from loguru import logger
 from .base_parser import BaseParser
 
 
+def _ensure_sigmoid_keypoint_scores(scores: np.ndarray) -> np.ndarray:
+    """Normalize keypoint logits to probabilities when needed."""
+    if scores.size == 0 or np.all((0.0 <= scores) & (scores <= 1.0)):
+        return scores
+
+    logger.warning(
+        "Keypoint scores are outside [0, 1]; applying sigmoid in the parser."
+    )
+    scores = np.clip(scores, -50.0, 50.0)
+    return 1.0 / (1.0 + np.exp(-scores))
+
+
 class YOLOKeypointDetectionParser(BaseParser):
     """Parser for YOLO-based keypoint detection model outputs."""
 
@@ -208,6 +220,7 @@ class YOLOKeypointDetectionParser(BaseParser):
             if additional_output.size > 0
             else np.array([])
         )
+        keypoints_scores = _ensure_sigmoid_keypoint_scores(keypoints_scores)
 
         return create_detection_message(
             bboxes=np.array(bboxes),
