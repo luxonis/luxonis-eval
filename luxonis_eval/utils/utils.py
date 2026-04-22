@@ -107,6 +107,7 @@ def make_report_table(
         rows += section(metric_name, line_char="-")
         for k, v in result.items():
             if isinstance(v, float):
+                # COCO-style eval uses -1 for undefined area buckets.
                 val = "N/A" if v < 0 else f"{v * 100:.2f}%"
             else:
                 val = str(v)

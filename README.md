@@ -29,6 +29,7 @@ The framework follows a registry-based architecture: each pluggable component (e
   - [`BboxMeanAveragePrecision`](luxonis_eval/metrics/bbox_map.py) - COCO-style mAP for bounding box detection
   - [`MaskMeanAveragePrecision`](luxonis_eval/metrics/mask_map.py) - COCO-style mAP for instance segmentation
   - [`KeypointMeanAveragePrecision`](luxonis_eval/metrics/keypoint_map.py) - OKS-based mAP for keypoint detection
+  - [`ExtendedKeypointMetrics`](luxonis_eval/metrics/extended_keypoint_metrics.py) - Flexible OKS-based keypoint metrics for custom keypoint+bbox heads with detailed keypoint sub-metrics
   - [`MIoU`](luxonis_eval/metrics/mIoU.py) - Mean Intersection over Union for semantic segmentation
   - [`DiceCoefficient`](luxonis_eval/metrics/dice_coef.py) - Dice score for semantic segmentation
   - [`ThroughputMetric`](luxonis_eval/metrics/throughput.py) - End-to-end throughput and latency reporting
@@ -304,6 +305,40 @@ metrics:
     - name: MaskMeanAveragePrecision
       params:
         iou_type: segm
+  ```
+
+#### ExtendedKeypointMetrics
+
+`ExtendedKeypointMetrics` is the more flexible keypoint metric in this repo.
+Use it when you need:
+
+- arbitrary numbers of keypoints instead of COCO's fixed 17-keypoint layout
+- arbitrary numbers of classes
+- detailed keypoint outputs beyond AP, including `kpt_mar_*` and `kpt_f1_*`
+
+It evaluates keypoints with OKS, supports
+`sigmas` or `kpt_oks_sigmas`, and applies `area_factor` when deriving the
+object area used during evaluation.
+
+Example configuration:
+
+```yaml
+parser:
+  name: YOLOKeypointDetectionParser
+  params:
+    subtype: yolov8
+    n_classes: 3
+    conf_thres: 0.03
+    iou_thres: 0.65
+    max_det: 300
+    postprocessing: luxonis_train
+
+metrics:
+  metrics:
+    - name: ExtendedKeypointMetrics
+      params:
+        kpt_oks_sigmas: [0.08, 0.08, 0.08, 0.08]
+        area_factor: 1.0
 ```
 
 ### 🎨 Visualization
@@ -420,6 +455,12 @@ The parser bridges the gap between model-specific tensor layouts and the standar
 
 > [!IMPORTANT]
 > The parser must produce outputs that the configured metrics can consume. For example, if a metric expects `dai.ImgDetections`, the parser must return that message type.
+
+`YOLOKeypointDetectionParser` exposes two postprocess modes:
+
+- `depthai` for the generic DepthAI YOLO decode path (default)
+- `luxonis_train` for heads exported from `luxonis-train` that
+  need the repository's decode and NMS reproduced in eval
 
 ### 📐 Adding a Custom Metric
 

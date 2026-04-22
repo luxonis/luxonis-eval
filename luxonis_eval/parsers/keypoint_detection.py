@@ -17,7 +17,14 @@ from .base_parser import BaseParser
 
 
 class YOLOKeypointDetectionParser(BaseParser):
-    """Parser for YOLO-based keypoint detection model outputs."""
+    """Parser for YOLO-based keypoint detection model outputs.
+
+    The default ``depthai`` path uses the generic DepthAI YOLO decode. The
+    ``luxonis_train`` path is intended for ONNX exports coming from
+    Luxonis Train-style keypoint+bbox heads where ``self.export``
+    changes the output tensors and the parser must reproduce the train-side
+    postprocess before metrics are computed.
+    """
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the YOLO keypoint detection parser."""
@@ -34,7 +41,7 @@ class YOLOKeypointDetectionParser(BaseParser):
         conf_thres: float = 0.001,
         iou_thres: float = 0.7,
         max_det: int = 300,
-        postprocess_impl: str = "depthai",
+        postprocessing: str = "depthai",
         keypoint_label_names: list[str] | None = None,
         keypoint_edges: list[tuple[int, int]] | None = None,
         **kwargs: Any,
@@ -59,7 +66,7 @@ class YOLOKeypointDetectionParser(BaseParser):
             IoU threshold.
         max_det : int, default=300
             Maximum detections.
-        postprocess_impl : str, default="depthai"
+        postprocessing : str, default="depthai"
             Postprocessing implementation. Use ``"luxonis_train"`` to
             match export-mode decoding and NMS from Luxonis Train custom
             keypoint heads.
@@ -166,7 +173,7 @@ class YOLOKeypointDetectionParser(BaseParser):
             )
         num_keypoints = kpts_outputs[0].shape[1] // 3
 
-        if postprocess_impl == "luxonis_train":
+        if postprocessing == "luxonis_train":
             return self._parse_luxonis_train_export(
                 outputs_values=outputs_values,
                 kpts_outputs=kpts_outputs,
@@ -180,9 +187,9 @@ class YOLOKeypointDetectionParser(BaseParser):
                 keypoint_label_names=keypoint_label_names,
                 keypoint_edges=keypoint_edges,
             )
-        if postprocess_impl != "depthai":
+        if postprocessing != "depthai":
             raise ValueError(
-                f"Unsupported postprocess_impl '{postprocess_impl}'. "
+                f"Unsupported postprocessing '{postprocessing}'. "
                 "Supported values are 'depthai' and 'luxonis_train'."
             )
 
@@ -466,6 +473,8 @@ class YOLOKeypointDetectionParser(BaseParser):
         label_names = [class_map[int(label)] for label in labels]
 
         keypoints = results[:, 6:].reshape(-1, num_keypoints, 3).copy()
+        # ``luxonis_train`` postprocess returns pixel-space keypoints after
+        # NMS. Keep that representation here to match checkpoint-side eval.
 
         return create_detection_message(
             bboxes=bboxes,
