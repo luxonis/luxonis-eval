@@ -14,26 +14,12 @@ from loguru import logger
 from .base_parser import BaseParser
 
 
-def _keypoints_to_pixel_coordinates(
-    keypoints: np.ndarray, input_shape: tuple[int, int]
-) -> np.ndarray:
-    """Convert parsed keypoints from normalized coordinates to pixels."""
-    if keypoints.size == 0:
-        return keypoints
-
-    keypoints = keypoints.copy()
-    keypoints[:, :, 0] *= input_shape[1]
-    keypoints[:, :, 1] *= input_shape[0]
-    return keypoints
-
-
 class YOLOKeypointDetectionParser(BaseParser):
     """Parser for YOLO-based keypoint detection model outputs."""
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the YOLO keypoint detection parser."""
         super().__init__(**kwargs)
-        self._logged_output_tensor_stats = False
 
     def parse(
         self,
@@ -123,31 +109,6 @@ class YOLOKeypointDetectionParser(BaseParser):
                 f"Unsupported raw_output type: {type(raw_output)}. Expected dai.NNData or list[np.ndarray]."
             )
 
-        if not self._logged_output_tensor_stats:
-            yolo_stats = ", ".join(
-                f"{name}: shape={tensor.shape}, dtype={tensor.dtype}, "
-                f"min={float(np.min(tensor)):.6g}, max={float(np.max(tensor)):.6g}"
-                for name, tensor in zip(outputs_names, outputs_values, strict=False)
-            )
-            kpt_stats = ", ".join(
-                f"{name}: shape={tensor.shape}, dtype={tensor.dtype}, "
-                f"min={float(np.min(tensor)):.6g}, max={float(np.max(tensor)):.6g}"
-                for name, tensor in zip(
-                    kpts_output_names
-                    if isinstance(raw_output, dai.NNData)
-                    else [f"kpt_output_{i}" for i in range(len(kpts_outputs))],
-                    kpts_outputs,
-                    strict=False,
-                )
-            )
-            logger.info(
-                "YOLO keypoint parser input tensor stats: "
-                f"source={'depthai' if isinstance(raw_output, dai.NNData) else 'onnx'}, "
-                f"yolo=[{yolo_stats}], "
-                f"keypoints=[{kpt_stats}]"
-            )
-            self._logged_output_tensor_stats = True
-
         strides = (
             [8, 16, 32]
             if subtype
@@ -216,7 +177,6 @@ class YOLOKeypointDetectionParser(BaseParser):
             if additional_output.size > 0
             else np.array([])
         )
-        keypoints = _keypoints_to_pixel_coordinates(keypoints, input_shape)
         keypoints_scores = (
             additional_output[:, :, 2]
             if additional_output.size > 0
