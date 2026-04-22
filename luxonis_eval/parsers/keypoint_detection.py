@@ -14,16 +14,17 @@ from loguru import logger
 from .base_parser import BaseParser
 
 
-def _ensure_sigmoid_keypoint_scores(scores: np.ndarray) -> np.ndarray:
-    """Normalize keypoint logits to probabilities when needed."""
-    if scores.size == 0 or np.all((0.0 <= scores) & (scores <= 1.0)):
-        return scores
+def _keypoints_to_pixel_coordinates(
+    keypoints: np.ndarray, input_shape: tuple[int, int]
+) -> np.ndarray:
+    """Convert parsed keypoints from normalized coordinates to pixels."""
+    if keypoints.size == 0:
+        return keypoints
 
-    logger.warning(
-        "Keypoint scores are outside [0, 1]; applying sigmoid in the parser."
-    )
-    scores = np.clip(scores, -50.0, 50.0)
-    return 1.0 / (1.0 + np.exp(-scores))
+    keypoints = keypoints.copy()
+    keypoints[:, :, 0] *= input_shape[1]
+    keypoints[:, :, 1] *= input_shape[0]
+    return keypoints
 
 
 class YOLOKeypointDetectionParser(BaseParser):
@@ -215,12 +216,12 @@ class YOLOKeypointDetectionParser(BaseParser):
             if additional_output.size > 0
             else np.array([])
         )
+        keypoints = _keypoints_to_pixel_coordinates(keypoints, input_shape)
         keypoints_scores = (
             additional_output[:, :, 2]
             if additional_output.size > 0
             else np.array([])
         )
-        keypoints_scores = _ensure_sigmoid_keypoint_scores(keypoints_scores)
 
         return create_detection_message(
             bboxes=np.array(bboxes),

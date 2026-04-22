@@ -31,6 +31,19 @@ def _ensure_sigmoid_keypoint_scores(scores: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-scores))
 
 
+def _keypoints_to_pixel_coordinates(
+    keypoints: np.ndarray, input_shape: tuple[int, int]
+) -> np.ndarray:
+    """Convert parsed keypoints from normalized coordinates to pixels."""
+    if keypoints.size == 0:
+        return keypoints
+
+    keypoints = keypoints.copy()
+    keypoints[:, :, 0] *= input_shape[1]
+    keypoints[:, :, 1] *= input_shape[0]
+    return keypoints
+
+
 class YOLOUnifiedInstanceParser(BaseParser):
     """Parser for YOLO-based panoptic models that jointly output object detections, instance segmentation masks, and keypoints."""
 
@@ -276,6 +289,7 @@ class YOLOUnifiedInstanceParser(BaseParser):
             if additional_output.size > 0
             else np.array([])
         )
+        keypoints = _keypoints_to_pixel_coordinates(keypoints, input_shape)
         keypoints_scores = (
             additional_output[:, :, 2]
             if additional_output.size > 0
