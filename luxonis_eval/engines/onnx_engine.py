@@ -44,6 +44,9 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
             str(self.model_path), providers=self.providers
         )
         self._input_name = self._session.get_inputs()[0].name
+        self._output_names = [
+            output.name for output in self._session.get_outputs()
+        ]
 
     def get_input_shape(self) -> tuple[int, int]:
         """Get model input width and height.
@@ -97,6 +100,10 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
         x = np.transpose(img, (2, 0, 1))
         x = x[None, :, :, :]
         return self._session.run(None, {self._input_name: x})
+
+    def get_output_names(self) -> list[str]:
+        """Return ONNX output names in runtime order."""
+        return list(self._output_names)
 
     def vis_frame(self) -> np.ndarray:
         """Return the visualization frame.

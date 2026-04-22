@@ -106,7 +106,10 @@ def make_report_table(
         metric_name = result.pop("metric")
         rows += section(metric_name, line_char="-")
         for k, v in result.items():
-            val = f"{v * 100:.2f}%" if isinstance(v, float) else str(v)
+            if isinstance(v, float):
+                val = "N/A" if v < 0 else f"{v * 100:.2f}%"
+            else:
+                val = str(v)
             rows.append([str(k), val])
 
     return tabulate(

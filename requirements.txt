@@ -6,5 +6,6 @@ depthai-nodes
 tabulate
 onnx
 onnxruntime
+faster-coco-eval
 torchmetrics
 torch

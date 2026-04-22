@@ -297,9 +297,17 @@ def eval_run(
                 inference_elapsed = time.perf_counter() - inference_t0
 
                 parsing_t0 = time.perf_counter()
+                output_names_getter = getattr(
+                    infer_engine, "get_output_names", None
+                )
                 predictions = parser.parse(
                     raw_output,
                     class_map=class_map,
+                    output_names=(
+                        output_names_getter()
+                        if callable(output_names_getter)
+                        else None
+                    ),
                     **eval_cfg.parser.params,
                 )
                 parsing_elapsed = time.perf_counter() - parsing_t0
