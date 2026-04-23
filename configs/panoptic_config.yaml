@@ -9,7 +9,7 @@ loader:
         mean: 0.0
         std: 1.0
   params:
-    dataset_name: coco-people-pose-seg
+    dataset_name: coco-2017-val
     view: [val]
 
 parser:
@@ -34,7 +34,7 @@ metrics:
         iou_type: keypoints
 
 engine:
-  model_path: models/multitask_pose_seg_bbox/multitask_pose_seg_bbox.onnx
+  model_path: multitask_pose_seg_bbox.onnx
   name: onnx
   params:
     providers: [CPUExecutionProvider]
