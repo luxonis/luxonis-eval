@@ -4,7 +4,6 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
 
-import numpy as np
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 
@@ -29,27 +28,15 @@ def suppress_stdout() -> Iterator[None]:
 class COCOStore:
     """A simple COCO-style storage for ground-truth and detection results."""
 
-    def __init__(
-        self,
-        *,
-        iou_type: str,
-        kpt_oks_sigmas: Sequence[float] | None = None,
-    ) -> None:
+    def __init__(self, *, iou_type: str) -> None:
         """Initialize the COCOStore.
 
         Parameters
         ----------
         iou_type : str
             Type of IoU to evaluate ('bbox', 'segm', etc.).
-        kpt_oks_sigmas : Sequence[float] | None, optional
-            Optional OKS sigma values to use for keypoint evaluation.
         """
         self.iou_type = iou_type
-        self.kpt_oks_sigmas = (
-            np.asarray(kpt_oks_sigmas, dtype=np.float64)
-            if kpt_oks_sigmas is not None
-            else None
-        )
         self.images: list[dict[str, Any]] = []
         self.gt_annotations: list[dict[str, Any]] = []
         self.pred_results: list[dict[str, Any]] = []
@@ -57,7 +44,6 @@ class COCOStore:
         self.category_ids_set: set[int] | None = None
         self.next_ann_id: int = 1
         self.next_img_id: int = 1
-        self.num_keypoints: int | None = None
 
     def reset(self) -> None:
         """Reset internal storage."""
@@ -68,31 +54,6 @@ class COCOStore:
         self.category_ids_set = None
         self.next_ann_id = 1
         self.next_img_id = 1
-        self.num_keypoints = None
-
-    def _track_num_keypoints(self, ann_like: dict[str, Any]) -> None:
-        """Track and validate the number of keypoints used by annotations."""
-        if self.iou_type != "keypoints" or "keypoints" not in ann_like:
-            return
-
-        keypoints = ann_like["keypoints"]
-        n_values = len(keypoints)
-        if n_values % 3 != 0:
-            raise ValueError(
-                f"COCO keypoints must be flat [x, y, v, ...]; got {n_values} values."
-            )
-
-        current_num_keypoints = n_values // 3
-        if self.num_keypoints is None:
-            self.num_keypoints = current_num_keypoints
-            return
-
-        if current_num_keypoints != self.num_keypoints:
-            raise ValueError(
-                "All keypoint annotations must use the same number of keypoints "
-                f"for COCO keypoint evaluation. Expected {self.num_keypoints}, "
-                f"got {current_num_keypoints}."
-            )
 
     def init_categories_once(
         self,
@@ -155,7 +116,6 @@ class COCOStore:
         if "id" not in ann:
             ann = dict(ann)
             ann["id"] = int(self.next_ann_id)
-        self._track_num_keypoints(ann)
         self.gt_annotations.append(ann)
         self.next_ann_id = max(self.next_ann_id, int(ann["id"]) + 1)
 
@@ -167,7 +127,6 @@ class COCOStore:
         res : dict[str, Any]
             Prediction result in COCO format.
         """
-        self._track_num_keypoints(res)
         self.pred_results.append(res)
 
     def evaluate(self) -> dict[str, float]:
@@ -195,24 +154,6 @@ class COCOStore:
 
             coco_pred = coco_target.loadRes(self.pred_results)  # type: ignore
             coco_eval = COCOeval(coco_target, coco_pred, iouType=self.iou_type)  # type: ignore
-            if self.iou_type == "keypoints" and self.num_keypoints is not None:
-                default_num_sigmas = len(coco_eval.params.kpt_oks_sigmas)
-                if self.kpt_oks_sigmas is not None:
-                    if len(self.kpt_oks_sigmas) != self.num_keypoints:
-                        raise ValueError(
-                            "Keypoint OKS sigma count must match the number of "
-                            f"keypoints. Expected {self.num_keypoints}, got "
-                            f"{len(self.kpt_oks_sigmas)}."
-                        )
-                    coco_eval.params.kpt_oks_sigmas = self.kpt_oks_sigmas
-                elif self.num_keypoints != default_num_sigmas:
-                    raise ValueError(
-                        "pycocotools defaults to 17 COCO person keypoints for "
-                        "OKS evaluation, but this dataset uses "
-                        f"{self.num_keypoints}. Set "
-                        "`metrics.params.kpt_oks_sigmas` to a list with one "
-                        "sigma per keypoint."
-                    )
             coco_eval.evaluate()
             coco_eval.accumulate()
             coco_eval.summarize()

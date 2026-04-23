@@ -13,5 +13,4 @@ __all__ = [
     "YOLODetectionParser",
     "YOLOInstanceSegmentationParser",
     "YOLOKeypointDetectionParser",
-    "YOLOUnifiedInstanceParser",
 ]
