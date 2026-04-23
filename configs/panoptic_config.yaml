@@ -29,7 +29,7 @@ metrics:
     - name: MaskMeanAveragePrecision
       params:
         iou_type: segm
-    - name: KeypointMeanAveragePrecision
+    - name: ExtendedKeypointMetrics
       params:
         iou_type: keypoints
 
