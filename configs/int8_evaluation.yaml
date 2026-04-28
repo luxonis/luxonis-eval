@@ -1,0 +1,39 @@
+loader:
+  name: LuxonisLoader
+  preprocessing:
+    keep_aspect_ratio: true
+    color_space: RGB
+    normalize:
+      active: false
+  params:
+    dataset_name: qr_barcode_matrix_gcs_balanced
+    view: [test]
+    class_mapping: {0: "bar_code", 1: "data_matrix", 2: "qr_code"}
+
+# Reference config for exported keypoint+bbox models.
+# Use the train-compatible parser path so ONNX eval reproduces the
+# Luxonis Train export-mode decode + NMS before metrics are applied.
+parser:
+  name: YOLOKeypointDetectionParser
+  params:
+    subtype: yolov8
+    n_classes: 3
+    conf_thres: 0.03
+    iou_thres: 0.65
+    max_det: 300
+
+metrics:
+  metrics:
+    - name: BboxMeanAveragePrecision
+      params:
+        iou_type: bbox
+    - name: ExtendedKeypointMetrics
+      params:
+        kpt_oks_sigmas: [0.08, 0.08, 0.08, 0.08]
+        area_factor: 1.0
+
+engine:
+  name: depthai
+  model_path: ./
+  params:
+    device_ip: 10.12.143.173
