@@ -9,6 +9,7 @@ from torch import Tensor
 from torchvision.ops import box_convert
 
 from luxonis_eval.metrics.base_metric import BaseMetric
+from luxonis_eval.metrics.metrics_utils import bbox_area_from_keypoints
 
 
 class ExtendedKeypointMetrics(BaseMetric):
@@ -18,8 +19,8 @@ class ExtendedKeypointMetrics(BaseMetric):
     - uses Faster COCO Eval for OKS-based evaluation
     - applies ``sigmas`` and ``area_factor`` the same way as the train-side
       metric
-    - expects parser predictions in normalized keypoint coordinates and
-      converts them to pixels before evaluation
+    - can optionally derive bbox area/scale directly from keypoints, which is
+      useful for keypoint-only models that do not predict boxes
     """
 
     def __init__(
@@ -29,6 +30,7 @@ class ExtendedKeypointMetrics(BaseMetric):
         area_factor: float = 0.53,
         max_dets: int = 20,
         box_format: str = "xyxy",
+        compute_area_from_keypoints: bool = False,
         **kwargs: Any,
     ) -> None:
         self.sigmas = (
@@ -43,6 +45,7 @@ class ExtendedKeypointMetrics(BaseMetric):
         self.area_factor = area_factor
         self.max_dets = max_dets
         self.box_format = box_format
+        self.compute_area_from_keypoints = compute_area_from_keypoints
         super().__init__(**kwargs)
 
     def metric_keys(self) -> list[str]:
@@ -50,11 +53,13 @@ class ExtendedKeypointMetrics(BaseMetric):
 
     def _reset_impl(self) -> None:
         self.pred_bboxes: list[Tensor] = []
+        self.pred_areas: list[Tensor] = []
         self.pred_scores: list[Tensor] = []
         self.pred_classes: list[Tensor] = []
         self.pred_keypoints: list[Tensor] = []
 
         self.target_bboxes: list[Tensor] = []
+        self.target_areas: list[Tensor] = []
         self.target_classes: list[Tensor] = []
         self.target_keypoints: list[Tensor] = []
 
@@ -71,10 +76,6 @@ class ExtendedKeypointMetrics(BaseMetric):
 
         class_index_map = kwargs.get("class_index_map")
         target_converter = kwargs.get("target_converter")
-        if target_converter is None:
-            raise ValueError(
-                "ExtendedKeypointMetrics requires target_converter in ctx."
-            )
 
         pred_boxes_xyxy: list[list[float]] = []
         pred_scores: list[float] = []
@@ -82,69 +83,87 @@ class ExtendedKeypointMetrics(BaseMetric):
         pred_keypoints: list[list[float]] = []
 
         for det in predictions.detections:
-            box = det.getBoundingBox().denormalize(
-                width, height
-            ).getOuterXYWH()
-            x = float(box[0].x)
-            y = float(box[0].y)
-            w = float(box[1].width)
-            h = float(box[1].height)
-            pred_boxes_xyxy.append([x, y, x + w, y + h])
+            cls = int(det.label)
+
+            keypoints_flat = [
+                val
+                for kp in det.getKeypoints()
+                for val in (
+                    float(kp.imageCoordinates.x),
+                    float(kp.imageCoordinates.y),
+                    float(kp.confidence),
+                )
+            ]
+
+            if self.compute_area_from_keypoints:
+                pred_boxes_xyxy.append([0.0, 0.0, 0.0, 0.0])
+            else:
+                box = det.getBoundingBox().denormalize(
+                    width, height
+                ).getOuterXYWH()
+                x = float(box[0].x)
+                y = float(box[0].y)
+                w = float(box[1].width)
+                h = float(box[1].height)
+                pred_boxes_xyxy.append([x, y, x + w, y + h])
+
             pred_scores.append(float(det.confidence))
-            pred_classes.append(int(det.label))
-            pred_keypoints.append(
-                [
-                    val
-                    for kp in det.getKeypoints()
-                    for val in (
-                        float(kp.imageCoordinates.x),
-                        float(kp.imageCoordinates.y),
-                        float(kp.confidence),
-                    )
-                ]
-            )
+            pred_classes.append(cls)
+            pred_keypoints.append(keypoints_flat)
 
         pred_kpt_width = self._infer_num_keypoint_values(target_kpts)
         if pred_kpt_width == 0 and pred_keypoints:
             pred_kpt_width = len(pred_keypoints[0])
 
-        self.pred_bboxes.append(
-            self._convert_bboxes(self._as_2d_tensor(pred_boxes_xyxy, 4))
-        )
-        self.pred_scores.append(torch.tensor(pred_scores, dtype=torch.float32))
-        self.pred_classes.append(torch.tensor(pred_classes, dtype=torch.int64))
         pred_keypoints_tensor = self._fix_empty_tensor(
             self._as_2d_tensor(
                 pred_keypoints,
                 pred_kpt_width,
             )
         )
-        self.pred_keypoints.append(
-            self._denormalize_keypoints(
-                pred_keypoints_tensor, width=width, height=height
-            )
+        pred_keypoints_tensor = self._denormalize_keypoints(
+            pred_keypoints_tensor, width=width, height=height
         )
 
-        target_classes, target_boxes_xywh = target_converter(
-            target_boxes, width, height
-        )
-        target_classes_tensor = torch.tensor(
-            target_classes, dtype=torch.int64
+        if self.compute_area_from_keypoints:
+            pred_bboxes_xywh_tensor, pred_areas_tensor = (
+                self._compute_bbox_area_from_keypoints(pred_keypoints_tensor)
+            )
+            pred_num_keypoints = pred_keypoints_tensor[:, 2::3].ne(0).sum(
+                dim=1
+            )
+            keep_mask = pred_num_keypoints > 0
+        else:
+            pred_bboxes_xywh_tensor = self._convert_bboxes(
+                self._as_2d_tensor(pred_boxes_xyxy, 4)
+            )
+            pred_areas_tensor = self._compute_area_from_bboxes(
+                pred_bboxes_xywh_tensor
+            )
+            keep_mask = torch.ones(
+                (len(pred_classes),), dtype=torch.bool
+            )
+
+        pred_scores_tensor = torch.tensor(pred_scores, dtype=torch.float32)
+        pred_classes_tensor = torch.tensor(pred_classes, dtype=torch.int64)
+
+        self.pred_bboxes.append(pred_bboxes_xywh_tensor[keep_mask])
+        self.pred_areas.append(pred_areas_tensor[keep_mask])
+        self.pred_scores.append(pred_scores_tensor[keep_mask])
+        self.pred_classes.append(pred_classes_tensor[keep_mask])
+        self.pred_keypoints.append(pred_keypoints_tensor[keep_mask])
+
+        target_classes_tensor = self._get_target_classes(
+            target_boxes=target_boxes,
+            width=width,
+            height=height,
+            target_converter=target_converter,
         )
         if class_index_map is not None and len(target_classes_tensor) > 0:
             target_classes_tensor = torch.tensor(
                 [class_index_map[int(cls)] for cls in target_classes_tensor],
                 dtype=torch.int64,
             )
-        self.target_classes.append(target_classes_tensor)
-
-        target_boxes_xywh_tensor = self._as_2d_tensor(target_boxes_xywh, 4)
-        target_boxes_xyxy = box_convert(
-            target_boxes_xywh_tensor, in_fmt="xywh", out_fmt="xyxy"
-        )
-        self.target_bboxes.append(
-            self._convert_bboxes(target_boxes_xyxy.int())
-        )
 
         target_kpts_tensor = torch.tensor(target_kpts, dtype=torch.float32)
         if target_kpts_tensor.ndim == 3:
@@ -160,9 +179,25 @@ class ExtendedKeypointMetrics(BaseMetric):
         if target_kpts_tensor.numel() > 0:
             target_kpts_tensor[:, 0::3] *= width
             target_kpts_tensor[:, 1::3] *= height
-        self.target_keypoints.append(
-            self._fix_empty_tensor(target_kpts_tensor.int())
-        )
+        target_kpts_tensor = self._fix_empty_tensor(target_kpts_tensor.int())
+
+        if self.compute_area_from_keypoints:
+            target_boxes_xywh_tensor, target_areas_tensor = (
+                self._compute_bbox_area_from_keypoints(target_kpts_tensor)
+            )
+        else:
+            _, target_boxes_xywh = target_converter(target_boxes, width, height)
+            target_boxes_xywh_tensor = self._as_2d_tensor(
+                target_boxes_xywh, 4
+            )
+            target_areas_tensor = self._compute_area_from_bboxes(
+                target_boxes_xywh_tensor
+            )
+
+        self.target_classes.append(target_classes_tensor)
+        self.target_bboxes.append(target_boxes_xywh_tensor)
+        self.target_areas.append(target_areas_tensor)
+        self.target_keypoints.append(target_kpts_tensor)
 
     def _compute_impl(self) -> dict[str, float]:
         """Compute final mAP metrics."""
@@ -170,11 +205,13 @@ class ExtendedKeypointMetrics(BaseMetric):
             self.target_bboxes,
             self.target_keypoints,
             self.target_classes,
+            self.target_areas,
         )
         coco_preds = self._get_coco(
             self.pred_bboxes,
             self.pred_keypoints,
             self.pred_classes,
+            self.pred_areas,
             self.pred_scores,
         )
 
@@ -238,21 +275,28 @@ class ExtendedKeypointMetrics(BaseMetric):
         bboxes_list: list[Tensor],
         keypoints_list: list[Tensor],
         classes_list: list[Tensor],
+        areas_list: list[Tensor],
         scores_list: list[Tensor] | None = None,
     ) -> Any:
         annotations = []
 
-        for i, (bboxes, keypoints, classes) in enumerate(
-            zip(bboxes_list, keypoints_list, classes_list, strict=True)
+        for i, (bboxes, keypoints, classes, areas) in enumerate(
+            zip(
+                bboxes_list,
+                keypoints_list,
+                classes_list,
+                areas_list,
+                strict=True,
+            )
         ):
-            for j, (bbox, kpts, class_id) in enumerate(
-                zip(bboxes, keypoints, classes, strict=False)
+            for j, (bbox, kpts, class_id, area) in enumerate(
+                zip(bboxes, keypoints, classes, areas, strict=True)
             ):
                 annotation: dict[str, Any] = {
                     "id": len(annotations) + 1,
                     "image_id": i,
                     "bbox": bbox.cpu().tolist(),
-                    "area": (bbox[2] * bbox[3] * self.area_factor).item(),
+                    "area": float(area.item()),
                     "category_id": class_id.item(),
                     "keypoints": kpts.cpu().tolist(),
                     "num_keypoints": kpts[2::3].ne(0).sum().item(),
@@ -321,6 +365,53 @@ class ExtendedKeypointMetrics(BaseMetric):
         if array.ndim == 2:
             return int(array.shape[1])
         return 0
+
+    def _compute_area_from_bboxes(self, bboxes_xywh: Tensor) -> Tensor:
+        if bboxes_xywh.numel() == 0:
+            return torch.zeros((0,), dtype=torch.float32)
+        return (
+            bboxes_xywh[:, 2].float().clamp_min(0)
+            * bboxes_xywh[:, 3].float().clamp_min(0)
+            * self.area_factor
+        )
+
+    def _compute_bbox_area_from_keypoints(
+        self, keypoints: Tensor
+    ) -> tuple[Tensor, Tensor]:
+        if keypoints.numel() == 0:
+            return (
+                torch.zeros((0, 4), dtype=torch.float32),
+                torch.zeros((0,), dtype=torch.float32),
+            )
+
+        bboxes: list[list[float]] = []
+        areas: list[float] = []
+        for kpts in keypoints:
+            bbox_xywh, area, _ = bbox_area_from_keypoints(kpts.tolist())
+            bboxes.append(bbox_xywh)
+            areas.append(area * self.area_factor)
+        return (
+            torch.tensor(bboxes, dtype=torch.float32),
+            torch.tensor(areas, dtype=torch.float32),
+        )
+
+    @staticmethod
+    def _get_target_classes(
+        *,
+        target_boxes: np.ndarray,
+        width: int,
+        height: int,
+        target_converter: Any,
+    ) -> Tensor:
+        if target_converter is not None:
+            target_classes, _ = target_converter(target_boxes, width, height)
+            return torch.tensor(target_classes, dtype=torch.int64)
+
+        target_boxes = np.asarray(target_boxes, dtype=np.float32)
+        if target_boxes.size == 0:
+            return torch.zeros((0,), dtype=torch.int64)
+        target_boxes = target_boxes.reshape(-1, target_boxes.shape[-1])
+        return torch.tensor(target_boxes[:, 0], dtype=torch.int64)
 
     @staticmethod
     def _add_f1_metrics(metrics: dict[str, float]) -> dict[str, float]:
