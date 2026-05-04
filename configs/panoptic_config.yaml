@@ -1,0 +1,41 @@
+loader:
+  name: LuxonisLoader
+  preprocessing:
+    keep_aspect_ratio: true
+    color_space: RGB
+    normalize:
+      active: true
+      params:
+        mean: 0.0
+        std: 1.0
+  params:
+    dataset_name: coco-2017
+    view: [val]
+
+parser:
+  name: YOLOUnifiedInstanceParser
+  params:
+    subtype: yolov8
+    n_classes: 1
+    conf_thres: 0.25
+    mask_thres: 0.25
+    iou_thres: 0.7
+
+metrics:
+  metrics:
+    - name: BboxMeanAveragePrecision
+      params:
+        iou_type: bbox
+    - name: MaskMeanAveragePrecision
+      params:
+        iou_type: segm
+    - name: ExtendedKeypointMetrics
+      params:
+        iou_type: keypoints
+        compute_area_from_keypoints: true
+
+engine:
+  model_path: ./
+  name: onnx
+  params:
+    providers: [CPUExecutionProvider]
