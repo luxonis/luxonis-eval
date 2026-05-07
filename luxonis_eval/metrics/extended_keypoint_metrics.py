@@ -237,7 +237,6 @@ class ExtendedKeypointMetrics(BaseMetric):
             "kpt_mar_75": float(stats[7]),
             "kpt_mar_medium": float(stats[8]),
             "kpt_mar_large": float(stats[9]),
-            "MeanAveragePrecision": float(stats[0]),
         }
         return self._add_f1_metrics(metrics)
 
