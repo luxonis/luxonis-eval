@@ -4,15 +4,17 @@ import cv2
 import depthai as dai
 import numpy as np
 from depthai_nodes.message.creators import create_detection_message
-from depthai_nodes.node.parsers.utils import normalize_bboxes, xyxy_to_xywh
-from depthai_nodes.node.parsers.utils.masks_utils import (
-    get_segmentation_outputs,
-    process_single_mask,
+from depthai_nodes.node.parsers.utils import (
+    normalize_bboxes,
+    sigmoid,
+    xyxy_to_xywh,
 )
+from depthai_nodes.node.parsers.utils.masks_utils import process_single_mask
 from depthai_nodes.node.parsers.utils.yolo import (
     YOLOSubtype,
-    decode_yolo_output,
+    non_max_suppression,
     parse_kpts,
+    parse_yolo_output,
 )
 from loguru import logger
 
@@ -20,10 +22,10 @@ from .base_parser import BaseParser
 
 
 class YOLOUnifiedInstanceParser(BaseParser):
-    """Parser for YOLO-based panoptic models that jointly output object detections, instance segmentation masks, and keypoints."""
+    """Parser for YOLO-based models that jointly output boxes, masks, and keypoints."""
 
     def __init__(self, **kwargs: Any) -> None:
-        """Initialize the YOLO panoptic parser."""
+        """Initialize the unified YOLO parser."""
         super().__init__(**kwargs)
 
     def parse(
@@ -40,7 +42,6 @@ class YOLOUnifiedInstanceParser(BaseParser):
         max_det: int = 300,
         keypoint_label_names: list[str] | None = None,
         keypoint_edges: list[tuple[int, int]] | None = None,
-        iou_match_thres: float = 0.5,
         **kwargs: Any,
     ) -> dai.ImgDetections:
         """Parse backend output into panoptic predictions.
@@ -69,9 +70,6 @@ class YOLOUnifiedInstanceParser(BaseParser):
             Human-readable names for each keypoint.
         keypoint_edges : list[tuple[int, int]] | None, optional
             Skeleton edge pairs connecting keypoints.
-        iou_match_thres : float, default=0.5
-            Minimum IoU required to match a keypoint detection to a
-            segmentation detection during the merge step.
         **kwargs : Any
             Additional parser arguments forwarded to the base parser.
 
@@ -93,48 +91,46 @@ class YOLOUnifiedInstanceParser(BaseParser):
             logger.debug(f"Processing output with layers: {layer_names}")
 
             yolo_names = sorted(
-                [n for n in layer_names if "_yolo" in n or "yolo-" in n]
+                [name for name in layer_names if "_yolo" in name or "yolo-" in name]
             )
             outputs_values = [
                 raw_output.getTensor(
-                    o,
+                    name,
                     dequantize=True,
                     storageOrder=dai.TensorInfo.StorageOrder.NCHW,
                 ).astype(np.float32)  # type: ignore
-                for o in yolo_names
+                for name in yolo_names
             ]
-            kpts_names = sorted([n for n in layer_names if "kpt_output" in n])
-            kpts_outputs = [
-                raw_output.getTensor(o, dequantize=True).astype(np.float32)  # type: ignore
-                for o in kpts_names
+            aux_outputs = [
+                raw_output.getTensor(
+                    name,
+                    dequantize=True,
+                    storageOrder=dai.TensorInfo.StorageOrder.NCHW,
+                ).astype(np.float32)  # type: ignore
+                for name in layer_names
+                if name not in yolo_names
             ]
-            (
-                masks_outputs,
-                protos_output,
-                protos_len,
-            ) = get_segmentation_outputs(raw_output)
-
         elif isinstance(raw_output, list):
-            # Expected order:
-            #   [0:3]  → output*_yolov8   (main detection heads)
-            #   [3:6]  → kpt_output*      (keypoint heads)
-            #   [6:9]  → output*_masks    (mask coefficient heads)
-            #   [9]    → protos_output
             outputs_values = raw_output[:3]
-            kpts_outputs = raw_output[3:6]
-            masks_outputs = raw_output[6:9]
-            protos_output = raw_output[9]
-            protos_len = protos_output.shape[1]
+            aux_outputs = raw_output[3:]
         else:
             raise TypeError(
                 f"Unsupported raw_output type: {type(raw_output)}. "
                 "Expected dai.NNData or list[np.ndarray]."
             )
 
+        if len(outputs_values) == 0:
+            raise ValueError("No YOLO detection heads were found in the output.")
+
+        (
+            kpts_outputs,
+            masks_outputs,
+            protos_output,
+        ) = self._partition_export_aux_outputs(outputs_values, aux_outputs)
+
         strides = (
             [8, 16, 32]
-            if subtype
-            not in [YOLOSubtype.V3UT, YOLOSubtype.V3T, YOLOSubtype.V4T]
+            if subtype not in [YOLOSubtype.V3UT, YOLOSubtype.V3T, YOLOSubtype.V4T]
             else [16, 32]
         )
         input_shape = tuple(
@@ -152,52 +148,61 @@ class YOLOUnifiedInstanceParser(BaseParser):
             raise ValueError(
                 f"The provided number of classes {n_classes} does not match the model's {inferred_n_classes}."
             )
+
         num_keypoints = kpts_outputs[0].shape[1] // 3
+        bbox_heads: list[np.ndarray] = []
+        mask_heads: list[np.ndarray] = []
+        kpt_heads: list[np.ndarray] = []
 
-        decode_common = {
-            "strides": strides,
-            "anchors": final_anchors,
-            "conf_thres": conf_thres,
-            "iou_thres": iou_thres,
-            "num_classes": inferred_n_classes,
-            "subtype": subtype,
-            "max_nms": max_det,
-        }
+        for head_id, (bbox_head, kpt_head, mask_head, stride) in enumerate(
+            zip(outputs_values, kpts_outputs, masks_outputs, strides, strict=True)
+        ):
+            anchors_head = (
+                final_anchors[head_id] if final_anchors is not None else None
+            )
+            bbox_raw = parse_yolo_output(
+                bbox_head.copy(),
+                stride,
+                inferred_n_classes + 5,
+                anchors_head,
+                head_id=head_id,
+                kpts=None,
+                det_mode=True,
+                subtype=subtype,
+            )
+            num_locations = bbox_raw.shape[1]
 
-        # Pass A: keypoint mode
-        kpt_results = decode_yolo_output(
-            yolo_outputs=[o.copy() for o in outputs_values],
-            kpts=[k.copy() for k in kpts_outputs],
-            det_mode=False,
-            **decode_common,
+            mask_flat = self._flatten_export_head(
+                mask_head, num_locations, "mask coefficients"
+            )
+            kpt_flat = self._flatten_export_head(
+                kpt_head, num_locations, "keypoints"
+            )
+            kpt_flat[..., 2::3] = sigmoid(kpt_flat[..., 2::3])
+
+            bbox_heads.append(bbox_raw)
+            mask_heads.append(mask_flat)
+            kpt_heads.append(kpt_flat)
+
+        bbox_output = np.concatenate(bbox_heads, axis=1)
+        mask_output = np.concatenate(mask_heads, axis=1)
+        keypoints_output = np.concatenate(kpt_heads, axis=1)
+        protos_len = mask_output.shape[2]
+
+        # Match depthai-nodes filtering/top-k behavior by running a single NMS
+        # over detections augmented with the aligned mask coefficients and kpts.
+        preds_combined = np.concatenate(
+            [bbox_output, mask_output, keypoints_output],
+            axis=2,
         )
-
-        # Pass B: segmentation mode
-        seg_results = decode_yolo_output(
-            yolo_outputs=[o.copy() for o in outputs_values],
-            kpts=None,
-            det_mode=False,
-            **decode_common,
-        )
-
-        seg_boxes = (
-            seg_results[:, :4] if seg_results.shape[0] else np.zeros((0, 4))
-        )
-        kpt_boxes = (
-            kpt_results[:, :4] if kpt_results.shape[0] else np.zeros((0, 4))
-        )
-
-        # For each seg detection, find the best-matching kpt detection
-        kpt_match_idx: list[int | None] = [None] * seg_results.shape[0]
-        if seg_results.shape[0] > 0 and kpt_results.shape[0] > 0:
-            iou_mat = self._iou_matrix(seg_boxes, kpt_boxes)  # (N_seg, N_kpt)
-            best_kpt = iou_mat.argmax(axis=1)
-            best_iou = iou_mat[np.arange(len(best_kpt)), best_kpt]
-            for seg_i, (ki, iou_val) in enumerate(
-                zip(best_kpt, best_iou, strict=True)
-            ):
-                if iou_val >= iou_match_thres:
-                    kpt_match_idx[seg_i] = int(ki)
+        results = non_max_suppression(
+            preds_combined,
+            conf_thres=conf_thres,
+            iou_thres=iou_thres,
+            num_classes=inferred_n_classes,
+            max_det=max_det,
+            max_nms=max_det,
+        )[0]
 
         bboxes, labels, label_names, scores, instance_masks, keypoints_list = (
             [],
@@ -207,12 +212,12 @@ class YOLOUnifiedInstanceParser(BaseParser):
             [],
             [],
         )
-        for seg_i in range(seg_results.shape[0]):
-            seg_row = seg_results[seg_i]
-            bbox_xyxy = seg_row[:4]
-            conf = float(seg_row[4])
-            label = int(seg_row[5])
-            seg_other = seg_row[6:]  # hi, ai, xi, yi
+        for det_row in results:
+            bbox_xyxy = det_row[:4]
+            conf = float(det_row[4])
+            label = int(det_row[5])
+            mask_coeff = det_row[6 : 6 + protos_len]
+            kpt_flat = det_row[6 + protos_len :]
 
             bbox_xywh = xyxy_to_xywh(bbox_xyxy.reshape(1, 4))
             bbox_norm = normalize_bboxes(
@@ -224,12 +229,6 @@ class YOLOUnifiedInstanceParser(BaseParser):
             labels.append(label)
             label_names.append(class_map[label])
 
-            # --- Instance mask ---
-            seg_coeff = seg_other.astype(int)
-            hi, ai, xi, yi = seg_coeff
-            mask_coeff = masks_outputs[hi][
-                0, ai * protos_len : (ai + 1) * protos_len, yi, xi
-            ]
             mask = process_single_mask(
                 protos_output[0], mask_coeff, mask_thres, bbox_norm
             )
@@ -240,17 +239,7 @@ class YOLOUnifiedInstanceParser(BaseParser):
             )
             instance_masks.append(resized_mask > 0)
 
-            # --- Keypoints (from matched kpt detection, or zeros) ---
-            matched_ki = kpt_match_idx[seg_i]
-            if matched_ki is not None:
-                kpt_flat = kpt_results[matched_ki, 6:]  # *kpt_flat
-                kps = parse_kpts(kpt_flat, num_keypoints, input_shape)  # type: ignore
-            else:
-                logger.warning(
-                    f"Detection {seg_i} has no keypoint match "
-                    f"(iou_match_thres={iou_match_thres}); using zero keypoints."
-                )
-                kps = [(0.0, 0.0, 0.0)] * num_keypoints
+            kps = parse_kpts(kpt_flat, num_keypoints, input_shape)  # type: ignore
             keypoints_list.append(kps)
 
         final_mask = np.asarray(instance_masks)
@@ -283,33 +272,92 @@ class YOLOUnifiedInstanceParser(BaseParser):
         )
 
     @staticmethod
-    def _iou_matrix(boxes_a: np.ndarray, boxes_b: np.ndarray) -> np.ndarray:
-        """Compute pairwise IoU between two sets of xyxy boxes.
+    def _partition_export_aux_outputs(
+        bbox_outputs: list[np.ndarray],
+        aux_outputs: list[np.ndarray],
+    ) -> tuple[list[np.ndarray], list[np.ndarray], np.ndarray]:
+        """Partition pruned SafeGuard export outputs into kpts, masks, and protos."""
+        num_heads = len(bbox_outputs)
+        head_locations = {
+            int(np.prod(output.shape[2:4])): idx
+            for idx, output in enumerate(bbox_outputs)
+        }
+        kpts_outputs: list[np.ndarray | None] = [None] * num_heads
+        masks_outputs: list[np.ndarray | None] = [None] * num_heads
+        remaining: list[np.ndarray] = []
 
-        Parameters
-        ----------
-        boxes_a : np.ndarray
-            Shape (N, 4) in xyxy format.
-        boxes_b : np.ndarray
-            Shape (M, 4) in xyxy format.
+        for output in aux_outputs:
+            locations = YOLOUnifiedInstanceParser._aux_locations(output)
+            head_idx = head_locations.get(locations)
+            if (
+                head_idx is not None
+                and output.shape[1] % 3 == 0
+                and kpts_outputs[head_idx] is None
+            ):
+                kpts_outputs[head_idx] = output
+            else:
+                remaining.append(output)
 
-        Returns
-        -------
-        np.ndarray
-            IoU matrix of shape (N, M).
-        """
-        x1 = np.maximum(boxes_a[:, None, 0], boxes_b[None, :, 0])
-        y1 = np.maximum(boxes_a[:, None, 1], boxes_b[None, :, 1])
-        x2 = np.minimum(boxes_a[:, None, 2], boxes_b[None, :, 2])
-        y2 = np.minimum(boxes_a[:, None, 3], boxes_b[None, :, 3])
+        protos_output: np.ndarray | None = None
+        for output in remaining:
+            locations = YOLOUnifiedInstanceParser._aux_locations(output)
+            head_idx = head_locations.get(locations)
+            if head_idx is not None and masks_outputs[head_idx] is None:
+                masks_outputs[head_idx] = output
+            elif protos_output is None:
+                protos_output = output
+            else:
+                raise ValueError(
+                    "Unable to uniquely identify the pruned export outputs "
+                    f"from shapes {[arr.shape for arr in aux_outputs]}."
+                )
 
-        inter = np.maximum(0.0, x2 - x1) * np.maximum(0.0, y2 - y1)
-        area_a = (boxes_a[:, 2] - boxes_a[:, 0]) * (
-            boxes_a[:, 3] - boxes_a[:, 1]
+        if protos_output is None or any(x is None for x in kpts_outputs) or any(
+            x is None for x in masks_outputs
+        ):
+            raise ValueError(
+                "Incomplete pruned export outputs for unified parsing: "
+                f"kpts={[x.shape if x is not None else None for x in kpts_outputs]}, "
+                f"masks={[x.shape if x is not None else None for x in masks_outputs]}, "
+                f"proto={None if protos_output is None else protos_output.shape}."
+            )
+
+        return (
+            [x for x in kpts_outputs if x is not None],
+            [x for x in masks_outputs if x is not None],
+            protos_output,
         )
-        area_b = (boxes_b[:, 2] - boxes_b[:, 0]) * (
-            boxes_b[:, 3] - boxes_b[:, 1]
-        )
-        union = area_a[:, None] + area_b[None, :] - inter
 
-        return np.where(union > 0, inter / union, 0.0)
+    @staticmethod
+    def _aux_locations(output: np.ndarray) -> int:
+        """Return the flattened spatial/location count of an aux head."""
+        if output.ndim == 4:
+            return int(np.prod(output.shape[2:4]))
+        if output.ndim == 3:
+            return int(output.shape[2])
+        raise ValueError(f"Unexpected auxiliary output shape {output.shape}.")
+
+    @staticmethod
+    def _flatten_export_head(
+        head_output: np.ndarray,
+        num_locations: int,
+        head_name: str,
+    ) -> np.ndarray:
+        """Flatten an exported SafeGuard auxiliary head to (B, N, C)."""
+        if head_output.ndim == 4:
+            batch_size, channels, _, _ = head_output.shape
+            flattened = head_output.reshape(batch_size, channels, -1)
+        elif head_output.ndim == 3:
+            flattened = head_output
+        else:
+            raise ValueError(
+                f"Unexpected {head_name} output shape {head_output.shape}."
+            )
+
+        flattened = flattened.transpose(0, 2, 1).astype(np.float32, copy=False)
+        if flattened.shape[1] != num_locations:
+            raise ValueError(
+                f"{head_name.capitalize()} output shape {head_output.shape} "
+                f"does not align with {num_locations} decoded detections."
+            )
+        return flattened
