@@ -244,7 +244,7 @@ class YOLOUnifiedInstanceParser(BaseParser):
 
         final_mask = np.asarray(instance_masks)
         if final_mask.size != 0:
-            # Flatten (N, H, W) to (N*H, W) since dai.ImgDetections expects a 2D mask.
+            # Flatten (N, H, W) to (N*H, W)
             final_mask = final_mask.reshape(-1, final_mask.shape[-1])
 
         additional_output = np.array(keypoints_list)
@@ -276,7 +276,7 @@ class YOLOUnifiedInstanceParser(BaseParser):
         bbox_outputs: list[np.ndarray],
         aux_outputs: list[np.ndarray],
     ) -> tuple[list[np.ndarray], list[np.ndarray], np.ndarray]:
-        """Partition pruned SafeGuard export outputs into kpts, masks, and protos."""
+        """Partition outputs into kpts, masks, and protos."""
         num_heads = len(bbox_outputs)
         head_locations = {
             int(np.prod(output.shape[2:4])): idx
@@ -343,7 +343,7 @@ class YOLOUnifiedInstanceParser(BaseParser):
         num_locations: int,
         head_name: str,
     ) -> np.ndarray:
-        """Flatten an exported SafeGuard auxiliary head to (B, N, C)."""
+        """Flatten to (B, N, C)."""
         if head_output.ndim == 4:
             batch_size, channels, _, _ = head_output.shape
             flattened = head_output.reshape(batch_size, channels, -1)
