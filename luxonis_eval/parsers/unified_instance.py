@@ -189,7 +189,7 @@ class YOLOUnifiedInstanceParser(BaseParser):
         keypoints_output = np.concatenate(kpt_heads, axis=1)
         protos_len = mask_output.shape[2]
 
-        # Match depthai-nodes filtering/top-k behavior by running a single NMS
+        # filtering/top-k behavior: run a single NMS
         # over detections augmented with the aligned mask coefficients and kpts.
         preds_combined = np.concatenate(
             [bbox_output, mask_output, keypoints_output],
