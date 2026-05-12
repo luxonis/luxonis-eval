@@ -13,14 +13,11 @@ from luxonis_eval.metrics.metrics_utils import bbox_area_from_keypoints
 
 
 class KeypointMeanAveragePrecision(BaseMetric):
-    """Flexible keypoint mAP with train-compatible formulation.
+    """Keypoint Mean Average Precision (mAP) metric.
 
     - accepts arbitrary class counts and arbitrary keypoint counts
-    - uses Faster COCO Eval for OKS-based evaluation
-    - applies ``sigmas`` and ``area_factor`` the same way as the train-side
-      metric
-    - can optionally derive bbox area/scale directly from keypoints, which is
-      useful for keypoint-only models that do not predict boxes
+    - can optionally derive bbox area/scale directly from keypoints
+    by setting `compute_area_from_keypoints` to true
     """
 
     def __init__(
