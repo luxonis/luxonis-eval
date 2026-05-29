@@ -10,6 +10,7 @@ from luxonis_eval.utils.coco_utils import COCOStore
 
 class BboxMeanAveragePrecision(BaseMetric):
     """Bounding Box Mean Average Precision (mAP) metric.
+
     Uses COCO evaluation metrics for bounding box detection.
     """
 

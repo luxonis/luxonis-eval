@@ -26,7 +26,8 @@ def suppress_stdout() -> Iterator[None]:
 
 
 class COCOStore:
-    """A simple COCO-style storage for ground-truth and detection results."""
+    """A simple COCO-style storage for ground-truth and detection
+    results."""
 
     def __init__(self, *, iou_type: str) -> None:
         """Initialize the COCOStore.

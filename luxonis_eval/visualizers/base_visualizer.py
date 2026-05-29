@@ -17,6 +17,7 @@ class BaseVisualizer(
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the visualizer.
+
         Parameters
         ----------
         **kwargs : Any

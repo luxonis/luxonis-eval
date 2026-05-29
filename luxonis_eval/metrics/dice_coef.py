@@ -25,6 +25,7 @@ class DiceCoefficient(BaseMetric):
         **kwargs: Any,
     ) -> None:
         """Initialize the Dice coefficient metric.
+
         Parameters
         ----------
         num_classes : int
