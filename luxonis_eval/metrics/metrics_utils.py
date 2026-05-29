@@ -82,7 +82,8 @@ def remap_prediction_mask(
     Returns
     -------
     np.ndarray
-        The remapped prediction mask with indices aligned to the target mask."""
+        The remapped prediction mask with indices aligned to the target mask.
+    """
     remapped = np.full(pred_mask.shape, fill_value=255, dtype=np.int64)
 
     for target_idx, pred_idx in class_index_map.items():
@@ -94,8 +95,8 @@ def remap_prediction_mask(
 def mask_ignore_pixels(
     pred_mask: np.ndarray, target_mask: np.ndarray, ignore_index: int = 0
 ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Replace ignore_index pixels with 0 in both masks so they cancel out and don't affect IoU for any real class.
+    """Replace ignore_index pixels with 0 in both masks so they cancel
+    out and don't affect IoU for any real class.
 
     Parameters
     ----------

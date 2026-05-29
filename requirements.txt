@@ -8,3 +8,5 @@ onnx
 onnxruntime
 torchmetrics
 torch
+faster-coco-eval
+torchvision

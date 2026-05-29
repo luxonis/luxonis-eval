@@ -35,8 +35,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
                 sigmas if sigmas is not None else kpt_oks_sigmas,
                 dtype=torch.float32,
             )
-            if sigmas is not None
-            or kpt_oks_sigmas is not None
+            if sigmas is not None or kpt_oks_sigmas is not None
             else None
         )
         self.area_factor = area_factor
@@ -95,9 +94,11 @@ class KeypointMeanAveragePrecision(BaseMetric):
             if self.compute_area_from_keypoints:
                 pred_boxes_xyxy.append([0.0, 0.0, 0.0, 0.0])
             else:
-                box = det.getBoundingBox().denormalize(
-                    width, height
-                ).getOuterXYWH()
+                box = (
+                    det.getBoundingBox()
+                    .denormalize(width, height)
+                    .getOuterXYWH()
+                )
                 x = float(box[0].x)
                 y = float(box[0].y)
                 w = float(box[1].width)
@@ -126,8 +127,8 @@ class KeypointMeanAveragePrecision(BaseMetric):
             pred_bboxes_xywh_tensor, pred_areas_tensor = (
                 self._compute_bbox_area_from_keypoints(pred_keypoints_tensor)
             )
-            pred_num_keypoints = pred_keypoints_tensor[:, 2::3].ne(0).sum(
-                dim=1
+            pred_num_keypoints = (
+                pred_keypoints_tensor[:, 2::3].ne(0).sum(dim=1)
             )
             keep_mask = pred_num_keypoints > 0
         else:
@@ -137,9 +138,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
             pred_areas_tensor = self._compute_area_from_bboxes(
                 pred_bboxes_xywh_tensor
             )
-            keep_mask = torch.ones(
-                (len(pred_classes),), dtype=torch.bool
-            )
+            keep_mask = torch.ones((len(pred_classes),), dtype=torch.bool)
 
         pred_scores_tensor = torch.tensor(pred_scores, dtype=torch.float32)
         pred_classes_tensor = torch.tensor(pred_classes, dtype=torch.int64)
@@ -183,10 +182,10 @@ class KeypointMeanAveragePrecision(BaseMetric):
                 self._compute_bbox_area_from_keypoints(target_kpts_tensor)
             )
         else:
-            _, target_boxes_xywh = target_converter(target_boxes, width, height)
-            target_boxes_xywh_tensor = self._as_2d_tensor(
-                target_boxes_xywh, 4
+            _, target_boxes_xywh = target_converter(
+                target_boxes, width, height
             )
+            target_boxes_xywh_tensor = self._as_2d_tensor(target_boxes_xywh, 4)
             target_areas_tensor = self._compute_area_from_bboxes(
                 target_boxes_xywh_tensor
             )
@@ -259,7 +258,9 @@ class KeypointMeanAveragePrecision(BaseMetric):
         return bboxes
 
     @staticmethod
-    def _denormalize_keypoints(keypoints: Tensor, width: int, height: int) -> Tensor:
+    def _denormalize_keypoints(
+        keypoints: Tensor, width: int, height: int
+    ) -> Tensor:
         keypoints = keypoints.clone()
         if keypoints.numel() > 0:
             keypoints[:, 0::3] *= width

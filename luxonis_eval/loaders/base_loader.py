@@ -10,8 +10,8 @@ from luxonis_eval.utils.utils import check_loader_classes, check_loader_output
 
 
 def validate_loader_output(func: Callable) -> Callable:
-    """
-    Decorator to validate the output of a loader's __getitem__ method.
+    """Decorator to validate the output of a loader's __getitem__
+    method.
 
     Parameters
     ----------
@@ -52,8 +52,7 @@ class BaseEvalLoader(BaseLoader, register=False):
         super().__init__(**kwargs)
 
     def __init_subclass__(cls, **kwargs):
-        """
-        Initialize subclass with validation for __getitem__ method.
+        """Initialize subclass with validation for __getitem__ method.
 
         Parameters
         ----------
@@ -65,7 +64,10 @@ class BaseEvalLoader(BaseLoader, register=False):
 
     @abstractmethod
     def load_classes(self) -> dict[str, int]:
-        """Loads and returns the class mapping for the dataset. This method is called once during __init__ and its return value is assigned to self.classes. Subclasses must implement this method to provide a mapping of class names to their integer indices.
+        """Loads and returns the class mapping for the dataset. This
+        method is called once during __init__ and its return value is
+        assigned to self.classes. Subclasses must implement this method
+        to provide a mapping of class names to their integer indices.
 
         Returns
         -------
@@ -77,7 +79,8 @@ class BaseEvalLoader(BaseLoader, register=False):
     def get_class_mapping(
         self, **kwargs
     ) -> tuple[dict[int, str], dict[int, str], dict[int, int]]:
-        """Returns the LDF class map, native class map, and class index map.
+        """Returns the LDF class map, native class map, and class index
+        map.
 
         The LDF class map reflects how classes are indexed within LuxonisML's
         data format (LDF), where classes are sorted alphabetically and indices

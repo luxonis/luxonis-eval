@@ -15,6 +15,7 @@ from luxonis_eval.utils.coco_utils import COCOStore
 
 class MaskMeanAveragePrecision(BaseMetric):
     """Mask Mean Average Precision (mAP) metric.
+
     Uses COCO evaluation metrics for instance segmentation.
     """
 

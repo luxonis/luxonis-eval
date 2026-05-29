@@ -59,7 +59,8 @@ class BaseMetric(
         return results
 
     def validate_target_keys(self, target: dict[str, np.ndarray]) -> None:
-        """Validate that the target contains the required keys for the metric.
+        """Validate that the target contains the required keys for the
+        metric.
 
         Parameters
         ----------
