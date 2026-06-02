@@ -43,7 +43,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self._output_queue: Any = None
         self._passthrough: Any = None
 
-    def setup(self) -> None:
+    def _setup_impl(self) -> None:
         """Set up the DepthAI pipeline."""
         if self._pipeline is not None:
             return
@@ -62,7 +62,6 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self._passthrough = nn_node.passthrough.createOutputQueue()
 
         self._pipeline.start()
-        self._set_runtime_metadata()
 
     def get_input_shape(self) -> tuple[int, int]:
         """Get model input width and height.

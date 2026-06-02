@@ -40,7 +40,7 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
         self._input_name: str | None = None
         self._visualization_frame: np.ndarray | None = None
 
-    def setup(self) -> None:
+    def _setup_impl(self) -> None:
         """Initialize the ONNX Runtime session."""
         if self._session is not None:
             return
@@ -49,7 +49,6 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
             str(self.model_path), providers=self.providers
         )
         self._input_name = self._session.get_inputs()[0].name
-        self._set_runtime_metadata()
 
     def get_input_shape(self) -> tuple[int, int]:
         """Get model input width and height.

@@ -31,17 +31,30 @@ class BaseEngine(
         self.height: int | None = None
         self.platform_name: str | None = None
 
-    @abstractmethod
     def setup(self) -> None:
-        """Initialize backend resources."""
+        """Initialize backend resources and populate runtime metadata.
+
+        Subclasses should usually implement `_setup_impl()` rather than
+        override this method directly.
+        """
+        self._setup_impl()
+        self._set_runtime_metadata()
+
+    @abstractmethod
+    def _setup_impl(self) -> None:
+        """Allocate backend resources required for inference.
+
+        Implementations should be safe to call repeatedly when the
+        engine is already initialized.
+        """
         ...
 
     def _set_runtime_metadata(self) -> None:
         """Populate and validate runtime metadata during setup.
 
         Runtime metadata is intentionally unset before `setup()` and
-        after `close()`. Concrete engines should call this before
-        `setup()` returns.
+        after `close()`. `BaseEngine.setup()` calls this after
+        `_setup_impl()` completes.
         """
         width, height = self.get_input_shape()
         if width is None or height is None:
