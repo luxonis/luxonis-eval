@@ -155,14 +155,28 @@ luxonis_eval eval \
 
 ### 🐍 Python API
 
-For programmatic usage, load an `EvalConfig` instance and pass it to `eval_run`:
+For one-shot programmatic usage, call `eval_run`:
 
 ```python
 from luxonis_eval.__main__ import eval_run
 from luxonis_eval.utils.config import EvalConfig
 
 eval_cfg = EvalConfig.get_config(cfg="path/to/config.yaml")
-eval_run(eval_cfg)
+results = eval_run(eval_cfg)
+```
+
+If you need explicit lifecycle control, repeated `evaluate()` calls after one
+setup, or direct access to runtime state, use `LuxonisEval` directly:
+
+```python
+from luxonis_eval import LuxonisEval
+from luxonis_eval.utils.config import EvalConfig
+
+eval_cfg = EvalConfig.get_config(cfg="path/to/config.yaml")
+evaluator = LuxonisEval(eval_cfg)
+evaluator.setup()
+results = evaluator.evaluate()
+evaluator.close()
 ```
 
 <a name="architecture"></a>
@@ -196,7 +210,7 @@ All base classes use the [AutoRegisterMeta](https://github.com/luxonis/luxonis-m
 
 ### 🔄 Evaluation Pipeline
 
-The evaluation loop in `eval_run` is structured around abstract component interfaces rather than concrete implementations. That design keeps the pipeline modular and makes backend or task-specific components easy to replace.
+The evaluation loop in `LuxonisEval.evaluate()` is structured around abstract component interfaces rather than concrete implementations. That design keeps the pipeline modular and makes backend or task-specific components easy to replace.
 
 ```bash
 ┌────────────┐     ┌─────────────┐     ┌─────────────┐     ┌───────────┐
@@ -402,7 +416,7 @@ Subclass [`BaseEngine`](luxonis_eval/engines/base_engine.py) and implement the s
 - **`get_platform_name()`** - Return a human-readable platform name such as `"RVC2"` or `"RVC4"`
 - **`infer_once(img)`** - Run inference on a single preprocessed image and return the raw backend output
 - **`vis_frame()`** - Return a copy of the input image suitable for visualization overlays
-- **`teardown()`** - Release backend resources after evaluation finishes
+- **`close()`** - Release backend resources after evaluation finishes
 
 ### 🧠 Adding a Custom Parser
 
