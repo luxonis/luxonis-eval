@@ -103,9 +103,11 @@ def make_report_table(
 
     rows += section("QUALITY")
     for result in results:
-        metric_name = result.pop("metric")
+        metric_name = str(result["metric"])
         rows += section(metric_name, line_char="-")
         for k, v in result.items():
+            if k == "metric":
+                continue
             val = f"{v * 100:.2f}%" if isinstance(v, float) else str(v)
             rows.append([str(k), val])
 
@@ -218,7 +220,7 @@ def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:
     }
 
 
-def get_class_mapping(
+def resolve_luxonis_loader_class_mapping(
     dataloader: LuxonisLoader,
     **kwargs,
 ) -> tuple[dict, dict, dict | None]:
@@ -242,7 +244,7 @@ def get_class_mapping(
         ldf_class_map = {v: k for k, v in ldf_class_map.items()}
     else:
         raise NotImplementedError(
-            "Built-in `get_class_mapping` is only implemented for `LuxonisLoader`. Please provide a custom implementation for other loader types inheriting from `BaseEvalLoader`."
+            "Built-in class mapping resolution is only implemented for `LuxonisLoader`. Please provide a custom `get_class_mapping()` implementation for other loader types inheriting from `BaseEvalLoader`."
         )
 
     if "imagenet" in dataloader.dataset.dataset_name:
@@ -334,9 +336,9 @@ def get_metric_ctx(base_ctx: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     dict[str, Any]
         Context dictionary to pass to metric updates.
     """
-    class_index_map = kwargs.get("class_index_map", {})
-    class_map = kwargs.get("class_map", {})
-    ldf_class_map = kwargs.get("ldf_class_map", {})
+    class_index_map = kwargs.get("class_index_map") or {}
+    class_map = kwargs.get("class_map") or {}
+    ldf_class_map = kwargs.get("ldf_class_map") or {}
     width = kwargs.get("width", -1)
     height = kwargs.get("height", -1)
 

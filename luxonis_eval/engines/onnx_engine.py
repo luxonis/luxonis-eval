@@ -29,21 +29,27 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
         **kwargs : Any
             Additional engine configuration.
         """
+        super().__init__(model_path=model_path, **kwargs)
         self.model_path = (
-            model_path if isinstance(model_path, Path) else Path(model_path)
+            self.model_path
+            if isinstance(self.model_path, Path)
+            else Path(self.model_path)
         )
         self.providers = providers or ["CPUExecutionProvider"]
-        self.setup()
-        super().__init__(model_path=model_path, **kwargs)
+        self._session: ort.InferenceSession | None = None
+        self._input_name: str | None = None
+        self._visualization_frame: np.ndarray | None = None
 
     def setup(self) -> None:
         """Initialize the ONNX Runtime session."""
-        if self.model_path is None:
-            raise ValueError("ONNX path is not provided for ONNX inference.")
+        if self._session is not None:
+            return
+
         self._session = ort.InferenceSession(
             str(self.model_path), providers=self.providers
         )
         self._input_name = self._session.get_inputs()[0].name
+        self._set_runtime_metadata()
 
     def get_input_shape(self) -> tuple[int, int]:
         """Get model input width and height.
@@ -91,6 +97,11 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
         Any
             Raw ONNX Runtime output.
         """
+        if self._session is None or self._input_name is None:
+            raise RuntimeError(
+                "OnnxEngine.setup() must be called before infer_once()."
+            )
+
         self._visualization_frame = img.copy()
         if img.dtype != np.float32:
             img = img.astype(np.float32)
@@ -106,8 +117,15 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
         np.ndarray
             Copy of the input image.
         """
+        if self._visualization_frame is None:
+            raise RuntimeError("Visualization frame is unavailable.")
         return self._visualization_frame
 
-    def teardown(self) -> None:
+    def close(self) -> None:
         """Release ONNX Runtime resources."""
-        del self._session
+        self._session = None
+        self._input_name = None
+        self._visualization_frame = None
+        self.width = None
+        self.height = None
+        self.platform_name = None

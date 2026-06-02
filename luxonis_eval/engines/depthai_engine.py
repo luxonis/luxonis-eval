@@ -26,16 +26,28 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         **kwargs : Any
             Additional engine configuration.
         """
+        super().__init__(model_path=model_path, **kwargs)
         self.model_path = (
-            model_path if isinstance(model_path, Path) else Path(model_path)
+            self.model_path
+            if isinstance(self.model_path, Path)
+            else Path(self.model_path)
         )
         self.device_ip = device_ip
-        self._pipeline = None
-        self.setup()
-        super().__init__(model_path=model_path, **kwargs)
+        self._pipeline: dai.Pipeline | None = None
+        self.device: dai.Device | None = None
+        self.device_platform: str | None = None
+        self.nn_archive: dai.NNArchive | None = None
+        self.input_info: dict[str, Any] = {}
+        self.model_platform: str | None = None
+        self._input_queue: Any = None
+        self._output_queue: Any = None
+        self._passthrough: Any = None
 
     def setup(self) -> None:
         """Set up the DepthAI pipeline."""
+        if self._pipeline is not None:
+            return
+
         self.device, self.device_platform = self._setup_device()
         self.nn_archive, self.input_info, self.model_platform = (
             self._load_nn_archive()
@@ -50,6 +62,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self._passthrough = nn_node.passthrough.createOutputQueue()
 
         self._pipeline.start()
+        self._set_runtime_metadata()
 
     def get_input_shape(self) -> tuple[int, int]:
         """Get model input width and height.
@@ -119,10 +132,15 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         ADatatype
             Raw DepthAI inference output.
         """
+        if self.width is None or self.height is None:
+            raise RuntimeError(
+                "DepthAIEngine.setup() must be called before infer_once()."
+            )
+
         assert img.shape[0] == self.height
         assert img.shape[1] == self.width
 
-        if self.get_platform_name() == "RVC2":
+        if self.platform_name == "RVC2":
             img_frame_type = dai.ImgFrame.Type.BGR888p
             img_for_device = np.transpose(img, (2, 0, 1))
         else:
@@ -146,11 +164,27 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         np.ndarray
             Visualization frame.
         """
+        if self._passthrough is None:
+            raise RuntimeError("Visualization frame is unavailable.")
         return self._passthrough.get().getCvFrame()  # type: ignore
 
-    def teardown(self) -> None:
+    def close(self) -> None:
         """Tear down the DepthAI pipeline."""
+        if self.device is not None:
+            self.device.close()
+
         self._pipeline = None
+        self.device = None
+        self.device_platform = None
+        self.nn_archive = None
+        self.input_info = {}
+        self.model_platform = None
+        self._input_queue = None
+        self._output_queue = None
+        self._passthrough = None
+        self.width = None
+        self.height = None
+        self.platform_name = None
 
     def _setup_device(self) -> tuple[dai.Device, str]:
         """Set up and connect to a DepthAI device.
