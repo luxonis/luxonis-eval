@@ -443,7 +443,7 @@ class LuxonisEval:
                 height=self.engine.height,
                 ldf_class_map=self.ldf_class_map,
                 class_map=self.class_map,
-                class_index_map=self.class_index_map or {},
+                class_index_map=self.class_index_map,
             )
             for metric_cfg in self.cfg.metrics.metrics
         ]

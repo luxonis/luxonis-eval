@@ -85,12 +85,13 @@ class MIoU(BaseMetric):
         if self.target_class_map is None:
             self.target_class_map = kwargs.get("target_class_map", {})
         target_bg = kwargs.get("target_bg")
-        class_index_map = kwargs.get("class_index_map", {})
+        class_index_map = kwargs.get("class_index_map")
 
         pred_mask: np.ndarray = predictions.mask
         target_mask = np.argmax(target[self.metric_keys()[0]], axis=0)
 
-        pred_mask = remap_prediction_mask(pred_mask, class_index_map)
+        if class_index_map is not None:
+            pred_mask = remap_prediction_mask(pred_mask, class_index_map)
 
         if not self.include_background and target_bg is not None:
             pred_mask, target_mask = mask_ignore_pixels(

@@ -336,7 +336,7 @@ def get_metric_ctx(base_ctx: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     dict[str, Any]
         Context dictionary to pass to metric updates.
     """
-    class_index_map = kwargs.get("class_index_map") or {}
+    class_index_map = kwargs.get("class_index_map")
     class_map = kwargs.get("class_map") or {}
     ldf_class_map = kwargs.get("ldf_class_map") or {}
     width = kwargs.get("width", -1)
