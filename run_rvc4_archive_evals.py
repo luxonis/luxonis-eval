@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -40,8 +41,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--luxonis-eval-bin",
-        default="luxonis-eval",
-        help="Executable name or path for luxonis-eval.",
+        default=None,
+        help=(
+            "Optional console executable name or path. By default the script "
+            "uses the current interpreter: python -m luxonis_eval."
+        ),
     )
     return parser.parse_args()
 
@@ -63,6 +67,12 @@ def collect_archives(directory: Path, recursive: bool) -> list[Path]:
     return sorted(path for path in directory.glob(pattern) if path.is_file())
 
 
+def build_luxonis_eval_prefix(luxonis_eval_bin: str | None) -> list[str]:
+    if luxonis_eval_bin is not None:
+        return [luxonis_eval_bin]
+    return [sys.executable, "-m", "luxonis_eval"]
+
+
 def main() -> None:
     args = parse_args()
 
@@ -76,13 +86,14 @@ def main() -> None:
         raise SystemExit(f"No .rvc4.tar.xz archives found in: {args.directory}")
 
     failures: list[tuple[Path, int]] = []
+    command_prefix = build_luxonis_eval_prefix(args.luxonis_eval_bin)
     for archive in archives:
         command = [
-            args.luxonis_eval_bin,
+            *command_prefix,
             "eval",
             "--config",
             str(args.config),
-            "nn_archive",
+            "--model-path",
             str(archive),
         ]
         print(format_command(command), flush=True)
