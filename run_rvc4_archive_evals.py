@@ -6,13 +6,7 @@ import sys
 from pathlib import Path
 
 
-DEFAULT_ARCHIVES_DIR = (
-    Path(__file__).resolve().parents[1]
-    / "modelconverter"
-    / "shared_with_container"
-    / "outputs"
-    / "256_512_experiment"
-)
+DEFAULT_ARCHIVES_DIR = Path("256_512_experiment")
 
 
 def parse_args() -> argparse.Namespace:
