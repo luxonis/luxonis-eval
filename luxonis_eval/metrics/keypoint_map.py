@@ -65,8 +65,8 @@ class KeypointMeanAveragePrecision(BaseMetric):
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
-        target_boxes = target[self.metric_keys()[0]]
-        target_kpts = target[self.metric_keys()[1]]
+        target_boxes = self.get_target_value(self.metric_keys()[0], target)
+        target_kpts = self.get_target_value(self.metric_keys()[1], target)
         width = int(kwargs["width"])
         height = int(kwargs["height"])
 

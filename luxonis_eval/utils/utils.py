@@ -238,7 +238,7 @@ def get_class_mapping(
     """
 
     if isinstance(dataloader, LuxonisLoader):
-        ldf_class_map = dataloader.classes[""]
+        ldf_class_map = dataloader.classes["barcode-detection"]
         ldf_class_map = {v: k for k, v in ldf_class_map.items()}
     else:
         raise NotImplementedError(

@@ -88,7 +88,9 @@ class MIoU(BaseMetric):
         class_index_map = kwargs.get("class_index_map", {})
 
         pred_mask: np.ndarray = predictions.mask
-        target_mask = np.argmax(target[self.metric_keys()[0]], axis=0)
+        target_mask = np.argmax(
+            self.get_target_value(self.metric_keys()[0], target), axis=0
+        )
 
         pred_mask = remap_prediction_mask(pred_mask, class_index_map)
 

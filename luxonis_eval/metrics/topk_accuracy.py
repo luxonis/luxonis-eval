@@ -55,7 +55,7 @@ class TopKAccuracy(BaseMetric):
         **kwargs : Any
             Additional context.
         """
-        cls_target = target[self.metric_keys()[0]]
+        cls_target = self.get_target_value(self.metric_keys()[0], target)
         class_index_map = kwargs.get("class_index_map", {})
         class_map = kwargs.get("class_map", {})
         class_map = {v: k for k, v in class_map.items()}

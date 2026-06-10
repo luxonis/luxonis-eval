@@ -63,8 +63,8 @@ class MaskMeanAveragePrecision(BaseMetric):
         **kwargs : Any
             Additional context.
         """
-        target_boxes = target[self.metric_keys()[0]]
-        target_masks = target[self.metric_keys()[1]]
+        target_boxes = self.get_target_value(self.metric_keys()[0], target)
+        target_masks = self.get_target_value(self.metric_keys()[1], target)
 
         width = int(kwargs["width"])
         height = int(kwargs["height"])

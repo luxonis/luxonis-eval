@@ -46,6 +46,48 @@ class BaseMetric(
         self.validate_target_keys(target)
         self._update_impl(predictions, target, **kwargs)
 
+    @staticmethod
+    def _normalize_target_key(key: str) -> str:
+        return key.lstrip("/")
+
+    def resolve_target_key(
+        self, expected_key: str, target: dict[str, np.ndarray]
+    ) -> str:
+        """Resolve a required metric key against target labels.
+
+        Supports both bare LDF keys like ``/boundingbox`` and task-prefixed
+        keys like ``barcode-detection/boundingbox``.
+        """
+        if expected_key in target:
+            return expected_key
+
+        expected_suffix = self._normalize_target_key(expected_key)
+        matches = [
+            key
+            for key in target
+            if self._normalize_target_key(key) == expected_suffix
+            or key.endswith(f"/{expected_suffix}")
+        ]
+
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise ValueError(
+                f"Ambiguous target key for {self.__class__.__name__}: "
+                f"expected '{expected_key}', matched {matches}."
+            )
+
+        raise ValueError(
+            f"Target is missing required key '{expected_key}' for "
+            f"{self.__class__.__name__}. Available keys: {list(target.keys())}."
+        )
+
+    def get_target_value(
+        self, expected_key: str, target: dict[str, np.ndarray]
+    ) -> np.ndarray:
+        """Return a target array resolved from an expected metric key."""
+        return target[self.resolve_target_key(expected_key, target)]
+
     def compute(self) -> dict[str, float]:
         """Compute final metric values.
 
@@ -67,13 +109,8 @@ class BaseMetric(
         target : dict[str, np.ndarray]
             Ground-truth data.
         """
-        metric_keys = set(self.metric_keys())
-        target_keys = set(target)
-        if not metric_keys.issubset(target_keys):
-            raise ValueError(
-                f"Target is missing required keys for {self.__class__.__name__}. "
-                f"Expected at least: {self.metric_keys()}, but got: {list(target.keys())}."
-            )
+        for expected_key in self.metric_keys():
+            self.resolve_target_key(expected_key, target)
 
     @abstractmethod
     def metric_keys(self) -> list[str]:
