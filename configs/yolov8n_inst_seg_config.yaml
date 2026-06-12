@@ -17,9 +17,9 @@ parser:
   params:
     subtype: yolov8
     n_classes: 80
-    conf_thres: 0.25
-    mask_thres: 0.25
-    iou_thres: 0.7
+    conf_threshold: 0.25
+    iou_threshold: 0.7
+    mask_conf: 0.25
 
 metrics:
   metrics:
@@ -35,3 +35,9 @@ engine:
   name: onnx
   params:
     providers: [CPUExecutionProvider]
+
+# engine:
+#   model_path: examples/quickstart_inst_seg/models/yolov8n-seg.rvc4.tar.xz
+#   name: depthai
+#   params:
+#     device_ip: 10.12.143.173
