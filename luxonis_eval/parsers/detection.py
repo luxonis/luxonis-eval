@@ -28,8 +28,8 @@ class YOLODetectionParser(BaseParser):
         subtype: str,
         n_classes: int | None = None,
         anchors: list[list[list[float]]] | None = None,
-        conf_thres: float = 0.001,
-        iou_thres: float = 0.7,
+        conf_threshold: float = 0.001,
+        iou_threshold: float = 0.7,
         max_det: int = 300,
         **kwargs: Any,
     ) -> dai.ImgDetections:
@@ -47,9 +47,9 @@ class YOLODetectionParser(BaseParser):
             Number of classes.
         anchors : list[list[list[float]]] | None, optional
             Anchor boxes.
-        conf_thres : float, default=0.001
+        conf_threshold : float, default=0.001
             Confidence threshold.
-        iou_thres : float, default=0.7
+        iou_threshold : float, default=0.7
             IoU threshold.
         max_det : int, default=300
             Maximum detections.
@@ -118,8 +118,8 @@ class YOLODetectionParser(BaseParser):
             strides=strides,
             anchors=final_anchors,
             kpts=None,
-            conf_thres=conf_thres,
-            iou_thres=iou_thres,
+            conf_thres=conf_threshold,
+            iou_thres=iou_threshold,
             num_classes=inferred_n_classes,
             det_mode=True,
             subtype=subtype,

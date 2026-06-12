@@ -300,9 +300,9 @@ The parser converts raw model outputs into structured predictions. Different mod
 parser:
   name: YOLOInstanceSegmentationParser
   params:
-    conf_thres: 0.25
-    mask_thres: 0.25
-    iou_thres: 0.45
+    conf_threshold: 0.25
+    iou_threshold: 0.45
+    mask_conf: 0.25
 ```
 
 ### 📏 Evaluation Metrics
@@ -359,9 +359,9 @@ loader:
 parser:
   name: YOLOInstanceSegmentationParser
   params:
-    conf_thres: 0.25
-    mask_thres: 0.25
-    iou_thres: 0.45
+    conf_threshold: 0.25
+    iou_threshold: 0.45
+    mask_conf: 0.25
 
 metrics:
   metrics:
