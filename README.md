@@ -397,7 +397,7 @@ Every custom loader must inherit from `BaseEvalLoader` and implement four abstra
 - **`__getitem__(idx)`** - Returns a `LoaderOutput` tuple for the requested sample
 - **`__len__()`** - Returns the number of samples in the dataset
 
-For `LuxonisLoader`-backed datasets, the LDF and native class maps often differ, so the class index map must encode the remapping explicitly. For custom datasets that inherit directly from `BaseEvalLoader`, the two class maps are usually identical and the class index map is typically an identity mapping.
+For `LuxonisLoader`-backed datasets, the LDF and native class maps may differ when the model was trained with a different class order than the dataset metadata, so the class index map must encode that remapping explicitly. If no native class mapping is provided for an unknown `LuxonisLoader` dataset, LuxonisEval falls back to the dataset's LDF class order and uses an identity class index map after issuing a warning. For custom datasets that inherit directly from `BaseEvalLoader`, the two class maps are usually identical and the class index map is typically an identity mapping.
 
 > [!IMPORTANT]
 > `__getitem__` must return [LoaderOutput](https://github.com/luxonis/luxonis-ml/blob/8b89655497faca6d94e261d49c4d4f96e9078d9b/luxonis_ml/typing.py#L44-L48) from `luxonis_ml.typing`, which is a tuple of `(image, annotations_dict)`.

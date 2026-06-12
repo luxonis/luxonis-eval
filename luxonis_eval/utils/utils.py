@@ -252,20 +252,18 @@ def resolve_luxonis_loader_class_mapping(
     elif "coco" in dataloader.dataset.dataset_name:
         native_class_map = get_dataset_class_mapping("coco")
     else:
-        logger.info(
-            f"Dataset '{dataloader.dataset.dataset_name}' does not match known datasets for automatic class mapping. Attempting to use provided class mapping from the 'loader.params.class_mapping' argument."
-        )
-        native_class_map = kwargs.get("class_mapping", {})
+        native_class_map = kwargs.get("class_mapping")
+        if native_class_map:
+            logger.info(
+                f"Dataset '{dataloader.dataset.dataset_name}' does not match known datasets for automatic class mapping. Using the provided 'loader.params.class_mapping' argument."
+            )
+        else:
+            logger.warning(
+                f"Dataset '{dataloader.dataset.dataset_name}' does not match known datasets for automatic class mapping and no 'loader.params.class_mapping' was provided. Falling back to the dataset's LDF class order as the native class mapping."
+            )
+            native_class_map = ldf_class_map.copy()
 
-    class_index_map = None
-    if native_class_map:
-        class_index_map = get_class_index_mapping(
-            ldf_class_map, native_class_map
-        )
-    else:
-        logger.warning(
-            "No native class map found. Class index mapping will not be available, which may affect metric calculations that require the mapping of LDF class indices to native dataset indices."
-        )
+    class_index_map = get_class_index_mapping(ldf_class_map, native_class_map)
 
     return ldf_class_map, native_class_map, class_index_map
 
