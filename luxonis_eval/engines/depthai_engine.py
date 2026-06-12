@@ -169,6 +169,12 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
 
     def close(self) -> None:
         """Tear down the DepthAI pipeline."""
+        if self._passthrough is not None:
+            self._passthrough.close()
+        if self._output_queue is not None:
+            self._output_queue.close()
+        if self._pipeline is not None:
+            self._pipeline.stop()
         if self.device is not None:
             self.device.close()
 
