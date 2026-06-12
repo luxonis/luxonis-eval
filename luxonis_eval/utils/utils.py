@@ -10,7 +10,7 @@ from loguru import logger
 from luxonis_ml.data.loaders import LuxonisLoader
 from tabulate import tabulate
 
-from luxonis_eval.metrics.metrics_utils import yolo_norm_to_coco_xywh
+from luxonis_eval.metrics.metrics_utils import normalized_xywh_to_coco_xywh
 
 
 def get_model_name(path: str) -> str:
@@ -351,7 +351,7 @@ def get_metric_ctx(base_ctx: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         "width": width,
         "height": height,
         "category_ids": sorted(class_map.keys()),
-        "target_converter": yolo_norm_to_coco_xywh,
+        "target_converter": normalized_xywh_to_coco_xywh,
         "target_bg": ldf_name_to_idx.get("background"),
         "target_class_map": ldf_class_map,
     }

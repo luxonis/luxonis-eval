@@ -9,7 +9,10 @@ from torch import Tensor
 from torchvision.ops import box_convert
 
 from luxonis_eval.metrics.base_metric import BaseMetric
-from luxonis_eval.metrics.metrics_utils import bbox_area_from_keypoints
+from luxonis_eval.metrics.metrics_utils import (
+    bbox_area_from_keypoints,
+    detection_to_coco_xywh,
+)
 
 
 class KeypointMeanAveragePrecision(BaseMetric):
@@ -94,15 +97,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
             if self.compute_area_from_keypoints:
                 pred_boxes_xyxy.append([0.0, 0.0, 0.0, 0.0])
             else:
-                box = (
-                    det.getBoundingBox()
-                    .denormalize(width, height)
-                    .getOuterXYWH()
-                )
-                x = float(box[0].x)
-                y = float(box[0].y)
-                w = float(box[1].width)
-                h = float(box[1].height)
+                x, y, w, h = detection_to_coco_xywh(det, width, height)
                 pred_boxes_xyxy.append([x, y, x + w, y + h])
 
             pred_scores.append(float(det.confidence))
