@@ -89,7 +89,8 @@ class LuxonisEval:
 
             self._resolve_class_mapping()
             self.metric_contexts = self._build_metric_contexts()
-            self._run_compatibility_checks()
+            self._run_static_compatibility_warnings()
+            self._sanity_check_pipeline()
         except Exception:
             try:
                 self.close()
@@ -448,7 +449,7 @@ class LuxonisEval:
             for metric_cfg in self.cfg.metrics.metrics
         ]
 
-    def _run_compatibility_checks(self) -> None:
+    def _run_static_compatibility_warnings(self) -> None:
         if (
             self.cfg.engine.name == "depthai"
             and self.cfg.loader.preprocessing.normalize.active
@@ -463,3 +464,42 @@ class LuxonisEval:
             logger.warning(
                 "Color space is set to RGB in the dataset config. DepthAI expects BGR color space."
             )
+
+    def _sanity_check_pipeline(self) -> None:
+        if self.loader is None or self.engine is None or self.parser is None:
+            raise RuntimeError(
+                "Pipeline components are unavailable before sanity check."
+            )
+
+        if len(self.loader) == 0:
+            raise ValueError(
+                "Evaluation loader is empty. Pipeline sanity check requires at least one sample."
+            )
+
+        logger.info("Running pipeline sanity check on one real sample.")
+
+        img, target = self.loader[0]
+        raw_output = self.engine.infer_once(img)
+        predictions = self.parser.parse(
+            raw_output,
+            class_map=self.class_map,
+            **self.cfg.parser.params,
+        )
+
+        for metric, metric_ctx in zip(
+            self.metrics, self.metric_contexts, strict=True
+        ):
+            missing = set(metric.required_target_keys()) - set(target)
+            if missing:
+                raise ValueError(
+                    f"Target is missing required keys for {metric.__class__.__name__}: "
+                    f"{sorted(missing)}. Got keys: {sorted(target.keys())}."
+                )
+
+            metric.update(
+                predictions=predictions,
+                target=target,
+                **metric_ctx,
+            )
+            metric.compute()
+            metric.reset()

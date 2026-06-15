@@ -47,7 +47,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
         self.compute_area_from_keypoints = compute_area_from_keypoints
         super().__init__(**kwargs)
 
-    def metric_keys(self) -> list[str]:
+    def required_target_keys(self) -> list[str]:
         return ["/boundingbox", "/keypoints"]
 
     def _reset_impl(self) -> None:
@@ -68,8 +68,8 @@ class KeypointMeanAveragePrecision(BaseMetric):
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
-        target_boxes = target[self.metric_keys()[0]]
-        target_kpts = target[self.metric_keys()[1]]
+        target_boxes = target[self.required_target_keys()[0]]
+        target_kpts = target[self.required_target_keys()[1]]
         width = int(kwargs["width"])
         height = int(kwargs["height"])
 

@@ -23,7 +23,7 @@ class TopKAccuracy(BaseMetric):
         self.topk = tuple(int(k) for k in topk)
         super().__init__(**kwargs)
 
-    def metric_keys(self) -> list[str]:
+    def required_target_keys(self) -> list[str]:
         """Return the ground-truth keys required by the metric.
 
         Returns
@@ -55,7 +55,7 @@ class TopKAccuracy(BaseMetric):
         **kwargs : Any
             Additional context.
         """
-        cls_target = target[self.metric_keys()[0]]
+        cls_target = target[self.required_target_keys()[0]]
         class_index_map = kwargs.get("class_index_map")
         class_map = kwargs.get("class_map", {})
         class_map = {v: k for k, v in class_map.items()}

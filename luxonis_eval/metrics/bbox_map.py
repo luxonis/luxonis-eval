@@ -28,7 +28,7 @@ class BboxMeanAveragePrecision(BaseMetric):
         self._store = COCOStore(iou_type=iou_type)
         super().__init__(**kwargs)
 
-    def metric_keys(self) -> list[str]:
+    def required_target_keys(self) -> list[str]:
         """Return the ground-truth keys required by the metric.
 
         Returns
@@ -59,7 +59,7 @@ class BboxMeanAveragePrecision(BaseMetric):
         **kwargs : Any
             Additional context.
         """
-        target_boxes = target[self.metric_keys()[0]]
+        target_boxes = target[self.required_target_keys()[0]]
         width = int(kwargs["width"])
         height = int(kwargs["height"])
 

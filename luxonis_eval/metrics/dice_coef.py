@@ -50,7 +50,7 @@ class DiceCoefficient(BaseMetric):
         self.target_class_map = None
         super().__init__(**kwargs)
 
-    def metric_keys(self) -> list[str]:
+    def required_target_keys(self) -> list[str]:
         """Return the ground-truth keys required by the metric.
 
         Returns
@@ -87,7 +87,7 @@ class DiceCoefficient(BaseMetric):
         class_index_map = kwargs.get("class_index_map")
 
         pred_mask: np.ndarray = predictions.mask
-        target_mask = np.argmax(target[self.metric_keys()[0]], axis=0)
+        target_mask = np.argmax(target[self.required_target_keys()[0]], axis=0)
 
         if class_index_map is not None:
             pred_mask = remap_prediction_mask(pred_mask, class_index_map)

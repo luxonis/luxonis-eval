@@ -32,7 +32,7 @@ class MaskMeanAveragePrecision(BaseMetric):
         self._store = COCOStore(iou_type=iou_type)
         super().__init__(**kwargs)
 
-    def metric_keys(self) -> list[str]:
+    def required_target_keys(self) -> list[str]:
         """Return the ground-truth keys required by the metric.
 
         Returns
@@ -63,8 +63,8 @@ class MaskMeanAveragePrecision(BaseMetric):
         **kwargs : Any
             Additional context.
         """
-        target_boxes = target[self.metric_keys()[0]]
-        target_masks = target[self.metric_keys()[1]]
+        target_boxes = target[self.required_target_keys()[0]]
+        target_masks = target[self.required_target_keys()[1]]
 
         width = int(kwargs["width"])
         height = int(kwargs["height"])
