@@ -190,7 +190,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
         self.target_areas.append(target_areas_tensor)
         self.target_keypoints.append(target_kpts_tensor)
 
-    def _compute_impl(self) -> dict[str, float]:
+    def compute(self) -> dict[str, float]:
         """Compute final mAP metrics."""
         coco_target = self._get_coco(
             self.target_bboxes,

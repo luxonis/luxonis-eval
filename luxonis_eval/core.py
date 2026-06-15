@@ -173,7 +173,10 @@ class LuxonisEval:
                 progress.update(ptask, advance=1)
 
         metric_compute_t0 = time.perf_counter()
-        results = [metric.compute() for metric in self.metrics]
+        results = [
+            (metric.__class__.__name__, metric.compute())
+            for metric in self.metrics
+        ]
         metric_compute_elapsed = time.perf_counter() - metric_compute_t0
         throughput = self.throughput_metric.compute(
             metric_compute=metric_compute_elapsed

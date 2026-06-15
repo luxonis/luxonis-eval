@@ -103,7 +103,7 @@ class MIoU(BaseMetric):
             torch.from_numpy(target_mask.astype(np.int64)),
         )
 
-    def _compute_impl(self) -> dict[str, float]:
+    def compute(self) -> dict[str, float]:
         """Compute final mIoU metrics.
 
         Returns

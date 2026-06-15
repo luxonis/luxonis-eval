@@ -82,7 +82,7 @@ class TopKAccuracy(BaseMetric):
 
         self.total += 1
 
-    def _compute_impl(self) -> dict[str, float]:
+    def compute(self) -> dict[str, float]:
         """Compute final Top-K accuracy metrics.
 
         Returns

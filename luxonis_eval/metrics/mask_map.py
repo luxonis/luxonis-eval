@@ -147,7 +147,7 @@ class MaskMeanAveragePrecision(BaseMetric):
                 }
             )
 
-    def _compute_impl(self) -> dict[str, float]:
+    def compute(self) -> dict[str, float]:
         """Compute final mAP metrics.
 
         Returns

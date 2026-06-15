@@ -52,6 +52,7 @@ class BaseMetric(
         """
         ...
 
+    @abstractmethod
     def compute(self) -> dict[str, float]:
         """Compute final metric values.
 
@@ -60,11 +61,4 @@ class BaseMetric(
         dict[str, float]
             Computed metric results.
         """
-        results = self._compute_impl()
-        results["metric"] = self.__class__.__name__  # type: ignore
-        return results
-
-    @abstractmethod
-    def _compute_impl(self) -> dict[str, float]:
-        """Compute metric results."""
         ...
