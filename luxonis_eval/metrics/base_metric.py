@@ -25,10 +25,17 @@ class BaseMetric(
         """
         self.reset()
 
+    @abstractmethod
+    def required_target_keys(self) -> list[str]:
+        """Return the ground-truth keys required by the metric."""
+        ...
+
+    @abstractmethod
     def reset(self) -> None:
         """Reset the metric state."""
-        self._reset_impl()
+        ...
 
+    @abstractmethod
     def update(
         self, predictions: Any, target: dict[str, np.ndarray], **kwargs: Any
     ) -> None:
@@ -43,7 +50,7 @@ class BaseMetric(
         **kwargs : Any
             Additional context.
         """
-        self._update_impl(predictions, target, **kwargs)
+        ...
 
     def compute(self) -> dict[str, float]:
         """Compute final metric values.
@@ -56,23 +63,6 @@ class BaseMetric(
         results = self._compute_impl()
         results["metric"] = self.__class__.__name__  # type: ignore
         return results
-
-    @abstractmethod
-    def required_target_keys(self) -> list[str]:
-        """Return the ground-truth keys required by the metric."""
-        ...
-
-    @abstractmethod
-    def _reset_impl(self) -> None:
-        """Reset internal metric state."""
-        ...
-
-    @abstractmethod
-    def _update_impl(
-        self, predictions: Any, target: dict[str, np.ndarray], **kwargs: Any
-    ) -> None:
-        """Update internal metric state."""
-        ...
 
     @abstractmethod
     def _compute_impl(self) -> dict[str, float]:

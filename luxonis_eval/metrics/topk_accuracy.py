@@ -33,12 +33,12 @@ class TopKAccuracy(BaseMetric):
         """
         return ["/classification"]
 
-    def _reset_impl(self) -> None:
+    def reset(self) -> None:
         """Reset internal metric state."""
         self.correct_at_k = dict.fromkeys(self.topk, 0)
         self.total = 0
 
-    def _update_impl(
+    def update(
         self,
         predictions: Classifications,
         target: dict[str, np.ndarray],

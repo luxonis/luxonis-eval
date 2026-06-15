@@ -444,8 +444,8 @@ The parser bridges the gap between model-specific tensor layouts and the standar
 Subclass [`BaseMetric`](luxonis_eval/metrics/base_metric.py) and implement the four abstract methods:
 
 - **`required_target_keys()`** - Declare which annotation keys the metric requires
-- **`_reset_impl()`** - Reset internal state such as counters or accumulators
-- **`_update_impl(predictions, target, **kwargs)`** - Update the metric state for one sample
+- **`reset()`** - Reset internal state such as counters or accumulators
+- **`update(predictions, target, **kwargs)`** - Update the metric state for one sample
 - **`_compute_impl()`** - Return the final metric value
 
 > [!IMPORTANT]

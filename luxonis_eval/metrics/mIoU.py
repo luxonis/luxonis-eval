@@ -60,11 +60,11 @@ class MIoU(BaseMetric):
         """
         return ["/segmentation"]
 
-    def _reset_impl(self) -> None:
+    def reset(self) -> None:
         """Reset internal metric state."""
         self.metric.reset()
 
-    def _update_impl(
+    def update(
         self,
         predictions: SegmentationMask,
         target: dict[str, np.ndarray],

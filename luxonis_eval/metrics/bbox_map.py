@@ -38,11 +38,11 @@ class BboxMeanAveragePrecision(BaseMetric):
         """
         return ["/boundingbox"]
 
-    def _reset_impl(self) -> None:
+    def reset(self) -> None:
         """Reset internal metric state."""
         self._store.reset()
 
-    def _update_impl(
+    def update(
         self,
         predictions: dai.ImgDetections,
         target: dict[str, np.ndarray],

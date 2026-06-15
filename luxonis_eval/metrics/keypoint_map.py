@@ -50,7 +50,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
     def required_target_keys(self) -> list[str]:
         return ["/boundingbox", "/keypoints"]
 
-    def _reset_impl(self) -> None:
+    def reset(self) -> None:
         self.pred_bboxes: list[Tensor] = []
         self.pred_areas: list[Tensor] = []
         self.pred_scores: list[Tensor] = []
@@ -62,7 +62,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
         self.target_classes: list[Tensor] = []
         self.target_keypoints: list[Tensor] = []
 
-    def _update_impl(
+    def update(
         self,
         predictions: dai.ImgDetections,
         target: dict[str, np.ndarray],
