@@ -33,7 +33,9 @@ from luxonis_eval.utils.utils import (
     get_metric_ctx,
     get_model_name,
     make_report_table,
+    normalize_luxonis_task_labels,
     resolve_luxonis_loader_class_mapping,
+    resolve_luxonis_task_name,
 )
 from luxonis_eval.visualizers.base_visualizer import BaseVisualizer
 
@@ -127,7 +129,7 @@ class LuxonisEval:
 
             for sample in self.loader:
                 img: np.ndarray = sample[0]  # type: ignore
-                target = sample[1]
+                target = self._normalize_target(sample[1])
 
                 inference_t0 = time.perf_counter()
                 raw_output = self.engine.infer_once(img)
@@ -232,6 +234,7 @@ class LuxonisEval:
 
         self.backend: str | None = None
         self.model_name: str | None = None
+        self.loader_task_name: str | None = None
 
         self.ldf_class_map: dict[int, str] = {}
         self.class_map: dict[int, str] = {}
@@ -296,8 +299,29 @@ class LuxonisEval:
 
         try:
             if self.cfg.loader.name == "LuxonisLoader":
-                dataset_name: str = self.cfg.loader.params.get("dataset_name")  # type: ignore
-                dataset = LuxonisDataset(dataset_name)
+                loader_params = dict(self.cfg.loader.params)
+                dataset_name: str = loader_params.pop("dataset_name")  # type: ignore
+                dataset_kwargs = {}
+                for key in (
+                    "team_id",
+                    "bucket_type",
+                    "bucket_storage",
+                    "delete_local",
+                    "delete_remote",
+                ):
+                    if key in loader_params:
+                        dataset_kwargs[key] = loader_params.pop(key)
+
+                dataset = LuxonisDataset(dataset_name, **dataset_kwargs)
+                selected_task_name = resolve_luxonis_task_name(
+                    dataset_name,
+                    dataset.get_classes(),
+                    task_name=loader_params.pop("task_name", None),  # type: ignore
+                    filter_task_names=loader_params.get("filter_task_names"),  # type: ignore
+                )
+                loader_params["filter_task_names"] = [selected_task_name]
+                self.loader_task_name = selected_task_name
+
                 augmentation_config = []
                 if self.cfg.loader.preprocessing.normalize.active:
                     augmentation_config.append(
@@ -308,12 +332,13 @@ class LuxonisEval:
                     )
                 dataloader = LuxonisLoader(
                     dataset,
-                    view=self.cfg.loader.params.get("view", ["val"]),  # type: ignore
+                    view=loader_params.pop("view", ["val"]),  # type: ignore
                     augmentation_config=augmentation_config,
                     height=self.engine.height,
                     width=self.engine.width,
                     keep_aspect_ratio=self.cfg.loader.preprocessing.keep_aspect_ratio,
                     color_space=self.cfg.loader.preprocessing.color_space,
+                    **loader_params,  # type: ignore
                 )
             else:
                 dataloader = from_registry(
@@ -331,11 +356,29 @@ class LuxonisEval:
                 f"Available loaders: {list(DATALOADERS_REGISTRY._module_dict)}"
             ) from e
 
-        logger.info(f"{self.cfg.loader.name} dataloader initialized.")
+        if self.cfg.loader.name == "LuxonisLoader":
+            logger.info(
+                f"LuxonisLoader dataloader initialized with task_name={self.loader_task_name!r}."
+            )
+        else:
+            logger.info(f"{self.cfg.loader.name} dataloader initialized.")
         logger.info(
             f"Dataset loaded with {len(dataloader)} samples and images of shape {self.engine.height}x{self.engine.width}."
         )
         return dataloader
+
+    def _normalize_target(
+        self, target: dict[str, np.ndarray]
+    ) -> dict[str, np.ndarray]:
+        if (
+            isinstance(self.loader, LuxonisLoader)
+            and self.loader_task_name is not None
+        ):
+            return normalize_luxonis_task_labels(
+                target,
+                self.loader_task_name,
+            )
+        return target
 
     def _create_parser(self) -> BaseParser:
         try:

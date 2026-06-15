@@ -61,6 +61,34 @@ class DataLoaderConfig(ConfigItem):
                     "LuxonisLoader requires the 'dataset_name' parameter to be set."
                 )
 
+            task_name = self.params.get("task_name")
+            filter_task_names = self.params.get("filter_task_names")
+            if task_name is not None and not isinstance(task_name, str):
+                raise ValueError(
+                    "loader.params.task_name must be a string when provided."
+                )
+            if filter_task_names is not None:
+                if not isinstance(filter_task_names, list | tuple):
+                    raise ValueError(
+                        "loader.params.filter_task_names must be a list or tuple when provided."
+                    )
+                if len(filter_task_names) != 1:
+                    raise ValueError(
+                        "Only one Luxonis task is supported per evaluation run. "
+                        f"Received filter_task_names={list(filter_task_names)}."
+                    )
+                if not all(
+                    isinstance(task, str) for task in filter_task_names
+                ):
+                    raise ValueError(
+                        "loader.params.filter_task_names must contain only strings."
+                    )
+                if task_name is not None and filter_task_names[0] != task_name:
+                    raise ValueError(
+                        f"loader.params.task_name={task_name!r} conflicts with "
+                        f"filter_task_names={list(filter_task_names)}."
+                    )
+
             bucket_storage = self.params.get("bucket_storage", "local")
             luxonis_datasets = LuxonisDataset.list_datasets(
                 bucket_storage=BucketStorage(bucket_storage)

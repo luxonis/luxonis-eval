@@ -8,6 +8,7 @@ import numpy as np
 import onnxruntime as ort
 from loguru import logger
 from luxonis_ml.data.loaders import LuxonisLoader
+from luxonis_ml.data.utils import split_task
 from tabulate import tabulate
 
 from luxonis_eval.metrics.metrics_utils import normalized_xywh_to_coco_xywh
@@ -220,6 +221,62 @@ def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:
     }
 
 
+def resolve_luxonis_task_name(
+    dataset_name: str,
+    dataset_classes: dict[str, dict[str, int]],
+    *,
+    task_name: str | None = None,
+    filter_task_names: list[str] | tuple[str, ...] | None = None,
+) -> str:
+    """Resolve exactly one Luxonis task name for evaluation."""
+    available_tasks = list(dataset_classes.keys())
+
+    if task_name is not None:
+        selected_task = task_name
+    elif filter_task_names is not None:
+        if len(filter_task_names) != 1:
+            raise ValueError(
+                "Only one Luxonis task is supported per evaluation run. "
+                f"Received filter_task_names={list(filter_task_names)}."
+            )
+        selected_task = filter_task_names[0]
+    elif "" in dataset_classes:
+        selected_task = ""
+    elif len(available_tasks) == 1:
+        selected_task = available_tasks[0]
+    else:
+        available = ", ".join(repr(task) for task in available_tasks)
+        raise ValueError(
+            "Dataset exposes multiple Luxonis tasks "
+            f"({available}). Set loader.params.task_name explicitly."
+        )
+
+    if selected_task not in dataset_classes:
+        raise ValueError(
+            f"Task {selected_task!r} was requested but is not present in "
+            f"dataset {dataset_name!r}."
+        )
+
+    return selected_task
+
+
+def normalize_luxonis_task_labels(
+    labels: dict[str, np.ndarray],
+    selected_task_name: str,
+) -> dict[str, np.ndarray]:
+    """Strip the selected Luxonis task name from annotation keys."""
+    normalized_labels: dict[str, np.ndarray] = {}
+
+    for task, array in labels.items():
+        task_name, task_type = split_task(task)
+        normalized_task = task
+        if task_name == selected_task_name:
+            normalized_task = f"/{task_type}"
+        normalized_labels[normalized_task] = array
+
+    return normalized_labels
+
+
 def resolve_luxonis_loader_class_mapping(
     dataloader: LuxonisLoader,
     **kwargs,
@@ -239,13 +296,19 @@ def resolve_luxonis_loader_class_mapping(
         LDF class map, native class map and class index map (if available).
     """
 
-    if isinstance(dataloader, LuxonisLoader):
-        ldf_class_map = dataloader.classes[""]
-        ldf_class_map = {v: k for k, v in ldf_class_map.items()}
-    else:
+    if not isinstance(dataloader, LuxonisLoader):
         raise NotImplementedError(
             "Built-in class mapping resolution is only implemented for `LuxonisLoader`. Please provide a custom `get_class_mapping()` implementation for other loader types inheriting from `BaseEvalLoader`."
         )
+
+    dataset_classes = dataloader.dataset.get_classes()
+    selected_task = resolve_luxonis_task_name(
+        dataloader.dataset.dataset_name,
+        dataset_classes,
+        task_name=kwargs.get("task_name"),
+        filter_task_names=kwargs.get("filter_task_names"),
+    )
+    ldf_class_map = {v: k for k, v in dataset_classes[selected_task].items()}
 
     if "imagenet" in dataloader.dataset.dataset_name:
         native_class_map = get_dataset_class_mapping("imagenet")

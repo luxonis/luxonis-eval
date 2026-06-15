@@ -279,6 +279,7 @@ loader:
   params:
     dataset_name: coco-2017       # Dataset identifier
     view: [val]                   # Dataset split(s) to use
+    task_name: null               # Optional Luxonis task name for named-task datasets
   preprocessing:
     normalize:
       active: true                # Whether to apply normalization
@@ -291,6 +292,9 @@ loader:
 
 > [!NOTE]
 > When using the `depthai` backend, normalization is usually handled by the model's own preprocessing pipeline. The engine will warn you if normalization is enabled together with `DepthAI`. `DepthAI` also expects `BGR` color space, so a warning is emitted if `RGB` is selected.
+
+> [!IMPORTANT]
+> `LuxonisLoader` evaluation is currently single-task only. Use `loader.params.task_name` when your Luxonis dataset stores annotations under a named task. If `task_name` is omitted, LuxonisEval auto-selects `""` when the dataset uses the default empty task, or the sole dataset task when exactly one task exists. If multiple tasks are present and no `task_name` is provided, evaluation fails with a clear error so you can select one explicitly.
 
 ### 🧠 Output Parser
 
