@@ -223,38 +223,6 @@ class LuxonisEval:
             self._is_setup = False
             self._is_closed = True
 
-    def _clear_runtime_fields(self) -> None:
-        self.engine: BaseEngine | None = None
-        self.loader: BaseEvalLoader | LuxonisLoader | None = None
-        self.parser: BaseParser | None = None
-        self.metrics: list[BaseMetric] = []
-        self.throughput_metric: ThroughputMetric | None = None
-        self.visualizer: BaseVisualizer | None = None
-
-        self.backend: str | None = None
-        self.model_name: str | None = None
-
-        self.ldf_class_map: dict[int, str] = {}
-        self.class_map: dict[int, str] = {}
-        self.class_index_map: dict[int, int] | None = None
-        self.metric_contexts: list[dict[str, Any]] = []
-
-    def _require_setup(self) -> None:
-        if not self._is_setup:
-            raise RuntimeError(
-                "LuxonisEval.setup() must be called before evaluate()."
-            )
-
-    def _reset_runtime_metrics(self) -> None:
-        for metric in self.metrics:
-            metric.reset()
-
-        if self.throughput_metric is None:
-            raise RuntimeError(
-                "Throughput metric is unavailable before setup."
-            )
-        self.throughput_metric.reset()
-
     def _create_engine(self) -> BaseEngine:
         try:
             engine = from_registry(
@@ -503,3 +471,35 @@ class LuxonisEval:
             )
             metric.compute()
             metric.reset()
+
+    def _require_setup(self) -> None:
+        if not self._is_setup:
+            raise RuntimeError(
+                "LuxonisEval.setup() must be called before evaluate()."
+            )
+
+    def _reset_runtime_metrics(self) -> None:
+        for metric in self.metrics:
+            metric.reset()
+
+        if self.throughput_metric is None:
+            raise RuntimeError(
+                "Throughput metric is unavailable before setup."
+            )
+        self.throughput_metric.reset()
+
+    def _clear_runtime_fields(self) -> None:
+        self.engine: BaseEngine | None = None
+        self.loader: BaseEvalLoader | LuxonisLoader | None = None
+        self.parser: BaseParser | None = None
+        self.metrics: list[BaseMetric] = []
+        self.throughput_metric: ThroughputMetric | None = None
+        self.visualizer: BaseVisualizer | None = None
+
+        self.backend: str | None = None
+        self.model_name: str | None = None
+
+        self.ldf_class_map: dict[int, str] = {}
+        self.class_map: dict[int, str] = {}
+        self.class_index_map: dict[int, int] | None = None
+        self.metric_contexts: list[dict[str, Any]] = []
