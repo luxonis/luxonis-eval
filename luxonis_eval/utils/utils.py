@@ -49,7 +49,7 @@ def make_report_table(
     model_name: str,
     device: str,
     tp: dict[str, float | int],
-    results: list[dict[str, Any]],
+    results: list[tuple[str, dict[str, Any]]],
 ) -> str:
     """Build a formatted report table.
 
@@ -63,8 +63,8 @@ def make_report_table(
         Inference device descriptor.
     tp : dict[str, float | int]
         Throughput and latency related metrics.
-    results : list[dict[str, Any]]
-        Quality metric results.
+    results : list[tuple[str, dict[str, Any]]]
+        Quality metric results paired with metric names.
 
     Returns
     -------
@@ -103,12 +103,9 @@ def make_report_table(
     ]
 
     rows += section("QUALITY")
-    for result in results:
-        metric_name = str(result["metric"])
+    for metric_name, result in results:
         rows += section(metric_name, line_char="-")
         for k, v in result.items():
-            if k == "metric":
-                continue
             val = f"{v * 100:.2f}%" if isinstance(v, float) else str(v)
             rows.append([str(k), val])
 

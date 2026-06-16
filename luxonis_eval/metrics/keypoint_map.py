@@ -47,10 +47,10 @@ class KeypointMeanAveragePrecision(BaseMetric):
         self.compute_area_from_keypoints = compute_area_from_keypoints
         super().__init__(**kwargs)
 
-    def metric_keys(self) -> list[str]:
+    def required_target_keys(self) -> list[str]:
         return ["/boundingbox", "/keypoints"]
 
-    def _reset_impl(self) -> None:
+    def reset(self) -> None:
         self.pred_bboxes: list[Tensor] = []
         self.pred_areas: list[Tensor] = []
         self.pred_scores: list[Tensor] = []
@@ -62,14 +62,14 @@ class KeypointMeanAveragePrecision(BaseMetric):
         self.target_classes: list[Tensor] = []
         self.target_keypoints: list[Tensor] = []
 
-    def _update_impl(
+    def update(
         self,
         predictions: dai.ImgDetections,
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
-        target_boxes = target[self.metric_keys()[0]]
-        target_kpts = target[self.metric_keys()[1]]
+        target_boxes = target[self.required_target_keys()[0]]
+        target_kpts = target[self.required_target_keys()[1]]
         width = int(kwargs["width"])
         height = int(kwargs["height"])
 
@@ -190,7 +190,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
         self.target_areas.append(target_areas_tensor)
         self.target_keypoints.append(target_kpts_tensor)
 
-    def _compute_impl(self) -> dict[str, float]:
+    def compute(self) -> dict[str, float]:
         """Compute final mAP metrics."""
         coco_target = self._get_coco(
             self.target_bboxes,

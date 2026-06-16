@@ -50,7 +50,7 @@ class MIoU(BaseMetric):
         self.target_class_map = None
         super().__init__(**kwargs)
 
-    def metric_keys(self) -> list[str]:
+    def required_target_keys(self) -> list[str]:
         """Return the ground-truth keys required by the metric.
 
         Returns
@@ -60,11 +60,11 @@ class MIoU(BaseMetric):
         """
         return ["/segmentation"]
 
-    def _reset_impl(self) -> None:
+    def reset(self) -> None:
         """Reset internal metric state."""
         self.metric.reset()
 
-    def _update_impl(
+    def update(
         self,
         predictions: SegmentationMask,
         target: dict[str, np.ndarray],
@@ -88,7 +88,7 @@ class MIoU(BaseMetric):
         class_index_map = kwargs.get("class_index_map")
 
         pred_mask: np.ndarray = predictions.mask
-        target_mask = np.argmax(target[self.metric_keys()[0]], axis=0)
+        target_mask = np.argmax(target[self.required_target_keys()[0]], axis=0)
 
         if class_index_map is not None:
             pred_mask = remap_prediction_mask(pred_mask, class_index_map)
@@ -103,7 +103,7 @@ class MIoU(BaseMetric):
             torch.from_numpy(target_mask.astype(np.int64)),
         )
 
-    def _compute_impl(self) -> dict[str, float]:
+    def compute(self) -> dict[str, float]:
         """Compute final mIoU metrics.
 
         Returns
