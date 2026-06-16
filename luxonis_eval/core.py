@@ -492,6 +492,7 @@ class LuxonisEval:
         logger.info("Running pipeline sanity check on one real sample.")
 
         img, target = self.loader[0]
+        target = self._normalize_target(target)
         raw_output = self.engine.infer_once(img)
         predictions = self.parser.parse(
             raw_output,
