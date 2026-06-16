@@ -89,7 +89,8 @@ class LuxonisEval:
 
             self._resolve_class_mapping()
             self.metric_contexts = self._build_metric_contexts()
-            self._run_compatibility_checks()
+            self._run_static_compatibility_warnings()
+            self._sanity_check_pipeline()
         except Exception:
             try:
                 self.close()
@@ -172,7 +173,10 @@ class LuxonisEval:
                 progress.update(ptask, advance=1)
 
         metric_compute_t0 = time.perf_counter()
-        results = [metric.compute() for metric in self.metrics]
+        results = [
+            (metric.__class__.__name__, metric.compute())
+            for metric in self.metrics
+        ]
         metric_compute_elapsed = time.perf_counter() - metric_compute_t0
         throughput = self.throughput_metric.compute(
             metric_compute=metric_compute_elapsed
@@ -221,38 +225,6 @@ class LuxonisEval:
             self._clear_runtime_fields()
             self._is_setup = False
             self._is_closed = True
-
-    def _clear_runtime_fields(self) -> None:
-        self.engine: BaseEngine | None = None
-        self.loader: BaseEvalLoader | LuxonisLoader | None = None
-        self.parser: BaseParser | None = None
-        self.metrics: list[BaseMetric] = []
-        self.throughput_metric: ThroughputMetric | None = None
-        self.visualizer: BaseVisualizer | None = None
-
-        self.backend: str | None = None
-        self.model_name: str | None = None
-
-        self.ldf_class_map: dict[int, str] = {}
-        self.class_map: dict[int, str] = {}
-        self.class_index_map: dict[int, int] | None = None
-        self.metric_contexts: list[dict[str, Any]] = []
-
-    def _require_setup(self) -> None:
-        if not self._is_setup:
-            raise RuntimeError(
-                "LuxonisEval.setup() must be called before evaluate()."
-            )
-
-    def _reset_runtime_metrics(self) -> None:
-        for metric in self.metrics:
-            metric.reset()
-
-        if self.throughput_metric is None:
-            raise RuntimeError(
-                "Throughput metric is unavailable before setup."
-            )
-        self.throughput_metric.reset()
 
     def _create_engine(self) -> BaseEngine:
         try:
@@ -448,7 +420,7 @@ class LuxonisEval:
             for metric_cfg in self.cfg.metrics.metrics
         ]
 
-    def _run_compatibility_checks(self) -> None:
+    def _run_static_compatibility_warnings(self) -> None:
         if (
             self.cfg.engine.name == "depthai"
             and self.cfg.loader.preprocessing.normalize.active
@@ -463,3 +435,74 @@ class LuxonisEval:
             logger.warning(
                 "Color space is set to RGB in the dataset config. DepthAI expects BGR color space."
             )
+
+    def _sanity_check_pipeline(self) -> None:
+        if self.loader is None or self.engine is None or self.parser is None:
+            raise RuntimeError(
+                "Pipeline components are unavailable before sanity check."
+            )
+
+        if len(self.loader) == 0:
+            raise ValueError(
+                "Evaluation loader is empty. Pipeline sanity check requires at least one sample."
+            )
+
+        logger.info("Running pipeline sanity check on one real sample.")
+
+        img, target = self.loader[0]
+        raw_output = self.engine.infer_once(img)
+        predictions = self.parser.parse(
+            raw_output,
+            class_map=self.class_map,
+            **self.cfg.parser.params,
+        )
+
+        for metric, metric_ctx in zip(
+            self.metrics, self.metric_contexts, strict=True
+        ):
+            missing = set(metric.required_target_keys()) - set(target)
+            if missing:
+                raise ValueError(
+                    f"Target is missing required keys for {metric.__class__.__name__}: "
+                    f"{sorted(missing)}. Got keys: {sorted(target.keys())}."
+                )
+
+            metric.update(
+                predictions=predictions,
+                target=target,
+                **metric_ctx,
+            )
+            metric.compute()
+            metric.reset()
+
+    def _require_setup(self) -> None:
+        if not self._is_setup:
+            raise RuntimeError(
+                "LuxonisEval.setup() must be called before evaluate()."
+            )
+
+    def _reset_runtime_metrics(self) -> None:
+        for metric in self.metrics:
+            metric.reset()
+
+        if self.throughput_metric is None:
+            raise RuntimeError(
+                "Throughput metric is unavailable before setup."
+            )
+        self.throughput_metric.reset()
+
+    def _clear_runtime_fields(self) -> None:
+        self.engine: BaseEngine | None = None
+        self.loader: BaseEvalLoader | LuxonisLoader | None = None
+        self.parser: BaseParser | None = None
+        self.metrics: list[BaseMetric] = []
+        self.throughput_metric: ThroughputMetric | None = None
+        self.visualizer: BaseVisualizer | None = None
+
+        self.backend: str | None = None
+        self.model_name: str | None = None
+
+        self.ldf_class_map: dict[int, str] = {}
+        self.class_map: dict[int, str] = {}
+        self.class_index_map: dict[int, int] | None = None
+        self.metric_contexts: list[dict[str, Any]] = []
