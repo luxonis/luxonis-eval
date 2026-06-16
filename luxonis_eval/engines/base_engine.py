@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 import numpy as np
+from luxonis_ml.typing import PathType
 from luxonis_ml.utils.registry import AutoRegisterMeta
 
 from luxonis_eval.registry import ENGINES_REGISTRY
@@ -15,30 +16,59 @@ class BaseEngine(
 ):
     """Abstract base class for inference engines."""
 
-    def __init__(self, model_path: str, **kwargs: Any) -> None:
+    def __init__(self, model_path: PathType, **kwargs: Any) -> None:
         """Initialize the engine.
 
         Parameters
         ----------
-        model_path : str
+        model_path : PathType
             Path to the model file.
         **kwargs : Any
             Engine basic configuration.
         """
         self.model_path = model_path
-        self.width, self.height = self.get_input_shape()
-        if self.width is None or self.height is None:
+        self.width: int | None = None
+        self.height: int | None = None
+        self.platform_name: str | None = None
+
+    def setup(self) -> None:
+        """Initialize backend resources and populate runtime metadata.
+
+        Subclasses should usually implement `_setup_impl()` rather than
+        override this method directly.
+        """
+        self._setup_impl()
+        self._set_runtime_metadata()
+
+    @abstractmethod
+    def _setup_impl(self) -> None:
+        """Allocate backend resources required for inference.
+
+        Implementations should be safe to call repeatedly when the
+        engine is already initialized.
+        """
+        ...
+
+    def _set_runtime_metadata(self) -> None:
+        """Populate and validate runtime metadata during setup.
+
+        Runtime metadata is intentionally unset before `setup()` and
+        after `close()`. `BaseEngine.setup()` calls this after
+        `_setup_impl()` completes.
+        """
+        width, height = self.get_input_shape()
+        if width is None or height is None:
             raise ValueError(
                 "Invalid input shape: width and height must be defined."
             )
-        self.platform_name = self.get_platform_name()
-        if self.platform_name is None:
+
+        platform_name = self.get_platform_name()
+        if platform_name is None:
             raise ValueError("Platform name must be defined.")
 
-    @abstractmethod
-    def setup(self) -> None:
-        """Initialize backend resources."""
-        ...
+        self.width = width
+        self.height = height
+        self.platform_name = platform_name
 
     @abstractmethod
     def get_input_shape(self) -> tuple[int, int]:
@@ -61,6 +91,6 @@ class BaseEngine(
         ...
 
     @abstractmethod
-    def teardown(self) -> None:
+    def close(self) -> None:
         """Release backend resources."""
         ...

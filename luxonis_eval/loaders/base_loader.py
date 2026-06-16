@@ -83,16 +83,19 @@ class BaseEvalLoader(BaseLoader, register=False):
         map.
 
         The LDF class map reflects how classes are indexed within LuxonisML's
-        data format (LDF), where classes are sorted alphabetically and indices
-        may therefore differ from those used during model training. The native
-        class map reflects the original class-to-index mapping the model was
-        trained on (e.g. COCO ordering).  The class index map bridges the two
-        by mapping each LDF index to its corresponding native index, allowing
-        correct alignment of predictions against ground-truth annotations.
+        data format (LDF). The native class map reflects the original
+        class-to-index mapping the model was trained on (e.g. COCO ordering).
+        The class index map bridges the two by mapping each LDF index to its
+        corresponding native index, allowing correct alignment of predictions
+        against ground-truth annotations.
 
         When implementing this method for a LuxonisLoader-backed dataset,
-        the LDF and native class maps will generally differ and the class index
-        map must explicitly encode the remapping (e.g. {0: 3, 1: 0, ...}).
+        the LDF and native class maps may differ if the model was trained with
+        a different class order than the dataset metadata. In that case, the
+        class index map must explicitly encode the remapping (e.g.
+        {0: 3, 1: 0, ...}). If the model was trained using the same LDF class
+        order, the native class map may be identical to the LDF class map and
+        the class index map can be an identity mapping.
 
         When implementing this method for a custom dataset that inherits
         directly from the BaseEvalLoader class, the LDF and native class maps

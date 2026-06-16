@@ -10,7 +10,7 @@ from loguru import logger
 from luxonis_ml.data.loaders import LuxonisLoader
 from tabulate import tabulate
 
-from luxonis_eval.metrics.metrics_utils import yolo_norm_to_coco_xywh
+from luxonis_eval.metrics.metrics_utils import normalized_xywh_to_coco_xywh
 
 
 def get_model_name(path: str) -> str:
@@ -103,9 +103,11 @@ def make_report_table(
 
     rows += section("QUALITY")
     for result in results:
-        metric_name = result.pop("metric")
+        metric_name = str(result["metric"])
         rows += section(metric_name, line_char="-")
         for k, v in result.items():
+            if k == "metric":
+                continue
             val = f"{v * 100:.2f}%" if isinstance(v, float) else str(v)
             rows.append([str(k), val])
 
@@ -218,7 +220,7 @@ def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:
     }
 
 
-def get_class_mapping(
+def resolve_luxonis_loader_class_mapping(
     dataloader: LuxonisLoader,
     **kwargs,
 ) -> tuple[dict, dict, dict | None]:
@@ -242,7 +244,7 @@ def get_class_mapping(
         ldf_class_map = {v: k for k, v in ldf_class_map.items()}
     else:
         raise NotImplementedError(
-            "Built-in `get_class_mapping` is only implemented for `LuxonisLoader`. Please provide a custom implementation for other loader types inheriting from `BaseEvalLoader`."
+            "Built-in class mapping resolution is only implemented for `LuxonisLoader`. Please provide a custom `get_class_mapping()` implementation for other loader types inheriting from `BaseEvalLoader`."
         )
 
     if "imagenet" in dataloader.dataset.dataset_name:
@@ -250,20 +252,18 @@ def get_class_mapping(
     elif "coco" in dataloader.dataset.dataset_name:
         native_class_map = get_dataset_class_mapping("coco")
     else:
-        logger.info(
-            f"Dataset '{dataloader.dataset.dataset_name}' does not match known datasets for automatic class mapping. Attempting to use provided class mapping from the 'loader.params.class_mapping' argument."
-        )
-        native_class_map = kwargs.get("class_mapping", {})
+        native_class_map = kwargs.get("class_mapping")
+        if native_class_map:
+            logger.info(
+                f"Dataset '{dataloader.dataset.dataset_name}' does not match known datasets for automatic class mapping. Using the provided 'loader.params.class_mapping' argument."
+            )
+        else:
+            logger.warning(
+                f"Dataset '{dataloader.dataset.dataset_name}' does not match known datasets for automatic class mapping and no 'loader.params.class_mapping' was provided. Falling back to the dataset's LDF class order as the native class mapping."
+            )
+            native_class_map = ldf_class_map.copy()
 
-    class_index_map = None
-    if native_class_map:
-        class_index_map = get_class_index_mapping(
-            ldf_class_map, native_class_map
-        )
-    else:
-        logger.warning(
-            "No native class map found. Class index mapping will not be available, which may affect metric calculations that require the mapping of LDF class indices to native dataset indices."
-        )
+    class_index_map = get_class_index_mapping(ldf_class_map, native_class_map)
 
     return ldf_class_map, native_class_map, class_index_map
 
@@ -334,9 +334,9 @@ def get_metric_ctx(base_ctx: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     dict[str, Any]
         Context dictionary to pass to metric updates.
     """
-    class_index_map = kwargs.get("class_index_map", {})
-    class_map = kwargs.get("class_map", {})
-    ldf_class_map = kwargs.get("ldf_class_map", {})
+    class_index_map = kwargs.get("class_index_map")
+    class_map = kwargs.get("class_map") or {}
+    ldf_class_map = kwargs.get("ldf_class_map") or {}
     width = kwargs.get("width", -1)
     height = kwargs.get("height", -1)
 
@@ -349,7 +349,7 @@ def get_metric_ctx(base_ctx: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         "width": width,
         "height": height,
         "category_ids": sorted(class_map.keys()),
-        "target_converter": yolo_norm_to_coco_xywh,
+        "target_converter": normalized_xywh_to_coco_xywh,
         "target_bg": ldf_name_to_idx.get("background"),
         "target_class_map": ldf_class_map,
     }

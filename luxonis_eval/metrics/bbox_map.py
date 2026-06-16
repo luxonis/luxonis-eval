@@ -5,6 +5,7 @@ import depthai as dai
 import numpy as np
 
 from luxonis_eval.metrics.base_metric import BaseMetric
+from luxonis_eval.metrics.metrics_utils import detection_to_coco_xywh
 from luxonis_eval.utils.coco_utils import COCOStore
 
 
@@ -110,10 +111,7 @@ class BboxMeanAveragePrecision(BaseMetric):
                 and cls not in self._store.category_ids_set
             ):
                 continue
-            box = (
-                pred.getBoundingBox().denormalize(width, height).getOuterXYWH()
-            )
-            box = [box[0].x, box[0].y, box[1].width, box[1].height]
+            box = detection_to_coco_xywh(pred, width, height)
             if box[2] <= 0 or box[3] <= 0:
                 continue
             self._store.add_pred(

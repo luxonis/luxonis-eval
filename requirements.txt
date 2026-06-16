@@ -1,8 +1,8 @@
 cyclopts
-depthai>=3.3.0
+depthai>=3.7.1,<4
 luxonis-ml[data,nn_archive,utils]>=0.8.2
 loguru
-depthai-nodes
+depthai-nodes>=0.5
 tabulate
 onnx
 onnxruntime

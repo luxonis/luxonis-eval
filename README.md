@@ -155,14 +155,28 @@ luxonis_eval eval \
 
 ### 🐍 Python API
 
-For programmatic usage, load an `EvalConfig` instance and pass it to `eval_run`:
+For one-shot programmatic usage, call `eval_run`:
 
 ```python
 from luxonis_eval.__main__ import eval_run
 from luxonis_eval.utils.config import EvalConfig
 
 eval_cfg = EvalConfig.get_config(cfg="path/to/config.yaml")
-eval_run(eval_cfg)
+results = eval_run(eval_cfg)
+```
+
+If you need explicit lifecycle control, repeated `evaluate()` calls after one
+setup, or direct access to runtime state, use `LuxonisEval` directly:
+
+```python
+from luxonis_eval import LuxonisEval
+from luxonis_eval.utils.config import EvalConfig
+
+eval_cfg = EvalConfig.get_config(cfg="path/to/config.yaml")
+evaluator = LuxonisEval(eval_cfg)
+evaluator.setup()
+results = evaluator.evaluate()
+evaluator.close()
 ```
 
 <a name="architecture"></a>
@@ -196,7 +210,7 @@ All base classes use the [AutoRegisterMeta](https://github.com/luxonis/luxonis-m
 
 ### 🔄 Evaluation Pipeline
 
-The evaluation loop in `eval_run` is structured around abstract component interfaces rather than concrete implementations. That design keeps the pipeline modular and makes backend or task-specific components easy to replace.
+The evaluation loop in `LuxonisEval.evaluate()` is structured around abstract component interfaces rather than concrete implementations. That design keeps the pipeline modular and makes backend or task-specific components easy to replace.
 
 ```bash
 ┌────────────┐     ┌─────────────┐     ┌─────────────┐     ┌───────────┐
@@ -286,9 +300,9 @@ The parser converts raw model outputs into structured predictions. Different mod
 parser:
   name: YOLOInstanceSegmentationParser
   params:
-    conf_thres: 0.25
-    mask_thres: 0.25
-    iou_thres: 0.45
+    conf_threshold: 0.25
+    iou_threshold: 0.45
+    mask_conf: 0.25
 ```
 
 ### 📏 Evaluation Metrics
@@ -345,9 +359,9 @@ loader:
 parser:
   name: YOLOInstanceSegmentationParser
   params:
-    conf_thres: 0.25
-    mask_thres: 0.25
-    iou_thres: 0.45
+    conf_threshold: 0.25
+    iou_threshold: 0.45
+    mask_conf: 0.25
 
 metrics:
   metrics:
@@ -383,7 +397,7 @@ Every custom loader must inherit from `BaseEvalLoader` and implement four abstra
 - **`__getitem__(idx)`** - Returns a `LoaderOutput` tuple for the requested sample
 - **`__len__()`** - Returns the number of samples in the dataset
 
-For `LuxonisLoader`-backed datasets, the LDF and native class maps often differ, so the class index map must encode the remapping explicitly. For custom datasets that inherit directly from `BaseEvalLoader`, the two class maps are usually identical and the class index map is typically an identity mapping.
+For `LuxonisLoader`-backed datasets, the LDF and native class maps may differ when the model was trained with a different class order than the dataset metadata, so the class index map must encode that remapping explicitly. If no native class mapping is provided for an unknown `LuxonisLoader` dataset, LuxonisEval falls back to the dataset's LDF class order and uses an identity class index map after issuing a warning. For custom datasets that inherit directly from `BaseEvalLoader`, the two class maps are usually identical and the class index map is typically an identity mapping.
 
 > [!IMPORTANT]
 > `__getitem__` must return [LoaderOutput](https://github.com/luxonis/luxonis-ml/blob/8b89655497faca6d94e261d49c4d4f96e9078d9b/luxonis_ml/typing.py#L44-L48) from `luxonis_ml.typing`, which is a tuple of `(image, annotations_dict)`.
@@ -397,12 +411,14 @@ For `LuxonisLoader`-backed datasets, the LDF and native class maps often differ,
 
 Subclass [`BaseEngine`](luxonis_eval/engines/base_engine.py) and implement the six abstract methods:
 
-- **`setup()`** - Initialize backend resources such as runtimes, sessions, or device connections
+- **`_setup_impl()`** - Initialize backend resources such as runtimes, sessions, or device connections. Keep this idempotent so repeated `setup()` calls are safe.
 - **`get_input_shape()`** - Return the model input size as a `(width, height)` tuple
 - **`get_platform_name()`** - Return a human-readable platform name such as `"RVC2"` or `"RVC4"`
 - **`infer_once(img)`** - Run inference on a single preprocessed image and return the raw backend output
 - **`vis_frame()`** - Return a copy of the input image suitable for visualization overlays
-- **`teardown()`** - Release backend resources after evaluation finishes
+- **`close()`** - Release backend resources after evaluation finishes
+
+`BaseEngine.setup()` is provided by the framework and should usually not be overridden. It calls `_setup_impl()` and then populates `width`, `height`, and `platform_name` from `get_input_shape()` and `get_platform_name()`.
 
 ### 🧠 Adding a Custom Parser
 
