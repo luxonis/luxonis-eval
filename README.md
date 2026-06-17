@@ -76,11 +76,11 @@ This quickstart runs instance segmentation evaluation with `ONNX Runtime` on CPU
   - [📊 Throughput Metric Semantics](#throughput-metric-semantics)
 - [⚙️ Configuration](#configuration)
   - [📦 Data Loading And Preprocessing](#data-loading-and-preprocessing)
-  - [🧠 Output Parser](#output-parser)
-  - [📏 Evaluation Metrics](#evaluation-metrics)
-  - [🎨 Visualization](#visualization)
+  - [🧠 Evaluators](#evaluators)
+  - [🎨 Visualizers](#visualizers)
   - [⚡ Inference Engine](#inference-engine)
   - [📄 Full Example](#full-example)
+  - [🏃 Commands](#commands)
 - [🧱 Extending the Framework](#extending-the-framework)
   - [📥 Adding a Custom DataLoader](#adding-a-custom-dataloader)
   - [🔌 Adding a Custom Engine](#adding-a-custom-engine)
@@ -187,11 +187,13 @@ The repository is organized around a small set of core component types:
 
 ```bash
 luxonis_eval/
+├── config/           # Configuration schema and exports
+├── core/             # Evaluation lifecycle orchestration
 ├── engines/          # Inference backends
 ├── loaders/          # Dataset loaders
 ├── metrics/          # Evaluation metrics
 ├── parsers/          # Model output parsers
-├── utils/            # Configuration and helper functions
+├── utils/            # Shared low-level helpers
 ├── visualizers/      # Result visualization
 └── metadata/         # Class mapping files
 ```
@@ -265,23 +267,17 @@ Rule of thumb: `End-to-end Latency ≈ Inference + Parsing + Metric Update + Met
 
 ## ⚙️ Configuration
 
-Evaluation runs are driven by a YAML configuration file. [`EvalConfig`](luxonis_eval/utils/config.py) parses and validates the configuration at startup, ensuring that referenced components exist and that required fields are present before evaluation begins.
+Evaluation runs are driven by a YAML configuration file. [`EvalConfig`](luxonis_eval/config/config.py) parses and validates the configuration at startup, ensuring that referenced components exist and that required fields are present before evaluation begins.
 
-A complete configuration file now uses two top-level blocks:
+A typical configuration file only needs the `pipeline` block. `version` is filled from the package version, and `runtime` uses its default empty value when omitted.
 
 ```yaml
-version: 1.0.0
-
-runtime: {}
-
 pipeline:
   loader: ...
   engine: ...
   evaluators:
     - ...
 ```
-
-`runtime` is currently a placeholder block reserved for future cross-cutting execution behavior. `pipeline` owns the executable evaluation flow.
 
 ### 📦 Data Loading And Preprocessing
 
@@ -321,8 +317,10 @@ pipeline:
       parser:
         name: YOLOInstanceSegmentationParser
         params:
+          subtype: yolov8
+          n_classes: 80
           conf_threshold: 0.25
-          iou_threshold: 0.45
+          iou_threshold: 0.7
           mask_conf: 0.25
       metrics:
         - name: BboxMeanAveragePrecision
@@ -334,14 +332,14 @@ pipeline:
       visualizers: []
 ```
 
-- `task_name` selects the Luxonis dataset task evaluated by this entry.
+- `task_name` selects the Luxonis dataset task evaluated by this entry. If not set we try to automatically infer it.
 - `name` is optional and defaults to `task_name` or a stable fallback when `task_name` is empty.
 - `outputs` is optional in the current single-evaluator implementation; when omitted, the evaluator consumes all engine outputs.
 - Only zero or one evaluator is currently supported at runtime. Multiple evaluators are rejected with a clear not-yet-implemented error.
 
 ### 🎨 Visualizers
 
-Visualizers are now evaluator-local and plural:
+Visualizers are evaluator-local and plural:
 
 ```yaml
 pipeline:
@@ -354,7 +352,7 @@ pipeline:
             iou_type: bbox
       visualizers:
         - name: InstanceSegmentationVisualizer
-          visualize: true
+          active: true
           params: {}
 ```
 
@@ -373,35 +371,36 @@ pipeline:
 ### 📄 Full Example
 
 ```yaml
-version: 1.0.0
-
-runtime: {}
-
 pipeline:
   loader:
     name: LuxonisLoader
+    preprocessing:
+      keep_aspect_ratio: true
+      color_space: RGB
+      normalize:
+        active: true
+        params:
+          mean: [0.0, 0.0, 0.0]
+          std: [1.0, 1.0, 1.0]
     params:
       dataset_name: coco-2017
       view: [val]
-    preprocessing:
-      normalize:
-        active: false
-      color_space: BGR
-      keep_aspect_ratio: false
 
   engine:
-    name: depthai
-    model_path: ./models/yolov11n-seg.rvc4.tar.xz
+    name: onnx
+    model_path: examples/quickstart_inst_seg/models/yolov8n-seg.onnx
     params:
-      device_ip: 192.168.1.100
+      providers: [CPUExecutionProvider]
 
   evaluators:
     - task_name: instance_segmentation
       parser:
         name: YOLOInstanceSegmentationParser
         params:
+          subtype: yolov8
+          n_classes: 80
           conf_threshold: 0.25
-          iou_threshold: 0.45
+          iou_threshold: 0.7
           mask_conf: 0.25
       metrics:
         - name: BboxMeanAveragePrecision
