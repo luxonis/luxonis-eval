@@ -1,5 +1,4 @@
 import json
-import re
 from importlib.resources import files
 from typing import Any
 
@@ -16,7 +15,6 @@ from luxonis_eval.metrics.metrics_utils import normalized_xywh_to_coco_xywh
 
 def normalize_target(
     target: dict[str, np.ndarray],
-    *,
     loader: BaseEvalLoader | LuxonisLoader | None,
     loader_task_name: str | None,
 ) -> dict[str, np.ndarray]:
@@ -27,17 +25,14 @@ def normalize_target(
 
 def resolve_class_mapping(
     loader: BaseEvalLoader | LuxonisLoader,
-    *,
     loader_params: Params,
     loader_task_name: str | None,
 ) -> tuple[dict[int, str], dict[int, str], dict[int, int] | None]:
     if isinstance(loader, LuxonisLoader):
         return resolve_luxonis_loader_class_mapping(
             loader,
-            **loader_class_mapping_params(
-                loader_params=loader_params,
-                loader_task_name=loader_task_name,
-            ),
+            loader_task_name=loader_task_name,
+            class_mapping=loader_params.get("class_mapping", None),  # type: ignore
         )
 
     return loader.get_class_mapping(**loader_params)
@@ -45,7 +40,6 @@ def resolve_class_mapping(
 
 def build_metric_contexts(
     evaluator_cfg: EvaluatorConfig,
-    *,
     width: int | None,
     height: int | None,
     ldf_class_map: dict[int, str],
@@ -68,16 +62,26 @@ def build_metric_contexts(
     ]
 
 
-def loader_class_mapping_params(
-    *,
-    loader_params: Params,
-    loader_task_name: str | None,
-) -> Params:
-    params = dict(loader_params)
-    params.pop("filter_task_names", None)
-    if loader_task_name is not None:
-        params["selected_task_name"] = loader_task_name
-    return params
+def get_metric_ctx(base_ctx: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+    class_index_map = kwargs.get("class_index_map")
+    class_map = kwargs.get("class_map") or {}
+    ldf_class_map = kwargs.get("ldf_class_map") or {}
+    width = kwargs.get("width", -1)
+    height = kwargs.get("height", -1)
+
+    ldf_name_to_idx = {v: k for k, v in ldf_class_map.items()}
+
+    return {
+        **base_ctx,
+        "native_class_map": class_map,
+        "class_index_map": class_index_map,
+        "width": width,
+        "height": height,
+        "category_ids": sorted(class_map.keys()),
+        "target_converter": normalized_xywh_to_coco_xywh,
+        "target_bg": ldf_name_to_idx.get("background"),
+        "target_class_map": ldf_class_map,
+    }
 
 
 def select_evaluator_outputs(
@@ -87,24 +91,7 @@ def select_evaluator_outputs(
     if not outputs:
         return raw_output
 
-    if isinstance(raw_output, list):
-        selected_outputs = []
-        for output_name in outputs:
-            match = re.fullmatch(r"output_?(?P<index>\d+)", output_name)
-            if match is None:
-                raise ValueError(
-                    "List-based evaluator output selection currently supports "
-                    "only names like 'output0' or 'output_0'. "
-                    f"Received {output_name!r}."
-                )
-            index = int(match.group("index"))
-            if index >= len(raw_output):
-                raise ValueError(
-                    f"Evaluator requested {output_name!r}, but the engine "
-                    f"produced only {len(raw_output)} outputs."
-                )
-            selected_outputs.append(raw_output[index])
-        return selected_outputs
+    # TODO: Implement filtering
 
     logger.warning(
         "Evaluator outputs filtering is not implemented for this engine "
@@ -116,17 +103,16 @@ def select_evaluator_outputs(
 def resolve_luxonis_task_name(
     dataset_name: str,
     dataset_classes: dict[str, dict[str, int]],
-    *,
     task_name: str | None = None,
 ) -> str:
     available_tasks = list(dataset_classes.keys())
 
     if task_name is not None:
-        selected_task = task_name
+        resolved_task = task_name
     elif "" in dataset_classes:
-        selected_task = ""
+        resolved_task = ""
     elif len(available_tasks) == 1:
-        selected_task = available_tasks[0]
+        resolved_task = available_tasks[0]
     else:
         available = ", ".join(repr(task) for task in available_tasks)
         raise ValueError(
@@ -134,13 +120,13 @@ def resolve_luxonis_task_name(
             f"({available}). Set pipeline.evaluators[*].task_name explicitly."
         )
 
-    if selected_task not in dataset_classes:
+    if resolved_task not in dataset_classes:
         raise ValueError(
-            f"Task {selected_task!r} was requested but is not present in "
+            f"Task {resolved_task!r} was requested but is not present in "
             f"dataset {dataset_name!r}."
         )
 
-    return selected_task
+    return resolved_task
 
 
 def normalize_luxonis_task_labels(
@@ -161,7 +147,8 @@ def normalize_luxonis_task_labels(
 
 def resolve_luxonis_loader_class_mapping(
     dataloader: LuxonisLoader,
-    **kwargs: Any,
+    loader_task_name: str | None,
+    class_mapping: dict[int, str] | None = None,
 ) -> tuple[dict[int, str], dict[int, str], dict[int, int] | None]:
     if not isinstance(dataloader, LuxonisLoader):
         raise NotImplementedError(
@@ -170,21 +157,18 @@ def resolve_luxonis_loader_class_mapping(
             "implementation for other loader types inheriting from "
             "`BaseEvalLoader`."
         )
-
+    loader_task_name = loader_task_name or ""
     dataset_classes = dataloader.dataset.get_classes()
-    selected_task = resolve_luxonis_task_name(
-        dataloader.dataset.dataset_name,
-        dataset_classes,
-        task_name=kwargs.get("selected_task_name"),
-    )
-    ldf_class_map = {v: k for k, v in dataset_classes[selected_task].items()}
+    ldf_class_map = {
+        v: k for k, v in dataset_classes[loader_task_name].items()
+    }
 
     if "imagenet" in dataloader.dataset.dataset_name:
         native_class_map = get_dataset_class_mapping("imagenet")
     elif "coco" in dataloader.dataset.dataset_name:
         native_class_map = get_dataset_class_mapping("coco")
     else:
-        native_class_map = kwargs.get("class_mapping")
+        native_class_map = class_mapping
         if native_class_map:
             logger.info(
                 f"Dataset '{dataloader.dataset.dataset_name}' does not match "
@@ -239,25 +223,3 @@ def get_class_index_mapping(
             raise ValueError(f"Label {v} not found in native class map.")
 
     return ldf_to_native_index_map
-
-
-def get_metric_ctx(base_ctx: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
-    class_index_map = kwargs.get("class_index_map")
-    class_map = kwargs.get("class_map") or {}
-    ldf_class_map = kwargs.get("ldf_class_map") or {}
-    width = kwargs.get("width", -1)
-    height = kwargs.get("height", -1)
-
-    ldf_name_to_idx = {v: k for k, v in ldf_class_map.items()}
-
-    return {
-        **base_ctx,
-        "class_map": class_map,
-        "class_index_map": class_index_map,
-        "width": width,
-        "height": height,
-        "category_ids": sorted(class_map.keys()),
-        "target_converter": normalized_xywh_to_coco_xywh,
-        "target_bg": ldf_name_to_idx.get("background"),
-        "target_class_map": ldf_class_map,
-    }

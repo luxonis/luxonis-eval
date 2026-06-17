@@ -1,13 +1,14 @@
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from loguru import logger
 from luxonis_ml.data import BucketStorage, LuxonisDataset
 from luxonis_ml.typing import BaseModelExtraForbid, ConfigItem, Params
 from luxonis_ml.utils.config import LuxonisConfig
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, PlainSerializer, field_validator, model_validator
 from pydantic_extra_types.semantic_version import SemanticVersion
 
+import luxonis_eval as lxe
 from luxonis_eval.registry import (
     DATALOADERS_REGISTRY,
     ENGINES_REGISTRY,
@@ -38,13 +39,17 @@ class NormalizeAugmentationConfig(BaseModelExtraForbid):
 
 
 class PreProcessingConfig(BaseModelExtraForbid):
-    normalize: NormalizeAugmentationConfig
+    normalize: NormalizeAugmentationConfig = Field(
+        default_factory=NormalizeAugmentationConfig
+    )
     color_space: Literal["RGB", "BGR", "GRAY"] = "RGB"
     keep_aspect_ratio: bool = False
 
 
 class DataLoaderConfig(ConfigItem):
-    preprocessing: PreProcessingConfig
+    preprocessing: PreProcessingConfig = Field(
+        default_factory=PreProcessingConfig
+    )
 
     @field_validator("name", mode="after")
     def validate_name(cls, v: str) -> str:
@@ -103,7 +108,7 @@ class MetricConfig(ConfigItem):
 
 
 class VisualizerConfig(ConfigItem):
-    visualize: bool = True
+    active: bool = True
 
     @field_validator("name", mode="after")
     def validate_name(cls, v: str) -> str:
@@ -150,7 +155,7 @@ class RuntimeConfig(BaseModelExtraForbid):
 
 class EvaluatorConfig(BaseModelExtraForbid):
     name: str | None = None
-    task_name: str
+    task_name: str | None = None
     outputs: list[str] | None = None
     parser: ParserConfig
     metrics: list[MetricConfig]
@@ -190,8 +195,11 @@ class PipelineConfig(BaseModelExtraForbid):
 class EvalConfig(LuxonisConfig):
     """Configuration for evaluation."""
 
-    version: SemanticVersion = Field(
-        default_factory=lambda: SemanticVersion(1, 0, 0)
-    )
+    version: Annotated[
+        SemanticVersion,
+        Field(frozen=True),
+        PlainSerializer(str),
+    ] = lxe.__semver__
+
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     pipeline: PipelineConfig

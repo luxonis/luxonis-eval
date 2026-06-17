@@ -35,7 +35,6 @@ from luxonis_eval.core.runtime import (
 from luxonis_eval.core.validation import (
     resolve_evaluator_config,
     run_static_compatibility_warnings,
-    sanity_check_pipeline,
     validate_engine_setup,
 )
 from luxonis_eval.engines.base_engine import BaseEngine
@@ -126,16 +125,7 @@ class LuxonisEval:
                 normalize_active=self.cfg.pipeline.loader.preprocessing.normalize.active,
                 color_space=self.cfg.pipeline.loader.preprocessing.color_space,
             )
-            sanity_check_pipeline(
-                loader=self.loader,
-                engine=self.engine,
-                parser=self.parser,
-                metrics=self.metrics,
-                metric_contexts=self.metric_contexts,
-                evaluator_cfg=self.evaluator_cfg,
-                class_map=self.class_map,
-                loader_task_name=self.loader_task_name,
-            )
+            self._sanity_check_pipeline()
         except Exception:
             try:
                 self.close()
@@ -227,7 +217,7 @@ class LuxonisEval:
                 active_visualizer_cfgs = [
                     visualizer_cfg
                     for visualizer_cfg in self.evaluator_cfg.visualizers
-                    if visualizer_cfg.visualize
+                    if visualizer_cfg.active
                 ]
                 for visualizer, visualizer_cfg in zip(
                     self.visualizers,
@@ -296,6 +286,52 @@ class LuxonisEval:
             self._clear_runtime_fields()
             self._is_setup = False
             self._is_closed = True
+
+    def _sanity_check_pipeline(self) -> None:
+        assert self.loader is not None
+        assert self.engine is not None
+        assert self.parser is not None
+        assert self.evaluator_cfg is not None
+
+        if len(self.loader) == 0:
+            raise ValueError(
+                "Evaluation loader is empty. Pipeline sanity check "
+                "requires at least one sample."
+            )
+
+        logger.info("Running pipeline sanity check on one real sample.")
+
+        img, target = self.loader[0]
+        target = normalize_target(
+            target,
+            loader=self.loader,
+            loader_task_name=self.loader_task_name,
+        )
+        raw_output = self.engine.infer_once(img)
+        predictions = self.parser.parse(
+            select_evaluator_outputs(raw_output, self.evaluator_cfg.outputs),
+            class_map=self.class_map,
+            **self.evaluator_cfg.parser.params,
+        )
+
+        for metric, metric_ctx in zip(
+            self.metrics, self.metric_contexts, strict=True
+        ):
+            missing = set(metric.required_target_keys()) - set(target)
+            if missing:
+                raise ValueError(
+                    "Target is missing required keys for "
+                    f"{metric.__class__.__name__}: {sorted(missing)}. "
+                    f"Got keys: {sorted(target.keys())}."
+                )
+
+            metric.update(
+                predictions=predictions,
+                target=target,
+                **metric_ctx,
+            )
+            metric.compute()
+            metric.reset()
 
     def _clear_runtime_fields(self) -> None:
         self.engine: BaseEngine | None = None

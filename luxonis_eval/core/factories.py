@@ -71,10 +71,7 @@ def create_loader(
         ) from e
 
     logger.info(f"{cfg.pipeline.loader.name} dataloader initialized.")
-    logger.info(
-        f"Dataset loaded with {len(dataloader)} samples and images of shape "
-        f"{engine.height}x{engine.width}."
-    )
+
     return dataloader, loader_task_name
 
 
@@ -129,17 +126,17 @@ def create_metrics(evaluator_cfg: EvaluatorConfig) -> list[BaseMetric]:
 def create_visualizers(
     evaluator_cfg: EvaluatorConfig,
 ) -> list[BaseVisualizer]:
-    enabled_visualizers = [
+    active_visualizers = [
         visualizer_cfg
         for visualizer_cfg in evaluator_cfg.visualizers
-        if visualizer_cfg.visualize
+        if visualizer_cfg.active
     ]
-    if not enabled_visualizers:
+    if not active_visualizers:
         logger.info("Visualization is disabled.")
         return []
 
     visualizers: list[BaseVisualizer] = []
-    for visualizer_cfg in enabled_visualizers:
+    for visualizer_cfg in active_visualizers:
         try:
             visualizer = from_registry(
                 VISUALIZERS_REGISTRY,
@@ -170,6 +167,7 @@ def _create_luxonis_loader(
 ) -> tuple[LuxonisLoader, str]:
     loader_params = dict(cfg.pipeline.loader.params)
     loader_params.pop("filter_task_names", None)
+    loader_params.pop("class_mapping", None)
     dataset_name: str = loader_params.pop("dataset_name")  # type: ignore
 
     dataset_kwargs = {}
@@ -184,12 +182,12 @@ def _create_luxonis_loader(
             dataset_kwargs[key] = loader_params.pop(key)
 
     dataset = LuxonisDataset(dataset_name, **dataset_kwargs)
-    selected_task_name = resolve_luxonis_task_name(
+    loader_task_name = resolve_luxonis_task_name(
         dataset_name,
         dataset.get_classes(),
         task_name=evaluator_cfg.task_name,
     )
-    loader_params["filter_task_names"] = [selected_task_name]
+    loader_params["filter_task_names"] = [loader_task_name]
 
     augmentation_config = []
     if cfg.pipeline.loader.preprocessing.normalize.active:
@@ -213,10 +211,6 @@ def _create_luxonis_loader(
 
     logger.info(
         "LuxonisLoader dataloader initialized with "
-        f"task_name={selected_task_name!r}."
+        f"task_name={loader_task_name!r}."
     )
-    logger.info(
-        f"Dataset loaded with {len(dataloader)} samples and images of shape "
-        f"{engine.height}x{engine.width}."
-    )
-    return dataloader, selected_task_name
+    return dataloader, loader_task_name
