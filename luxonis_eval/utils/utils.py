@@ -223,20 +223,12 @@ def resolve_luxonis_task_name(
     dataset_classes: dict[str, dict[str, int]],
     *,
     task_name: str | None = None,
-    filter_task_names: list[str] | tuple[str, ...] | None = None,
 ) -> str:
     """Resolve exactly one Luxonis task name for evaluation."""
     available_tasks = list(dataset_classes.keys())
 
     if task_name is not None:
         selected_task = task_name
-    elif filter_task_names is not None:
-        if len(filter_task_names) != 1:
-            raise ValueError(
-                "Only one Luxonis task is supported per evaluation run. "
-                f"Received filter_task_names={list(filter_task_names)}."
-            )
-        selected_task = filter_task_names[0]
     elif "" in dataset_classes:
         selected_task = ""
     elif len(available_tasks) == 1:
@@ -245,7 +237,7 @@ def resolve_luxonis_task_name(
         available = ", ".join(repr(task) for task in available_tasks)
         raise ValueError(
             "Dataset exposes multiple Luxonis tasks "
-            f"({available}). Set loader.params.task_name explicitly."
+            f"({available}). Set pipeline.evaluators[*].task_name explicitly."
         )
 
     if selected_task not in dataset_classes:
@@ -302,8 +294,7 @@ def resolve_luxonis_loader_class_mapping(
     selected_task = resolve_luxonis_task_name(
         dataloader.dataset.dataset_name,
         dataset_classes,
-        task_name=kwargs.get("task_name"),
-        filter_task_names=kwargs.get("filter_task_names"),
+        task_name=kwargs.get("selected_task_name"),
     )
     ldf_class_map = {v: k for k, v in dataset_classes[selected_task].items()}
 

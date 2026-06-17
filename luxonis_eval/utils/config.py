@@ -1,10 +1,12 @@
 from pathlib import Path
 from typing import Literal
 
+from loguru import logger
 from luxonis_ml.data import BucketStorage, LuxonisDataset
 from luxonis_ml.typing import BaseModelExtraForbid, ConfigItem, Params
 from luxonis_ml.utils.config import LuxonisConfig
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
+from pydantic_extra_types.semantic_version import SemanticVersion
 
 from luxonis_eval.registry import (
     DATALOADERS_REGISTRY,
@@ -61,33 +63,12 @@ class DataLoaderConfig(ConfigItem):
                     "LuxonisLoader requires the 'dataset_name' parameter to be set."
                 )
 
-            task_name = self.params.get("task_name")
             filter_task_names = self.params.get("filter_task_names")
-            if task_name is not None and not isinstance(task_name, str):
-                raise ValueError(
-                    "loader.params.task_name must be a string when provided."
-                )
             if filter_task_names is not None:
-                if not isinstance(filter_task_names, list | tuple):
-                    raise ValueError(
-                        "loader.params.filter_task_names must be a list or tuple when provided."
-                    )
-                if len(filter_task_names) != 1:
-                    raise ValueError(
-                        "Only one Luxonis task is supported per evaluation run. "
-                        f"Received filter_task_names={list(filter_task_names)}."
-                    )
-                if not all(
-                    isinstance(task, str) for task in filter_task_names
-                ):
-                    raise ValueError(
-                        "loader.params.filter_task_names must contain only strings."
-                    )
-                if task_name is not None and filter_task_names[0] != task_name:
-                    raise ValueError(
-                        f"loader.params.task_name={task_name!r} conflicts with "
-                        f"filter_task_names={list(filter_task_names)}."
-                    )
+                logger.warning(
+                    "loader.params.filter_task_names is ignored. "
+                    "Use pipeline.evaluators[*].task_name for task selection."
+                )
 
             bucket_storage = self.params.get("bucket_storage", "local")
             luxonis_datasets = LuxonisDataset.list_datasets(
@@ -119,10 +100,6 @@ class MetricConfig(ConfigItem):
                 f"Invalid metric name: {v}. Must be one of {list(METRICS_REGISTRY._module_dict)}."
             )
         return v
-
-
-class MetricsConfig(BaseModelExtraForbid):
-    metrics: list[MetricConfig]
 
 
 class VisualizerConfig(ConfigItem):
@@ -167,11 +144,54 @@ class EngineConfig(ConfigItem):
         return self
 
 
+class RuntimeConfig(BaseModelExtraForbid):
+    pass
+
+
+class EvaluatorConfig(BaseModelExtraForbid):
+    name: str | None = None
+    task_name: str
+    outputs: list[str] | None = None
+    parser: ParserConfig
+    metrics: list[MetricConfig]
+    visualizers: list[VisualizerConfig] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_and_resolve(self) -> "EvaluatorConfig":
+        if not self.metrics:
+            raise ValueError(
+                "pipeline.evaluators[*].metrics must contain at least one metric."
+            )
+        if self.name is None:
+            self.name = self.task_name or "task_0"
+        return self
+
+
+class PipelineConfig(BaseModelExtraForbid):
+    loader: DataLoaderConfig
+    engine: EngineConfig
+    evaluators: list[EvaluatorConfig] | None = None
+    benchmark: Params | None = None
+
+    @model_validator(mode="after")
+    def _validate_evaluators(self) -> "PipelineConfig":
+        if self.evaluators is not None:
+            if len(self.evaluators) == 0:
+                raise ValueError(
+                    "pipeline.evaluators must not be empty when provided."
+                )
+            if len(self.evaluators) > 1:
+                raise NotImplementedError(
+                    "Multiple pipeline.evaluators are not implemented yet."
+                )
+        return self
+
+
 class EvalConfig(LuxonisConfig):
     """Configuration for evaluation."""
 
-    loader: DataLoaderConfig
-    parser: ParserConfig
-    metrics: MetricsConfig
-    visualizer: VisualizerConfig | None = None
-    engine: EngineConfig
+    version: SemanticVersion = Field(
+        default_factory=lambda: SemanticVersion(1, 0, 0)
+    )
+    runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
+    pipeline: PipelineConfig
