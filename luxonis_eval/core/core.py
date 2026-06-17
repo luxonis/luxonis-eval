@@ -1,11 +1,9 @@
-import re
 import time
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 from loguru import logger
-from luxonis_ml.data import LuxonisDataset
 from luxonis_ml.data.loaders import LuxonisLoader
 from luxonis_ml.typing import Params, PathType
 from rich.progress import (
@@ -16,28 +14,35 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
+from luxonis_eval.config import EvalConfig, EvaluatorConfig
+from luxonis_eval.core.factories import (
+    create_engine,
+    create_loader,
+    create_metrics,
+    create_parser,
+    create_visualizers,
+)
+from luxonis_eval.core.reporting import (
+    get_model_name,
+    make_report_table,
+)
+from luxonis_eval.core.runtime import (
+    build_metric_contexts,
+    normalize_target,
+    resolve_class_mapping,
+    select_evaluator_outputs,
+)
+from luxonis_eval.core.validation import (
+    resolve_evaluator_config,
+    run_static_compatibility_warnings,
+    sanity_check_pipeline,
+    validate_engine_setup,
+)
 from luxonis_eval.engines.base_engine import BaseEngine
 from luxonis_eval.loaders.base_loader import BaseEvalLoader
 from luxonis_eval.metrics import ThroughputMetric
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.parsers.base_parser import BaseParser
-from luxonis_eval.registry import (
-    DATALOADERS_REGISTRY,
-    ENGINES_REGISTRY,
-    METRICS_REGISTRY,
-    PARSERS_REGISTRY,
-    VISUALIZERS_REGISTRY,
-    from_registry,
-)
-from luxonis_eval.utils.config import EvalConfig, EvaluatorConfig
-from luxonis_eval.utils.utils import (
-    get_metric_ctx,
-    get_model_name,
-    make_report_table,
-    normalize_luxonis_task_labels,
-    resolve_luxonis_loader_class_mapping,
-    resolve_luxonis_task_name,
-)
 from luxonis_eval.visualizers.base_visualizer import BaseVisualizer
 
 
@@ -73,30 +78,64 @@ class LuxonisEval:
         logger.info("Setting up evaluation configuration.")
 
         try:
-            self.evaluator_cfg = self._resolve_evaluator_config()
-            self.engine = self._create_engine()
+            self.evaluator_cfg = resolve_evaluator_config(
+                self.cfg.pipeline.evaluators
+            )
+            self.engine = create_engine(self.cfg)
             self.engine.setup()
-            self._validate_engine_setup()
+            validate_engine_setup(self.engine)
             self.backend = self.cfg.pipeline.engine.name
             self.model_name = get_model_name(
                 self.cfg.pipeline.engine.model_path
             )
 
-            self.loader = self._create_loader()
-            self.parser = self._create_parser()
-            self.metrics = self._create_metrics()
+            self.loader, self.loader_task_name = create_loader(
+                self.cfg,
+                self.evaluator_cfg,
+                self.engine,
+            )
+            self.parser = create_parser(self.evaluator_cfg)
+            self.metrics = create_metrics(self.evaluator_cfg)
             if not self.metrics:
                 raise ValueError(
                     "At least one metric must be specified in the configuration."
                 )
             self.throughput_metric = ThroughputMetric()
             logger.info("Throughput metric initialized.")
-            self.visualizers = self._create_visualizers()
+            self.visualizers = create_visualizers(self.evaluator_cfg)
 
-            self._resolve_class_mapping()
-            self.metric_contexts = self._build_metric_contexts()
-            self._run_static_compatibility_warnings()
-            self._sanity_check_pipeline()
+            (
+                self.ldf_class_map,
+                self.class_map,
+                self.class_index_map,
+            ) = resolve_class_mapping(
+                self.loader,
+                loader_params=self.cfg.pipeline.loader.params,
+                loader_task_name=self.loader_task_name,
+            )
+            self.metric_contexts = build_metric_contexts(
+                self.evaluator_cfg,
+                width=self.engine.width,
+                height=self.engine.height,
+                ldf_class_map=self.ldf_class_map,
+                class_map=self.class_map,
+                class_index_map=self.class_index_map,
+            )
+            run_static_compatibility_warnings(
+                engine_name=self.cfg.pipeline.engine.name,
+                normalize_active=self.cfg.pipeline.loader.preprocessing.normalize.active,
+                color_space=self.cfg.pipeline.loader.preprocessing.color_space,
+            )
+            sanity_check_pipeline(
+                loader=self.loader,
+                engine=self.engine,
+                parser=self.parser,
+                metrics=self.metrics,
+                metric_contexts=self.metric_contexts,
+                evaluator_cfg=self.evaluator_cfg,
+                class_map=self.class_map,
+                loader_task_name=self.loader_task_name,
+            )
         except Exception:
             try:
                 self.close()
@@ -147,7 +186,11 @@ class LuxonisEval:
 
             for sample in self.loader:
                 img: np.ndarray = sample[0]  # type: ignore
-                target = self._normalize_target(sample[1])
+                target = normalize_target(
+                    sample[1],
+                    loader=self.loader,
+                    loader_task_name=self.loader_task_name,
+                )
 
                 inference_t0 = time.perf_counter()
                 raw_output = self.engine.infer_once(img)
@@ -155,7 +198,10 @@ class LuxonisEval:
 
                 parsing_t0 = time.perf_counter()
                 predictions = self.parser.parse(
-                    self._select_evaluator_outputs(raw_output),
+                    select_evaluator_outputs(
+                        raw_output,
+                        self.evaluator_cfg.outputs,
+                    ),
                     class_map=self.class_map,
                     **self.evaluator_cfg.parser.params,
                 )
@@ -250,361 +296,6 @@ class LuxonisEval:
             self._clear_runtime_fields()
             self._is_setup = False
             self._is_closed = True
-
-    def _create_engine(self) -> BaseEngine:
-        try:
-            engine = from_registry(
-                ENGINES_REGISTRY,
-                self.cfg.pipeline.engine.name,
-                self.cfg.pipeline.engine.model_path,
-                **self.cfg.pipeline.engine.params,
-            )
-        except KeyError as e:
-            raise ValueError(
-                f"Unknown engine: {self.cfg.pipeline.engine.name}. "
-                f"Available engines: {list(ENGINES_REGISTRY._module_dict)}"
-            ) from e
-
-        if not isinstance(engine, BaseEngine):
-            raise TypeError(
-                f"{self.cfg.pipeline.engine.name} engine must be an instance of BaseEngine."
-            )
-
-        logger.info(
-            f"{self.cfg.pipeline.engine.name} inference engine initialized."
-        )
-        return engine
-
-    def _validate_engine_setup(self) -> None:
-        assert self.engine is not None
-        if self.engine.width is None or self.engine.height is None:
-            raise RuntimeError(
-                "Engine setup did not populate the input shape."
-            )
-        if self.engine.platform_name is None:
-            raise RuntimeError(
-                "Engine setup did not populate the platform name."
-            )
-
-    def _create_loader(self) -> BaseEvalLoader | LuxonisLoader:
-        assert self.engine is not None
-        assert self.evaluator_cfg is not None
-        if self.engine.width is None or self.engine.height is None:
-            raise RuntimeError(
-                "Engine input shape is unavailable after setup."
-            )
-
-        try:
-            if self.cfg.pipeline.loader.name == "LuxonisLoader":
-                loader_params = dict(self.cfg.pipeline.loader.params)
-                loader_params.pop("filter_task_names", None)
-                dataset_name: str = loader_params.pop("dataset_name")  # type: ignore
-                dataset_kwargs = {}
-                for key in (
-                    "team_id",
-                    "bucket_type",
-                    "bucket_storage",
-                    "delete_local",
-                    "delete_remote",
-                ):
-                    if key in loader_params:
-                        dataset_kwargs[key] = loader_params.pop(key)
-
-                dataset = LuxonisDataset(dataset_name, **dataset_kwargs)
-                selected_task_name = resolve_luxonis_task_name(
-                    dataset_name,
-                    dataset.get_classes(),
-                    task_name=self.evaluator_cfg.task_name,
-                )
-                loader_params["filter_task_names"] = [selected_task_name]
-                self.loader_task_name = selected_task_name
-
-                augmentation_config = []
-                if self.cfg.pipeline.loader.preprocessing.normalize.active:
-                    augmentation_config.append(
-                        {
-                            "name": "Normalize",
-                            "params": self.cfg.pipeline.loader.preprocessing.normalize.params,
-                        }
-                    )
-                dataloader = LuxonisLoader(
-                    dataset,
-                    view=loader_params.pop("view", ["val"]),  # type: ignore
-                    augmentation_config=augmentation_config,
-                    height=self.engine.height,
-                    width=self.engine.width,
-                    keep_aspect_ratio=self.cfg.pipeline.loader.preprocessing.keep_aspect_ratio,
-                    color_space=self.cfg.pipeline.loader.preprocessing.color_space,
-                    **loader_params,  # type: ignore
-                )
-            else:
-                dataloader = from_registry(
-                    DATALOADERS_REGISTRY,
-                    self.cfg.pipeline.loader.name,
-                    **self.cfg.pipeline.loader.params,
-                )
-                if not isinstance(dataloader, BaseEvalLoader):
-                    raise TypeError(
-                        f"{self.cfg.pipeline.loader.name} custom dataloader must be an instance of BaseEvalLoader."
-                    )
-        except KeyError as e:
-            raise ValueError(
-                f"Unknown loader: {self.cfg.pipeline.loader.name}. "
-                f"Available loaders: {list(DATALOADERS_REGISTRY._module_dict)}"
-            ) from e
-
-        if self.cfg.pipeline.loader.name == "LuxonisLoader":
-            logger.info(
-                f"LuxonisLoader dataloader initialized with task_name={self.loader_task_name!r}."
-            )
-        else:
-            logger.info(
-                f"{self.cfg.pipeline.loader.name} dataloader initialized."
-            )
-        logger.info(
-            f"Dataset loaded with {len(dataloader)} samples and images of shape {self.engine.height}x{self.engine.width}."
-        )
-        return dataloader
-
-    def _normalize_target(
-        self, target: dict[str, np.ndarray]
-    ) -> dict[str, np.ndarray]:
-        if (
-            isinstance(self.loader, LuxonisLoader)
-            and self.loader_task_name is not None
-        ):
-            return normalize_luxonis_task_labels(
-                target,
-                self.loader_task_name,
-            )
-        return target
-
-    def _create_parser(self) -> BaseParser:
-        assert self.evaluator_cfg is not None
-        try:
-            parser = from_registry(
-                PARSERS_REGISTRY,
-                self.evaluator_cfg.parser.name,
-                **self.evaluator_cfg.parser.params,
-            )
-        except KeyError as e:
-            raise ValueError(
-                f"Unknown parser: {self.evaluator_cfg.parser.name}. "
-                f"Available parsers: {list(PARSERS_REGISTRY._module_dict)}"
-            ) from e
-
-        if not isinstance(parser, BaseParser):
-            raise TypeError(
-                f"{self.evaluator_cfg.parser.name} parser must be an instance of BaseParser."
-            )
-
-        logger.info(f"{self.evaluator_cfg.parser.name} parser initialized.")
-        return parser
-
-    def _create_metrics(self) -> list[BaseMetric]:
-        assert self.evaluator_cfg is not None
-        metrics: list[BaseMetric] = []
-        for metric_cfg in self.evaluator_cfg.metrics:
-            try:
-                metric = from_registry(
-                    METRICS_REGISTRY,
-                    metric_cfg.name,
-                    **metric_cfg.params,
-                )
-            except KeyError as e:
-                raise ValueError(
-                    f"Unknown metric: {metric_cfg.name}. "
-                    f"Available metrics: {list(METRICS_REGISTRY._module_dict)}"
-                ) from e
-
-            if not isinstance(metric, BaseMetric):
-                raise TypeError(
-                    f"{metric_cfg.name} metric must be an instance of BaseMetric."
-                )
-
-            logger.info(f"{metric_cfg.name} metric initialized.")
-            metrics.append(metric)
-
-        return metrics
-
-    def _create_visualizers(self) -> list[BaseVisualizer]:
-        assert self.evaluator_cfg is not None
-        enabled_visualizers = [
-            visualizer_cfg
-            for visualizer_cfg in self.evaluator_cfg.visualizers
-            if visualizer_cfg.visualize
-        ]
-        if not enabled_visualizers:
-            logger.info("Visualization is disabled.")
-            return []
-
-        visualizers: list[BaseVisualizer] = []
-        for visualizer_cfg in enabled_visualizers:
-            try:
-                visualizer = from_registry(
-                    VISUALIZERS_REGISTRY,
-                    visualizer_cfg.name,
-                    **visualizer_cfg.params,
-                )
-            except KeyError as e:
-                raise ValueError(
-                    f"Unknown visualizer: {visualizer_cfg.name}. "
-                    f"Available visualizers: {list(VISUALIZERS_REGISTRY._module_dict)}"
-                ) from e
-
-            if not isinstance(visualizer, BaseVisualizer):
-                raise TypeError(
-                    f"{visualizer_cfg.name} visualizer must be an instance of BaseVisualizer."
-                )
-
-            logger.info(f"{visualizer_cfg.name} visualizer initialized.")
-            visualizers.append(visualizer)
-
-        return visualizers
-
-    def _resolve_class_mapping(self) -> None:
-        if self.loader is None:
-            raise RuntimeError("Loader is unavailable before setup completes.")
-
-        if isinstance(self.loader, LuxonisLoader):
-            (
-                self.ldf_class_map,
-                self.class_map,
-                self.class_index_map,
-            ) = resolve_luxonis_loader_class_mapping(
-                self.loader,
-                **self._loader_class_mapping_params(),
-            )
-            return
-
-        (
-            self.ldf_class_map,
-            self.class_map,
-            self.class_index_map,
-        ) = self.loader.get_class_mapping(**self.cfg.pipeline.loader.params)
-
-    def _build_metric_contexts(self) -> list[dict[str, Any]]:
-        assert self.engine is not None
-        assert self.evaluator_cfg is not None
-        if self.engine.width is None or self.engine.height is None:
-            raise RuntimeError(
-                "Engine input shape is unavailable after setup."
-            )
-
-        return [
-            get_metric_ctx(
-                base_ctx=metric_cfg.params,
-                width=self.engine.width,
-                height=self.engine.height,
-                ldf_class_map=self.ldf_class_map,
-                class_map=self.class_map,
-                class_index_map=self.class_index_map,
-            )
-            for metric_cfg in self.evaluator_cfg.metrics
-        ]
-
-    def _run_static_compatibility_warnings(self) -> None:
-        if (
-            self.cfg.pipeline.engine.name == "depthai"
-            and self.cfg.pipeline.loader.preprocessing.normalize.active
-        ):
-            logger.warning(
-                "Normalization is usually part of the model's preprocessing pipeline in DepthAI. Consider disabling normalization in the dataset config."
-            )
-        if (
-            self.cfg.pipeline.engine.name == "depthai"
-            and self.cfg.pipeline.loader.preprocessing.color_space == "RGB"
-        ):
-            logger.warning(
-                "Color space is set to RGB in the dataset config. DepthAI expects BGR color space."
-            )
-
-    def _sanity_check_pipeline(self) -> None:
-        if self.loader is None or self.engine is None or self.parser is None:
-            raise RuntimeError(
-                "Pipeline components are unavailable before sanity check."
-            )
-
-        if len(self.loader) == 0:
-            raise ValueError(
-                "Evaluation loader is empty. Pipeline sanity check requires at least one sample."
-            )
-
-        logger.info("Running pipeline sanity check on one real sample.")
-
-        img, target = self.loader[0]
-        target = self._normalize_target(target)
-        raw_output = self.engine.infer_once(img)
-        assert self.evaluator_cfg is not None
-        predictions = self.parser.parse(
-            self._select_evaluator_outputs(raw_output),
-            class_map=self.class_map,
-            **self.evaluator_cfg.parser.params,
-        )
-
-        for metric, metric_ctx in zip(
-            self.metrics, self.metric_contexts, strict=True
-        ):
-            missing = set(metric.required_target_keys()) - set(target)
-            if missing:
-                raise ValueError(
-                    f"Target is missing required keys for {metric.__class__.__name__}: "
-                    f"{sorted(missing)}. Got keys: {sorted(target.keys())}."
-                )
-
-            metric.update(
-                predictions=predictions,
-                target=target,
-                **metric_ctx,
-            )
-            metric.compute()
-            metric.reset()
-
-    def _resolve_evaluator_config(self) -> EvaluatorConfig:
-        evaluators = self.cfg.pipeline.evaluators
-        if not evaluators:
-            raise NotImplementedError(
-                "pipeline.evaluators is required for quality evaluation. Benchmark-only pipeline execution is not implemented yet."
-            )
-        if len(evaluators) > 1:
-            raise NotImplementedError(
-                "Multiple pipeline.evaluators are not implemented yet."
-            )
-        return evaluators[0]
-
-    def _loader_class_mapping_params(self) -> Params:
-        params = dict(self.cfg.pipeline.loader.params)
-        params.pop("filter_task_names", None)
-        if self.loader_task_name is not None:
-            params["selected_task_name"] = self.loader_task_name
-        return params
-
-    def _select_evaluator_outputs(self, raw_output: Any) -> Any:
-        assert self.evaluator_cfg is not None
-        if not self.evaluator_cfg.outputs:
-            return raw_output
-
-        if isinstance(raw_output, list):
-            selected_outputs = []
-            for output_name in self.evaluator_cfg.outputs:
-                match = re.fullmatch(r"output_?(?P<index>\d+)", output_name)
-                if match is None:
-                    raise ValueError(
-                        "List-based evaluator output selection currently supports only names like 'output0' or 'output_0'. "
-                        f"Received {output_name!r}."
-                    )
-                index = int(match.group("index"))
-                if index >= len(raw_output):
-                    raise ValueError(
-                        f"Evaluator requested {output_name!r}, but the engine produced only {len(raw_output)} outputs."
-                    )
-                selected_outputs.append(raw_output[index])
-            return selected_outputs
-
-        logger.warning(
-            "Evaluator outputs filtering is not implemented for this engine output type yet. Using all raw outputs."
-        )
-        return raw_output
 
     def _clear_runtime_fields(self) -> None:
         self.engine: BaseEngine | None = None

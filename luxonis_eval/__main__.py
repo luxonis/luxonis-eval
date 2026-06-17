@@ -4,8 +4,8 @@ from typing import Any, Literal
 from cyclopts import App, Group
 from luxonis_ml.typing import Params, PathType
 
+from luxonis_eval.config import EvalConfig
 from luxonis_eval.core import LuxonisEval
-from luxonis_eval.utils.config import EvalConfig
 
 app = App(
     help="Luxonis Eval CLI",

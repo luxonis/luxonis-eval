@@ -159,7 +159,7 @@ For one-shot programmatic usage, call `eval_run`:
 
 ```python
 from luxonis_eval.__main__ import eval_run
-from luxonis_eval.utils.config import EvalConfig
+from luxonis_eval.config import EvalConfig
 
 eval_cfg = EvalConfig.get_config(cfg="path/to/config.yaml")
 results = eval_run(eval_cfg)
@@ -170,7 +170,7 @@ setup, or direct access to runtime state, use `LuxonisEval` directly:
 
 ```python
 from luxonis_eval import LuxonisEval
-from luxonis_eval.utils.config import EvalConfig
+from luxonis_eval.config import EvalConfig
 
 eval_cfg = EvalConfig.get_config(cfg="path/to/config.yaml")
 evaluator = LuxonisEval(eval_cfg)
@@ -267,72 +267,95 @@ Rule of thumb: `End-to-end Latency ≈ Inference + Parsing + Metric Update + Met
 
 Evaluation runs are driven by a YAML configuration file. [`EvalConfig`](luxonis_eval/utils/config.py) parses and validates the configuration at startup, ensuring that referenced components exist and that required fields are present before evaluation begins.
 
-A complete configuration file is typically organized into the sections below.
+A complete configuration file now uses two top-level blocks:
+
+```yaml
+version: 1.0.0
+
+runtime: {}
+
+pipeline:
+  loader: ...
+  engine: ...
+  evaluators:
+    - ...
+```
+
+`runtime` is currently a placeholder block reserved for future cross-cutting execution behavior. `pipeline` owns the executable evaluation flow.
 
 ### 📦 Data Loading And Preprocessing
 
 This section defines which dataloader to use, which dataset it points to, and which preprocessing steps are applied before inference.
 
 ```yaml
-loader:
-  name: LuxonisLoader             # Registered dataloader name
-  params:
-    dataset_name: coco-2017       # Dataset identifier
-    view: [val]                   # Dataset split(s) to use
-    task_name: null               # Optional Luxonis task name for named-task datasets
-  preprocessing:
-    normalize:
-      active: true                # Whether to apply normalization
-      params:
-        mean: [0.485, 0.456, 0.406]
-        std: [0.229, 0.224, 0.225]
-    color_space: RGB              # RGB | BGR | GRAY
-    keep_aspect_ratio: false      # Preserve aspect ratio during resize
+pipeline:
+  loader:
+    name: LuxonisLoader           # Registered dataloader name
+    params:
+      dataset_name: coco-2017     # Dataset identifier
+      view: [val]                 # Dataset split(s) to use
+    preprocessing:
+      normalize:
+        active: true              # Whether to apply normalization
+        params:
+          mean: [0.485, 0.456, 0.406]
+          std: [0.229, 0.224, 0.225]
+      color_space: RGB            # RGB | BGR | GRAY
+      keep_aspect_ratio: false    # Preserve aspect ratio during resize
 ```
 
 > [!NOTE]
 > When using the `depthai` backend, normalization is usually handled by the model's own preprocessing pipeline. The engine will warn you if normalization is enabled together with `DepthAI`. `DepthAI` also expects `BGR` color space, so a warning is emitted if `RGB` is selected.
 
 > [!IMPORTANT]
-> `LuxonisLoader` evaluation is currently single-task only. Use `loader.params.task_name` when your Luxonis dataset stores annotations under a named task. If `task_name` is omitted, LuxonisEval auto-selects `""` when the dataset uses the default empty task, or the sole dataset task when exactly one task exists. If multiple tasks are present and no `task_name` is provided, evaluation fails with a clear error so you can select one explicitly.
+> `LuxonisLoader` evaluation is currently single-task only. Task selection has moved out of `loader.params` and into `pipeline.evaluators[*].task_name`. For datasets that use the default empty Luxonis task, set `task_name: ""`.
 
-### 🧠 Output Parser
+### 🧠 Evaluators
 
-The parser converts raw model outputs into structured predictions. Different model architectures expose different tensor layouts, so the parser is responsible for translating backend-specific outputs into a format the metrics can consume.
+Each pipeline evaluator binds together the dataset task, parser, metrics, and optional visualizers for one quality-evaluation unit.
 
 ```yaml
-parser:
-  name: YOLOInstanceSegmentationParser
-  params:
-    conf_threshold: 0.25
-    iou_threshold: 0.45
-    mask_conf: 0.25
+pipeline:
+  evaluators:
+    - task_name: instance_segmentation
+      parser:
+        name: YOLOInstanceSegmentationParser
+        params:
+          conf_threshold: 0.25
+          iou_threshold: 0.45
+          mask_conf: 0.25
+      metrics:
+        - name: BboxMeanAveragePrecision
+          params:
+            iou_type: bbox
+        - name: MaskMeanAveragePrecision
+          params:
+            iou_type: segm
+      visualizers: []
 ```
 
-### 📏 Evaluation Metrics
+- `task_name` selects the Luxonis dataset task evaluated by this entry.
+- `name` is optional and defaults to `task_name` or a stable fallback when `task_name` is empty.
+- `outputs` is optional in the current single-evaluator implementation; when omitted, the evaluator consumes all engine outputs.
+- Only zero or one evaluator is currently supported at runtime. Multiple evaluators are rejected with a clear not-yet-implemented error.
 
-Metrics are instantiated independently, updated for each sample, and computed at the end of the run. Throughput reporting is added automatically.
+### 🎨 Visualizers
 
-```yaml
-metrics:
-  metrics:
-    - name: BboxMeanAveragePrecision
-      params:
-        iou_type: bbox
-    - name: MaskMeanAveragePrecision
-      params:
-        iou_type: segm
-```
-
-### 🎨 Visualization
-
-Visualization is optional and can be enabled when you want to inspect predictions during the evaluation loop.
+Visualizers are now evaluator-local and plural:
 
 ```yaml
-visualizer:
-  name: InstanceSegmentationVisualizer
-  visualize: true
-  params: {}
+pipeline:
+  evaluators:
+    - task_name: detection
+      parser: ...
+      metrics:
+        - name: BboxMeanAveragePrecision
+          params:
+            iou_type: bbox
+      visualizers:
+        - name: InstanceSegmentationVisualizer
+          visualize: true
+          params: {}
 ```
 
 ### ⚡ Inference Engine
@@ -340,48 +363,63 @@ visualizer:
 The engine section selects the backend and points to the model file. Configuration validation ensures that the model format matches the backend (`.tar.xz` for `depthai`, `.onnx` for `onnx`).
 
 ```yaml
-engine:
-  name: onnx                      # Registered engine name: onnx | depthai
-  model_path: ./models/yolov11n/yolov11n.onnx
-  params: {}                      # Engine-specific parameters, for example device_ip for RVC4
+pipeline:
+  engine:
+    name: onnx                    # Registered engine name: onnx | depthai
+    model_path: ./models/yolov11n/yolov11n.onnx
+    params: {}                    # Engine-specific parameters, for example device_ip for RVC4
 ```
 
 ### 📄 Full Example
 
 ```yaml
-loader:
-  name: LuxonisLoader
-  params:
-    dataset_name: coco-2017
-    view: [val]
-  preprocessing:
-    normalize:
-      active: false
-    color_space: BGR
-    keep_aspect_ratio: false
+version: 1.0.0
 
-parser:
-  name: YOLOInstanceSegmentationParser
-  params:
-    conf_threshold: 0.25
-    iou_threshold: 0.45
-    mask_conf: 0.25
+runtime: {}
 
-metrics:
-  metrics:
-    - name: BboxMeanAveragePrecision
-      params:
-        iou_type: bbox
-    - name: MaskMeanAveragePrecision
-      params:
-        iou_type: segm
+pipeline:
+  loader:
+    name: LuxonisLoader
+    params:
+      dataset_name: coco-2017
+      view: [val]
+    preprocessing:
+      normalize:
+        active: false
+      color_space: BGR
+      keep_aspect_ratio: false
 
-engine:
-  name: depthai
-  model_path: ./models/yolov11n-seg.rvc4.tar.xz
-  params:
-    device_ip: 192.168.1.100
+  engine:
+    name: depthai
+    model_path: ./models/yolov11n-seg.rvc4.tar.xz
+    params:
+      device_ip: 192.168.1.100
+
+  evaluators:
+    - task_name: instance_segmentation
+      parser:
+        name: YOLOInstanceSegmentationParser
+        params:
+          conf_threshold: 0.25
+          iou_threshold: 0.45
+          mask_conf: 0.25
+      metrics:
+        - name: BboxMeanAveragePrecision
+          params:
+            iou_type: bbox
+        - name: MaskMeanAveragePrecision
+          params:
+            iou_type: segm
+      visualizers: []
 ```
+
+### 🏃 Commands
+
+`luxonis-eval eval --config ...` runs the configured quality pipeline in this phase.
+
+`luxonis-eval quality --config ...` is a quality-only alias with the same override flags as `eval`.
+
+Benchmark configuration can be present in the YAML for future compatibility, but benchmark execution is intentionally not implemented yet.
 
 <a name="extending-the-framework"></a>
 
