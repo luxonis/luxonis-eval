@@ -83,7 +83,6 @@ class LuxonisEval:
             self.engine = create_engine(self.cfg)
             self.model_spec = self.engine.setup()
             validate_engine_setup(self.model_spec)
-            self.backend = self.cfg.pipeline.engine.name
             self.model_name = get_model_name(
                 self.cfg.pipeline.engine.model_path
             )
@@ -153,12 +152,12 @@ class LuxonisEval:
     def _run_evaluators(self) -> dict[str, Any]:
         """Run the configured quality evaluator."""
         self._require_setup()
+        engine_name = self.cfg.pipeline.engine.name
 
         assert self.engine is not None
         assert self.loader is not None
         assert self.parser is not None
         assert self.throughput_metric is not None
-        assert self.backend is not None
         assert self.evaluator_cfg is not None
         assert self.model_name is not None
 
@@ -169,7 +168,7 @@ class LuxonisEval:
             TimeElapsedColumn(),
         ) as progress:
             ptask = progress.add_task(
-                f"Running {self.backend.upper()} inference ({self.model_name})...",
+                f"Running {engine_name.upper()} inference ({self.model_name})...",
                 total=len(self.loader),
             )
 
@@ -242,7 +241,7 @@ class LuxonisEval:
         )
 
         report = make_report_table(
-            backend=self.backend,
+            engine_name=engine_name,
             model_name=self.model_name,
             tp=throughput,
             results=results,
@@ -255,7 +254,7 @@ class LuxonisEval:
 
         return {
             "evaluator_name": self.evaluator_cfg.name,
-            "backend": self.backend,
+            "engine": engine_name,
             "model_name": self.model_name,
             "metrics": results,
             "throughput": throughput,
@@ -333,7 +332,6 @@ class LuxonisEval:
         self.visualizers: list[BaseVisualizer] = []
         self.evaluator_cfg: EvaluatorConfig | None = None
 
-        self.backend: str | None = None
         self.model_name: str | None = None
         self.model_spec: ModelSpec | None = None
         self.loader_task_name: str | None = None

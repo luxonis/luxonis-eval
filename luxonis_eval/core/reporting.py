@@ -19,7 +19,7 @@ def section(
 
 
 def make_report_table(
-    backend: str,
+    engine_name: str,
     model_name: str,
     tp: dict[str, float | int],
     results: list[tuple[str, dict[str, Any]]],
@@ -35,7 +35,7 @@ def make_report_table(
     rows += section("SETTINGS")
     rows += [
         ["Model", model_name],
-        ["Backend", str(backend).upper()],
+        ["Engine", str(engine_name).upper()],
     ]
 
     rows += section("PERFORMANCE")
