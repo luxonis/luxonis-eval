@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -6,6 +7,20 @@ from luxonis_ml.typing import PathType
 from luxonis_ml.utils.registry import AutoRegisterMeta
 
 from luxonis_eval.registry import ENGINES_REGISTRY
+
+
+@dataclass(frozen=True)
+class ModelSpec:
+    """Validated model input specification."""
+
+    width: int
+    height: int
+
+    def __post_init__(self) -> None:
+        if self.width <= 0 or self.height <= 0:
+            raise ValueError(
+                "ModelSpec width and height must be positive integers."
+            )
 
 
 class BaseEngine(
@@ -27,58 +42,27 @@ class BaseEngine(
             Engine basic configuration.
         """
         self.model_path = model_path
-        self.width: int | None = None
-        self.height: int | None = None
-        self.platform_name: str | None = None
-
-    def setup(self) -> None:
-        """Initialize backend resources and populate runtime metadata.
-
-        Subclasses should usually implement `_setup_impl()` rather than
-        override this method directly.
-        """
-        self._setup_impl()
-        self._set_runtime_metadata()
+        self.model_spec: ModelSpec | None = None
 
     @abstractmethod
-    def _setup_impl(self) -> None:
-        """Allocate backend resources required for inference.
-
-        Implementations should be safe to call repeatedly when the
-        engine is already initialized.
-        """
+    def setup(self) -> ModelSpec:
+        """Allocate backend resources and return the model input
+        spec."""
         ...
 
-    def _set_runtime_metadata(self) -> None:
-        """Populate and validate runtime metadata during setup.
+    def _set_model_spec(self, model_spec: ModelSpec) -> ModelSpec:
+        """Store and return the validated model spec."""
+        self.model_spec = model_spec
+        return model_spec
 
-        Runtime metadata is intentionally unset before `setup()` and
-        after `close()`. `BaseEngine.setup()` calls this after
-        `_setup_impl()` completes.
-        """
-        width, height = self.get_input_shape()
-        if width is None or height is None:
-            raise ValueError(
-                "Invalid input shape: width and height must be defined."
+    def _get_model_spec(self) -> ModelSpec:
+        """Return the configured model spec or fail if setup was
+        skipped."""
+        if self.model_spec is None:
+            raise RuntimeError(
+                f"{self.__class__.__name__}.setup() must be called first."
             )
-
-        platform_name = self.get_platform_name()
-        if platform_name is None:
-            raise ValueError("Platform name must be defined.")
-
-        self.width = width
-        self.height = height
-        self.platform_name = platform_name
-
-    @abstractmethod
-    def get_input_shape(self) -> tuple[int, int]:
-        """Get the input shape (width, height) from the loaded model."""
-        ...
-
-    @abstractmethod
-    def get_platform_name(self) -> str:
-        """Get the platform name."""
-        ...
+        return self.model_spec
 
     @abstractmethod
     def infer_once(self, img: np.ndarray) -> Any:

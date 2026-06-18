@@ -452,16 +452,14 @@ For `LuxonisLoader`-backed datasets, the LDF and native class maps may differ wh
 
 ### 🔌 Adding a Custom Engine
 
-Subclass [`BaseEngine`](luxonis_eval/engines/base_engine.py) and implement the six abstract methods:
+Subclass [`BaseEngine`](luxonis_eval/engines/base_engine.py) and implement the four abstract methods:
 
-- **`_setup_impl()`** - Initialize backend resources such as runtimes, sessions, or device connections. Keep this idempotent so repeated `setup()` calls are safe.
-- **`get_input_shape()`** - Return the model input size as a `(width, height)` tuple
-- **`get_platform_name()`** - Return a human-readable platform name such as `"RVC2"` or `"RVC4"`
+- **`setup()`** - Initialize backend resources such as runtimes, sessions, or device connections, then return a `ModelSpec(width, height)` for the loaded model. Keep this idempotent so repeated calls are safe.
 - **`infer_once(img)`** - Run inference on a single preprocessed image and return the raw backend output
 - **`vis_frame()`** - Return a copy of the input image suitable for visualization overlays
 - **`close()`** - Release backend resources after evaluation finishes
 
-`BaseEngine.setup()` is provided by the framework and should usually not be overridden. It calls `_setup_impl()` and then populates `width`, `height`, and `platform_name` from `get_input_shape()` and `get_platform_name()`.
+The framework consumes the returned `ModelSpec` to configure loader preprocessing and metric contexts.
 
 ### 🧠 Adding a Custom Parser
 

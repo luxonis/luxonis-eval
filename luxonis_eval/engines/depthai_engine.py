@@ -6,7 +6,7 @@ import numpy as np
 from depthai import ADatatype
 from loguru import logger
 
-from luxonis_eval.engines.base_engine import BaseEngine
+from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
 
 
 class DepthAIEngine(BaseEngine, register_name="depthai"):
@@ -43,65 +43,32 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self._output_queue: Any = None
         self._passthrough: Any = None
 
-    def _setup_impl(self) -> None:
-        """Set up the DepthAI pipeline."""
-        if self._pipeline is not None:
-            return
-
-        self.device, self.device_platform = self._setup_device()
-        self.nn_archive, self.input_info, self.model_platform = (
-            self._load_nn_archive()
-        )
-
-        self._pipeline = dai.Pipeline(self.device)
-        nn_node = self._pipeline.create(dai.node.NeuralNetwork)
-        nn_node.setNNArchive(self.nn_archive)
-
-        self._input_queue = nn_node.input.createInputQueue()
-        self._output_queue = nn_node.out.createOutputQueue()
-        self._passthrough = nn_node.passthrough.createOutputQueue()
-
-        self._pipeline.start()
-
-    def get_input_shape(self) -> tuple[int, int]:
-        """Get model input width and height.
-
-        Returns
-        -------
-        tuple[int, int]
-            Input width and height.
-        """
-        if not self.input_info or "shape" not in self.input_info:
-            raise ValueError("Invalid input shape information.")
-
-        shape = self.input_info["shape"]
-
-        if self.get_platform_name() == "RVC2":
-            # RVC2 uses NCHW format: [batch, channels, height, width]
-            if len(shape) == 4:
-                height, width = shape[2], shape[3]
-            else:
-                raise ValueError(
-                    f"Unexpected input shape for RVC2: {shape}. Expected input shape in NCHW format."
-                )
-        # RVC4 uses NHWC format: [batch, height, width, channels]
-        elif len(shape) == 4:
-            height, width = shape[1], shape[2]
-        else:
-            raise ValueError(
-                f"Unexpected input shape for RVC4: {shape}. Expected input shape in NHWC format."
+    def setup(self) -> ModelSpec:
+        """Set up the DepthAI pipeline and resolve model spec."""
+        if self._pipeline is None:
+            self.device, self.device_platform = self._setup_device()
+            self.nn_archive, self.input_info, self.model_platform = (
+                self._load_nn_archive()
             )
 
-        return width, height
+            self._pipeline = dai.Pipeline(self.device)
+            nn_node = self._pipeline.create(dai.node.NeuralNetwork)
+            nn_node.setNNArchive(self.nn_archive)
 
-    def get_platform_name(self) -> str:
-        """Get the platform name for DepthAI engine.
+            self._input_queue = nn_node.input.createInputQueue()
+            self._output_queue = nn_node.out.createOutputQueue()
+            self._passthrough = nn_node.passthrough.createOutputQueue()
 
-        Returns
-        -------
-        str
-            Platform name.
-        """
+            self._pipeline.start()
+
+        if self.model_spec is not None:
+            return self.model_spec
+
+        return self._set_model_spec(self._resolve_model_spec())
+
+    def _resolve_platform_name(self) -> str:
+        """Resolve the backend platform from device and model
+        metadata."""
         if (
             self.device_platform
             and self.model_platform
@@ -118,6 +85,36 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
             )
         return platform
 
+    def _resolve_model_spec(self) -> ModelSpec:
+        """Resolve model input dimensions from the loaded archive."""
+        if not self.input_info or "shape" not in self.input_info:
+            raise ValueError("Invalid input shape information.")
+
+        shape = self.input_info["shape"]
+        platform_name = self._resolve_platform_name()
+
+        if platform_name == "RVC2":
+            # RVC2 uses NCHW format: [batch, channels, height, width]
+            if len(shape) != 4:
+                raise ValueError(
+                    f"Unexpected input shape for RVC2: {shape}. Expected input shape in NCHW format."
+                )
+            height, width = shape[2], shape[3]
+        else:
+            # RVC4 uses NHWC format: [batch, height, width, channels]
+            if len(shape) != 4:
+                raise ValueError(
+                    f"Unexpected input shape for {platform_name}: {shape}. Expected input shape in NHWC format."
+                )
+            height, width = shape[1], shape[2]
+
+        if not isinstance(width, int) or not isinstance(height, int):
+            raise TypeError(
+                f"DepthAI input shape must be statically defined. Got {shape}."
+            )
+
+        return ModelSpec(width=width, height=height)
+
     def infer_once(self, img: np.ndarray) -> ADatatype:
         """Run inference on a single image using DepthAI.
 
@@ -131,15 +128,12 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         ADatatype
             Raw DepthAI inference output.
         """
-        if self.width is None or self.height is None:
-            raise RuntimeError(
-                "DepthAIEngine.setup() must be called before infer_once()."
-            )
+        model_spec = self._get_model_spec()
 
-        assert img.shape[0] == self.height
-        assert img.shape[1] == self.width
+        assert img.shape[0] == model_spec.height
+        assert img.shape[1] == model_spec.width
 
-        if self.platform_name == "RVC2":
+        if self._resolve_platform_name() == "RVC2":
             img_frame_type = dai.ImgFrame.Type.BGR888p
             img_for_device = np.transpose(img, (2, 0, 1))
         else:
@@ -148,8 +142,8 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
 
         new_input = dai.ImgFrame()
         new_input.setFrame(img_for_device)
-        new_input.setWidth(self.width)
-        new_input.setHeight(self.height)
+        new_input.setWidth(model_spec.width)
+        new_input.setHeight(model_spec.height)
         new_input.setType(img_frame_type)
         self._input_queue.send(new_input)
 
@@ -187,9 +181,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self._input_queue = None
         self._output_queue = None
         self._passthrough = None
-        self.width = None
-        self.height = None
-        self.platform_name = None
+        self.model_spec = None
 
     def _setup_device(self) -> tuple[dai.Device, str]:
         """Set up and connect to a DepthAI device.

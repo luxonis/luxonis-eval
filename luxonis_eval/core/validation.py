@@ -1,14 +1,12 @@
 from loguru import logger
 
 from luxonis_eval.config import EvaluatorConfig
-from luxonis_eval.engines.base_engine import BaseEngine
+from luxonis_eval.engines.base_engine import ModelSpec
 
 
-def validate_engine_setup(engine: BaseEngine) -> None:
-    if engine.width is None or engine.height is None:
-        raise RuntimeError("Engine setup did not populate the input shape.")
-    if engine.platform_name is None:
-        raise RuntimeError("Engine setup did not populate the platform name.")
+def validate_engine_setup(model_spec: ModelSpec) -> None:
+    if model_spec.width <= 0 or model_spec.height <= 0:
+        raise RuntimeError("Engine setup did not return a valid model spec.")
 
 
 def resolve_evaluator_config(

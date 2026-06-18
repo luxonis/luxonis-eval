@@ -37,7 +37,7 @@ from luxonis_eval.core.validation import (
     run_static_compatibility_warnings,
     validate_engine_setup,
 )
-from luxonis_eval.engines.base_engine import BaseEngine
+from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
 from luxonis_eval.loaders.base_loader import BaseEvalLoader
 from luxonis_eval.metrics import ThroughputMetric
 from luxonis_eval.metrics.base_metric import BaseMetric
@@ -81,8 +81,8 @@ class LuxonisEval:
                 self.cfg.pipeline.evaluators
             )
             self.engine = create_engine(self.cfg)
-            self.engine.setup()
-            validate_engine_setup(self.engine)
+            self.model_spec = self.engine.setup()
+            validate_engine_setup(self.model_spec)
             self.backend = self.cfg.pipeline.engine.name
             self.model_name = get_model_name(
                 self.cfg.pipeline.engine.model_path
@@ -91,7 +91,7 @@ class LuxonisEval:
             self.loader, self.loader_task_name = create_loader(
                 self.cfg,
                 self.evaluator_cfg,
-                self.engine,
+                self.model_spec,
             )
             self.parser = create_parser(self.evaluator_cfg)
             self.metrics = create_metrics(self.evaluator_cfg)
@@ -114,8 +114,7 @@ class LuxonisEval:
             )
             self.metric_contexts = build_metric_contexts(
                 self.evaluator_cfg,
-                width=self.engine.width,
-                height=self.engine.height,
+                model_spec=self.model_spec,
                 ldf_class_map=self.ldf_class_map,
                 class_map=self.class_map,
                 class_index_map=self.class_index_map,
@@ -242,16 +241,9 @@ class LuxonisEval:
             metric_compute=metric_compute_elapsed
         )
 
-        device = self.engine.platform_name
-        if device is None:
-            raise RuntimeError(
-                "Engine platform name is unavailable after setup."
-            )
-
         report = make_report_table(
             backend=self.backend,
             model_name=self.model_name,
-            device=device,
             tp=throughput,
             results=results,
         )
@@ -265,7 +257,6 @@ class LuxonisEval:
             "evaluator_name": self.evaluator_cfg.name,
             "backend": self.backend,
             "model_name": self.model_name,
-            "device": device,
             "metrics": results,
             "throughput": throughput,
             "report": report,
@@ -344,6 +335,7 @@ class LuxonisEval:
 
         self.backend: str | None = None
         self.model_name: str | None = None
+        self.model_spec: ModelSpec | None = None
         self.loader_task_name: str | None = None
 
         self.ldf_class_map: dict[int, str] = {}

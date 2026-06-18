@@ -9,6 +9,7 @@ from luxonis_ml.data.utils import split_task
 from luxonis_ml.typing import Params
 
 from luxonis_eval.config import EvaluatorConfig
+from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.loaders.base_loader import BaseEvalLoader
 from luxonis_eval.metrics.metrics_utils import normalized_xywh_to_coco_xywh
 
@@ -40,20 +41,16 @@ def resolve_class_mapping(
 
 def build_metric_contexts(
     evaluator_cfg: EvaluatorConfig,
-    width: int | None,
-    height: int | None,
+    model_spec: ModelSpec,
     ldf_class_map: dict[int, str],
     class_map: dict[int, str],
     class_index_map: dict[int, int] | None,
 ) -> list[dict[str, Any]]:
-    if width is None or height is None:
-        raise RuntimeError("Engine input shape is unavailable after setup.")
-
     return [
         get_metric_ctx(
             base_ctx=metric_cfg.params,
-            width=width,
-            height=height,
+            width=model_spec.width,
+            height=model_spec.height,
             ldf_class_map=ldf_class_map,
             class_map=class_map,
             class_index_map=class_index_map,
