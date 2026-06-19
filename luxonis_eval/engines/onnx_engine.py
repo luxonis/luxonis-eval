@@ -1,8 +1,8 @@
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import onnxruntime as ort
+from luxonis_ml.typing import PathType
 
 from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
 
@@ -12,8 +12,7 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
 
     def __init__(
         self,
-        model_path: str,
-        *,
+        model_path: PathType,
         providers: list[str] | None = None,
         **kwargs: Any,
     ) -> None:
@@ -21,7 +20,7 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
 
         Parameters
         ----------
-        model_path : str
+        model_path : PathType
             Path to the ONNX model file.
         providers : list[str] | None, optional
             ONNX Runtime execution providers.
@@ -29,11 +28,6 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
             Additional engine configuration.
         """
         super().__init__(model_path=model_path, **kwargs)
-        self.model_path = (
-            self.model_path
-            if isinstance(self.model_path, Path)
-            else Path(self.model_path)
-        )
         self.providers = providers or ["CPUExecutionProvider"]
         self._session: ort.InferenceSession | None = None
         self._input_name: str | None = None

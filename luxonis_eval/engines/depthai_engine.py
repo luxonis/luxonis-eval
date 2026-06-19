@@ -1,10 +1,10 @@
-from pathlib import Path
 from typing import Any
 
 import depthai as dai
 import numpy as np
 from depthai import ADatatype
 from loguru import logger
+from luxonis_ml.typing import PathType
 
 from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
 
@@ -13,13 +13,16 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
     """DepthAI inference engine."""
 
     def __init__(
-        self, model_path: str, *, device_ip: str | None = None, **kwargs: Any
+        self,
+        model_path: PathType,
+        device_ip: str | None = None,
+        **kwargs: Any,
     ) -> None:
         """Initialize the DepthAI inference engine.
 
         Parameters
         ----------
-        model_path : str
+        model_path : PathType
             Path to the model file.
         device_ip : str | None, optional
             IP address of the DepthAI device.
@@ -27,11 +30,6 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
             Additional engine configuration.
         """
         super().__init__(model_path=model_path, **kwargs)
-        self.model_path = (
-            self.model_path
-            if isinstance(self.model_path, Path)
-            else Path(self.model_path)
-        )
         self.device_ip = device_ip
         self._pipeline: dai.Pipeline | None = None
         self.device: dai.Device | None = None

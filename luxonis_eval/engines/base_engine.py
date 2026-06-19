@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -41,7 +42,7 @@ class BaseEngine(
         **kwargs : Any
             Engine basic configuration.
         """
-        self.model_path = model_path
+        self.model_path = Path(model_path)
         self.model_spec: ModelSpec | None = None
 
     @abstractmethod
