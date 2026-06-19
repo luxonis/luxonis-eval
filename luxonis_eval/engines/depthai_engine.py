@@ -131,7 +131,22 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         assert img.shape[0] == model_spec.height
         assert img.shape[1] == model_spec.width
 
-        if self._resolve_platform_name() == "RVC2":
+        if img.ndim == 2:
+            channel_count = 1
+        elif img.ndim == 3 and img.shape[2] == 1:
+            channel_count = 1
+            img = img[:, :, 0]
+        elif img.ndim == 3:
+            channel_count = img.shape[2]
+        else:
+            raise ValueError(
+                f"Unsupported image shape for DepthAI inference: {img.shape}."
+            )
+
+        if channel_count == 1:
+            img_frame_type = dai.ImgFrame.Type.GRAY8
+            img_for_device = img
+        elif self._resolve_platform_name() == "RVC2":
             img_frame_type = dai.ImgFrame.Type.BGR888p
             img_for_device = np.transpose(img, (2, 0, 1))
         else:

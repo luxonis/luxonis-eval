@@ -55,6 +55,7 @@ def create_loader(
             DATALOADERS_REGISTRY,
             cfg.pipeline.loader.name,
             model_spec=model_spec,
+            nn_archive_cfg=cfg.nn_archive_cfg,
             **cfg.pipeline.loader.params,
         )
         if not isinstance(dataloader, BaseEvalLoader):

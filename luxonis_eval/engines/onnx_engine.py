@@ -81,8 +81,19 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
         self._visualization_frame = img.copy()
         if img.dtype != np.float32:
             img = img.astype(np.float32)
-        x = np.transpose(img, (2, 0, 1))
-        x = x[None, :, :, :]
+
+        if img.ndim == 2:
+            x = img[None, None, :, :]
+        elif img.ndim == 3 and img.shape[2] == 1:
+            x = img[:, :, 0][None, None, :, :]
+        elif img.ndim == 3:
+            x = np.transpose(img, (2, 0, 1))[None, :, :, :]
+        else:
+            raise ValueError(
+                f"Unsupported image shape for ONNX inference: {img.shape}. "
+                "Expected `HW` or `HWC` loader output."
+            )
+
         return self._session.run(None, {self._input_name: x})
 
     def vis_frame(self) -> np.ndarray:

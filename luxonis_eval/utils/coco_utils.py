@@ -7,8 +7,6 @@ from typing import Any
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 
-from luxonis_eval import __version__
-
 
 @contextmanager
 def suppress_stdout() -> Iterator[None]:
@@ -139,7 +137,7 @@ class COCOStore:
             Computed mAP results.
         """
         coco_target_dict = {
-            "info": {"description": "luxonis-eval", "version": __version__},
+            "info": {"description": "luxonis-eval"},
             "images": self.images,
             "annotations": self.gt_annotations,
             "categories": self.categories or [],

@@ -34,7 +34,6 @@ from luxonis_eval.core.runtime import (
 )
 from luxonis_eval.core.validation import (
     resolve_evaluator_config,
-    run_static_compatibility_warnings,
     validate_engine_setup,
 )
 from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
@@ -114,11 +113,6 @@ class LuxonisEval:
                 ldf_class_map=self.ldf_class_map,
                 class_map=self.class_map,
                 class_index_map=self.class_index_map,
-            )
-            run_static_compatibility_warnings(
-                engine_name=self.cfg.pipeline.engine.name,
-                normalize_active=self.cfg.pipeline.loader.preprocessing.normalize.active,
-                color_space=self.cfg.pipeline.loader.preprocessing.color_space,
             )
             self._sanity_check_pipeline()
         except Exception:
