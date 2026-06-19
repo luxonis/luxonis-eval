@@ -304,7 +304,7 @@ pipeline:
 > When using the `depthai` backend, normalization is usually handled by the model's own preprocessing pipeline. The engine will warn you if normalization is enabled together with `DepthAI`. `DepthAI` also expects `BGR` color space, so a warning is emitted if `RGB` is selected.
 
 > [!IMPORTANT]
-> `LuxonisLoader` evaluation is currently single-task only. Task selection has moved out of `loader.params` and into `pipeline.evaluators[*].task_name`. For datasets that use the default empty Luxonis task, set `task_name: ""`.
+> `LuxonisLoader` evaluation is currently single-task only. Task selection is done by collecting tasks defined at `pipeline.evaluators[*].task_name`. For datasets that use the default empty Luxonis task, set `task_name: ""`.
 
 ### 🧠 Evaluators
 
@@ -445,6 +445,7 @@ For `LuxonisLoader`-backed datasets, the LDF and native class maps may differ wh
 >
 > - **`image`** (`np.ndarray`) is a single image, for example with shape `(H, W, 3)`.
 > - **`annotations_dict`** (`dict[str, np.ndarray]`) maps task-group annotation keys to arrays, such as `"/boundingbox"`, `"/classification"`, or `"/segmentation"`.
+> - **`model_spec`** (`ModelSpec`) is passed to every loader constructor by LuxonisEval, so custom loaders can use the engine-resolved `width` and `height` during initialization or preprocessing setup.
 >
 > Every subclass implementation of `__getitem__` is wrapped by `@validate_loader_output`, which calls `check_loader_output` at runtime and raises a descriptive `TypeError` if the output format is invalid.
 >
@@ -452,16 +453,14 @@ For `LuxonisLoader`-backed datasets, the LDF and native class maps may differ wh
 
 ### 🔌 Adding a Custom Engine
 
-Subclass [`BaseEngine`](luxonis_eval/engines/base_engine.py) and implement the six abstract methods:
+Subclass [`BaseEngine`](luxonis_eval/engines/base_engine.py) and implement the four abstract methods:
 
-- **`_setup_impl()`** - Initialize backend resources such as runtimes, sessions, or device connections. Keep this idempotent so repeated `setup()` calls are safe.
-- **`get_input_shape()`** - Return the model input size as a `(width, height)` tuple
-- **`get_platform_name()`** - Return a human-readable platform name such as `"RVC2"` or `"RVC4"`
+- **`setup()`** - Initialize backend resources such as runtimes, sessions, or device connections, then return a `ModelSpec(width, height)` for the loaded model. Keep this idempotent so repeated calls are safe.
 - **`infer_once(img)`** - Run inference on a single preprocessed image and return the raw backend output
 - **`vis_frame()`** - Return a copy of the input image suitable for visualization overlays
 - **`close()`** - Release backend resources after evaluation finishes
 
-`BaseEngine.setup()` is provided by the framework and should usually not be overridden. It calls `_setup_impl()` and then populates `width`, `height`, and `platform_name` from `get_input_shape()` and `get_platform_name()`.
+The framework consumes the returned `ModelSpec` to configure loader preprocessing and metric contexts.
 
 ### 🧠 Adding a Custom Parser
 

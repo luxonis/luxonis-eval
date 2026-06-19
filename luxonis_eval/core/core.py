@@ -37,7 +37,7 @@ from luxonis_eval.core.validation import (
     run_static_compatibility_warnings,
     validate_engine_setup,
 )
-from luxonis_eval.engines.base_engine import BaseEngine
+from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
 from luxonis_eval.loaders.base_loader import BaseEvalLoader
 from luxonis_eval.metrics import ThroughputMetric
 from luxonis_eval.metrics.base_metric import BaseMetric
@@ -81,17 +81,13 @@ class LuxonisEval:
                 self.cfg.pipeline.evaluators
             )
             self.engine = create_engine(self.cfg)
-            self.engine.setup()
-            validate_engine_setup(self.engine)
-            self.backend = self.cfg.pipeline.engine.name
-            self.model_name = get_model_name(
-                self.cfg.pipeline.engine.model_path
-            )
+            self.model_spec = self.engine.setup()
+            validate_engine_setup(self.model_spec)
 
             self.loader, self.loader_task_name = create_loader(
                 self.cfg,
                 self.evaluator_cfg,
-                self.engine,
+                self.model_spec,
             )
             self.parser = create_parser(self.evaluator_cfg)
             self.metrics = create_metrics(self.evaluator_cfg)
@@ -114,8 +110,7 @@ class LuxonisEval:
             )
             self.metric_contexts = build_metric_contexts(
                 self.evaluator_cfg,
-                width=self.engine.width,
-                height=self.engine.height,
+                model_spec=self.model_spec,
                 ldf_class_map=self.ldf_class_map,
                 class_map=self.class_map,
                 class_index_map=self.class_index_map,
@@ -154,14 +149,14 @@ class LuxonisEval:
     def _run_evaluators(self) -> dict[str, Any]:
         """Run the configured quality evaluator."""
         self._require_setup()
+        engine_name = self.cfg.pipeline.engine.name
+        model_name = get_model_name(self.cfg.pipeline.engine.model_path)
 
         assert self.engine is not None
         assert self.loader is not None
         assert self.parser is not None
         assert self.throughput_metric is not None
-        assert self.backend is not None
         assert self.evaluator_cfg is not None
-        assert self.model_name is not None
 
         with Progress(
             TextColumn("[progress.description]{task.description}"),
@@ -170,7 +165,7 @@ class LuxonisEval:
             TimeElapsedColumn(),
         ) as progress:
             ptask = progress.add_task(
-                f"Running {self.backend.upper()} inference ({self.model_name})...",
+                f"Running {engine_name.upper()} inference ({model_name})...",
                 total=len(self.loader),
             )
 
@@ -242,16 +237,9 @@ class LuxonisEval:
             metric_compute=metric_compute_elapsed
         )
 
-        device = self.engine.platform_name
-        if device is None:
-            raise RuntimeError(
-                "Engine platform name is unavailable after setup."
-            )
-
         report = make_report_table(
-            backend=self.backend,
-            model_name=self.model_name,
-            device=device,
+            engine_name=engine_name,
+            model_name=model_name,
             tp=throughput,
             results=results,
         )
@@ -263,9 +251,8 @@ class LuxonisEval:
 
         return {
             "evaluator_name": self.evaluator_cfg.name,
-            "backend": self.backend,
-            "model_name": self.model_name,
-            "device": device,
+            "engine": engine_name,
+            "model_name": model_name,
             "metrics": results,
             "throughput": throughput,
             "report": report,
@@ -342,8 +329,7 @@ class LuxonisEval:
         self.visualizers: list[BaseVisualizer] = []
         self.evaluator_cfg: EvaluatorConfig | None = None
 
-        self.backend: str | None = None
-        self.model_name: str | None = None
+        self.model_spec: ModelSpec | None = None
         self.loader_task_name: str | None = None
 
         self.ldf_class_map: dict[int, str] = {}

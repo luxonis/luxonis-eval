@@ -4,7 +4,7 @@ from luxonis_ml.data.loaders import LuxonisLoader
 
 from luxonis_eval.config import EvalConfig, EvaluatorConfig
 from luxonis_eval.core.runtime import resolve_luxonis_task_name
-from luxonis_eval.engines.base_engine import BaseEngine
+from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
 from luxonis_eval.loaders.base_loader import BaseEvalLoader
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.parsers.base_parser import BaseParser
@@ -45,18 +45,16 @@ def create_engine(cfg: EvalConfig) -> BaseEngine:
 def create_loader(
     cfg: EvalConfig,
     evaluator_cfg: EvaluatorConfig,
-    engine: BaseEngine,
+    model_spec: ModelSpec,
 ) -> tuple[BaseEvalLoader | LuxonisLoader, str | None]:
-    if engine.width is None or engine.height is None:
-        raise RuntimeError("Engine input shape is unavailable after setup.")
-
     try:
         if cfg.pipeline.loader.name == "LuxonisLoader":
-            return _create_luxonis_loader(cfg, evaluator_cfg, engine)
+            return _create_luxonis_loader(cfg, evaluator_cfg, model_spec)
 
         dataloader = from_registry(
             DATALOADERS_REGISTRY,
             cfg.pipeline.loader.name,
+            model_spec=model_spec,
             **cfg.pipeline.loader.params,
         )
         if not isinstance(dataloader, BaseEvalLoader):
@@ -163,7 +161,7 @@ def create_visualizers(
 def _create_luxonis_loader(
     cfg: EvalConfig,
     evaluator_cfg: EvaluatorConfig,
-    engine: BaseEngine,
+    model_spec: ModelSpec,
 ) -> tuple[LuxonisLoader, str]:
     loader_params = dict(cfg.pipeline.loader.params)
     loader_params.pop("filter_task_names", None)
@@ -202,8 +200,8 @@ def _create_luxonis_loader(
         dataset,
         view=loader_params.pop("view", ["val"]),  # type: ignore
         augmentation_config=augmentation_config,
-        height=engine.height,
-        width=engine.width,
+        height=model_spec.height,
+        width=model_spec.width,
         keep_aspect_ratio=cfg.pipeline.loader.preprocessing.keep_aspect_ratio,
         color_space=cfg.pipeline.loader.preprocessing.color_space,
         **loader_params,  # type: ignore
