@@ -445,6 +445,7 @@ For `LuxonisLoader`-backed datasets, the LDF and native class maps may differ wh
 >
 > - **`image`** (`np.ndarray`) is a single image, for example with shape `(H, W, 3)`.
 > - **`annotations_dict`** (`dict[str, np.ndarray]`) maps task-group annotation keys to arrays, such as `"/boundingbox"`, `"/classification"`, or `"/segmentation"`.
+> - **`model_spec`** (`ModelSpec`) is passed to every loader constructor by LuxonisEval, so custom loaders can use the engine-resolved `width` and `height` during initialization or preprocessing setup.
 >
 > Every subclass implementation of `__getitem__` is wrapped by `@validate_loader_output`, which calls `check_loader_output` at runtime and raises a descriptive `TypeError` if the output format is invalid.
 >

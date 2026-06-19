@@ -54,6 +54,7 @@ def create_loader(
         dataloader = from_registry(
             DATALOADERS_REGISTRY,
             cfg.pipeline.loader.name,
+            model_spec=model_spec,
             **cfg.pipeline.loader.params,
         )
         if not isinstance(dataloader, BaseEvalLoader):

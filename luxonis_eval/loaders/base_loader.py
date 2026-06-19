@@ -5,6 +5,7 @@ from functools import wraps
 from luxonis_ml.data.loaders import BaseLoader
 from luxonis_ml.typing import LoaderOutput
 
+from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.registry import DATALOADERS_REGISTRY
 from luxonis_eval.utils.utils import check_loader_classes, check_loader_output
 
@@ -41,7 +42,8 @@ def validate_loader_output(func: Callable) -> Callable:
 class BaseEvalLoader(BaseLoader, register=False):
     REGISTRY = DATALOADERS_REGISTRY
 
-    def __init__(self, **kwargs):
+    def __init__(self, model_spec: ModelSpec, **kwargs):
+        self.model_spec = model_spec
         self.classes = self.load_classes()
         try:
             check_loader_classes(self.classes)
