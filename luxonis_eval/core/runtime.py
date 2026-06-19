@@ -73,7 +73,7 @@ def get_metric_ctx(base_ctx: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
 
     return {
         **base_ctx,
-        "native_class_map": class_map,
+        "class_map": class_map,
         "class_index_map": class_index_map,
         "width": width,
         "height": height,
