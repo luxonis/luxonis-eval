@@ -1,43 +1,44 @@
-loader:
-  name: LuxonisLoader
-  preprocessing:
-    keep_aspect_ratio: true
-    color_space: RGB
-    normalize:
-      active: true
-      params:
-        mean: 0.0
-        std: 1.0
-  params:
-    dataset_name: coco-2017
-    view: [val]
+pipeline:
+  loader:
+    name: LuxonisLoader
+    preprocessing:
+      keep_aspect_ratio: true
+      color_space: RGB
+      normalize:
+        active: true
+        params:
+          mean: [0.0, 0.0, 0.0]
+          std: [1.0, 1.0, 1.0]
+    params:
+      dataset_name: coco-2017
+      view: [val]
 
-parser:
-  name: YOLOInstanceSegmentationParser
-  params:
-    subtype: yolov8
-    n_classes: 80
-    conf_threshold: 0.25
-    iou_threshold: 0.7
-    mask_conf: 0.25
+  engine:
+    model_path: examples/quickstart_inst_seg/models/yolov8n-seg.onnx
+    name: onnx
+    params:
+      providers: [CPUExecutionProvider]
 
-metrics:
-  metrics:
-    - name: BboxMeanAveragePrecision
-      params:
-        iou_type: bbox
-    - name: MaskMeanAveragePrecision
-      params:
-        iou_type: segm
+  # engine:
+  #   model_path: examples/quickstart_inst_seg/models/yolov8n-seg.rvc4.tar.xz
+  #   name: depthai
+  #   params:
+  #     device_ip: 10.12.143.173
 
-engine:
-  model_path: examples/quickstart_inst_seg/models/yolov8n-seg.onnx
-  name: onnx
-  params:
-    providers: [CPUExecutionProvider]
-
-# engine:
-#   model_path: examples/quickstart_inst_seg/models/yolov8n-seg.rvc4.tar.xz
-#   name: depthai
-#   params:
-#     device_ip: 10.12.143.173
+  evaluators:
+    - parser:
+        name: YOLOInstanceSegmentationParser
+        params:
+          subtype: yolov8
+          n_classes: 80
+          conf_threshold: 0.25
+          iou_threshold: 0.7
+          mask_conf: 0.25
+      metrics:
+        - name: BboxMeanAveragePrecision
+          params:
+            iou_type: bbox
+        - name: MaskMeanAveragePrecision
+          params:
+            iou_type: segm
+      visualizers: []

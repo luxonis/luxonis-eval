@@ -4,8 +4,8 @@ from typing import Any, Literal
 from cyclopts import App, Group
 from luxonis_ml.typing import Params, PathType
 
+from luxonis_eval.config import EvalConfig
 from luxonis_eval.core import LuxonisEval
-from luxonis_eval.utils.config import EvalConfig
 
 app = App(
     help="Luxonis Eval CLI",
@@ -21,12 +21,41 @@ def eval_run(
     opts: Params | list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     """Run evaluation with the given configuration."""
+    # Temporary: until benchmark execution is implemented, `eval` delegates
+    # to the quality-only path.
+    return quality_run(cfg, opts)
+
+
+def quality_run(
+    cfg: PathType | Params | EvalConfig,
+    opts: Params | list[str] | tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    """Run the configured quality evaluators."""
     evaluator = LuxonisEval(cfg, opts)
     evaluator.setup()
     try:
         return evaluator.evaluate()
     finally:
         evaluator.close()
+
+
+def _build_overrides(
+    *,
+    dataset_name: str | None = None,
+    model_path: str | None = None,
+    backend: Literal["depthai", "onnx"] | None = None,
+    device_ip: str | None = None,
+) -> dict[str, Any]:
+    overrides: dict[str, Any] = {}
+    if dataset_name is not None:
+        overrides["pipeline.loader.params.dataset_name"] = dataset_name
+    if model_path is not None:
+        overrides["pipeline.engine.model_path"] = model_path
+    if backend is not None:
+        overrides["pipeline.engine.name"] = backend
+    if device_ip is not None:
+        overrides["pipeline.engine.params.device_ip"] = device_ip
+    return overrides
 
 
 @app.command()
@@ -52,17 +81,35 @@ def eval(
     device_ip : str | None, optional
         IP address of the device to connect to. Only applicable for RVC4 devices.
     """
-    overrides = {}
-    if dataset_name is not None:
-        overrides["loader.params.dataset_name"] = dataset_name
-    if model_path is not None:
-        overrides["engine.model_path"] = model_path
-    if backend is not None:
-        overrides["engine.name"] = backend
-    if device_ip is not None:
-        overrides["engine.params.device_ip"] = device_ip
+    eval_run(
+        config,
+        _build_overrides(
+            dataset_name=dataset_name,
+            model_path=model_path,
+            backend=backend,
+            device_ip=device_ip,
+        ),
+    )
 
-    eval_run(config, overrides)
+
+@app.command()
+def quality(
+    config: str,
+    dataset_name: str | None = None,
+    model_path: str | None = None,
+    backend: Literal["depthai", "onnx"] | None = None,
+    device_ip: str | None = None,
+) -> None:
+    """Run only the configured quality evaluators."""
+    quality_run(
+        config,
+        _build_overrides(
+            dataset_name=dataset_name,
+            model_path=model_path,
+            backend=backend,
+            device_ip=device_ip,
+        ),
+    )
 
 
 if __name__ == "__main__":
