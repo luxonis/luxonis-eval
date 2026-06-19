@@ -304,7 +304,7 @@ pipeline:
 > When using the `depthai` backend, normalization is usually handled by the model's own preprocessing pipeline. The engine will warn you if normalization is enabled together with `DepthAI`. `DepthAI` also expects `BGR` color space, so a warning is emitted if `RGB` is selected.
 
 > [!IMPORTANT]
-> `LuxonisLoader` evaluation is currently single-task only. Task selection has moved out of `loader.params` and into `pipeline.evaluators[*].task_name`. For datasets that use the default empty Luxonis task, set `task_name: ""`.
+> `LuxonisLoader` evaluation is currently single-task only. Task selection is done by collecting tasks defined at `pipeline.evaluators[*].task_name`. For datasets that use the default empty Luxonis task, set `task_name: ""`.
 
 ### 🧠 Evaluators
 
