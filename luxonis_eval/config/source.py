@@ -101,3 +101,9 @@ class SourceEvalConfig(BaseModelExtraForbid):
 
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     pipeline: SourcePipelineConfig
+
+    def __str__(self) -> str:
+        return self.model_dump_json(indent=4)
+
+    def __repr__(self) -> str:
+        return self.__str__()

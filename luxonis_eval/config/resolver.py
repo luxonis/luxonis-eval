@@ -102,7 +102,7 @@ class EvalConfigResolver:
 
         if explicit_active is False:
             active = False
-            params = explicit_params or dict(DEFAULT_NORMALIZE_PARAMS)
+            params = {}
         elif explicit_active is True:
             active = True
             params = (
@@ -118,7 +118,7 @@ class EvalConfigResolver:
             params = archive_params
         else:
             active = False
-            params = dict(DEFAULT_NORMALIZE_PARAMS)
+            params = {}
 
         return NormalizeAugmentationConfig(active=active, params=params)
 
@@ -128,7 +128,16 @@ class EvalConfigResolver:
         mean, scale = resolve_archive_normalization(nn_archive_cfg)
         if mean is None or scale is None:
             return None
+        if self._is_identity_normalization(mean, scale):
+            return None
         return {"mean": list(mean), "std": list(scale)}
+
+    def _is_identity_normalization(
+        self, mean: list[float], scale: list[float]
+    ) -> bool:
+        return all(value == 0 for value in mean) and all(
+            value == 1 for value in scale
+        )
 
     def _resolve_evaluators(
         self,

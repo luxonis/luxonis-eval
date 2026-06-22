@@ -13,7 +13,6 @@ from pydantic_extra_types.semantic_version import SemanticVersion
 
 import luxonis_eval as lxe
 from luxonis_eval.config.shared import (
-    DEFAULT_NORMALIZE_PARAMS,
     EngineConfig,
     MetricConfig,
     ParserConfig,
@@ -30,13 +29,13 @@ if TYPE_CHECKING:
 
 class NormalizeAugmentationConfig(BaseModelExtraForbid):
     active: bool = False
-    params: Params = Field(
-        default_factory=lambda: dict(DEFAULT_NORMALIZE_PARAMS)
-    )
+    params: Params = Field(default_factory=dict)
 
     @field_validator("params", mode="after")
     @classmethod
     def validate_params(cls, value: Params) -> Params:
+        if not value:
+            return {}
         return validate_normalize_params(value)
 
 
