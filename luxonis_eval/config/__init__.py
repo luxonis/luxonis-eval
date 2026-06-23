@@ -8,6 +8,7 @@ from luxonis_eval.config.resolved import (
 )
 from luxonis_eval.config.shared import (
     EngineConfig,
+    LoggingConfig,
     MetricConfig,
     ParserConfig,
     RuntimeConfig,
@@ -19,6 +20,7 @@ __all__ = [
     "EngineConfig",
     "EvalConfig",
     "EvaluatorConfig",
+    "LoggingConfig",
     "MetricConfig",
     "NormalizeAugmentationConfig",
     "ParserConfig",

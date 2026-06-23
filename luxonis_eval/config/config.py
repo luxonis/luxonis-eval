@@ -5,6 +5,7 @@ from loguru import logger
 from luxonis_ml.typing import Params, PathType
 from luxonis_ml.utils.config import LuxonisConfig
 from luxonis_ml.utils.filesystem import LuxonisFileSystem
+from luxonis_ml.utils.logging import setup_logging
 
 from luxonis_eval.config.nn_archive import load_nn_archive_from_source_config
 from luxonis_eval.config.resolved import ResolvedEvalConfig
@@ -26,6 +27,7 @@ class EvalConfig(ResolvedEvalConfig):
         LuxonisConfig._merge_overrides(raw_data, overrides_dict)
 
         source = SourceEvalConfig(**raw_data)  # type: ignore
+        setup_logging(**source.runtime.logging.model_dump())
 
         logger.debug(f"Source config:\n{source}")
 

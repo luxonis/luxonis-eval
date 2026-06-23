@@ -1,10 +1,15 @@
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
 from loguru import logger
 from luxonis_ml.data import BucketStorage, LuxonisDataset
-from luxonis_ml.typing import BaseModelExtraForbid, ConfigItem, Params
-from pydantic import field_validator, model_validator
+from luxonis_ml.typing import (
+    BaseModelExtraForbid,
+    ConfigItem,
+    Params,
+    PathType,
+)
+from pydantic import Field, field_validator, model_validator
 
 from luxonis_eval.registry import (
     DATALOADERS_REGISTRY,
@@ -92,8 +97,17 @@ class EngineConfig(ConfigItem):
         return self
 
 
+class LoggingConfig(BaseModelExtraForbid):
+    use_rich: bool = True
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] | None = (
+        None
+    )
+    file: PathType | None = None
+
+
 class RuntimeConfig(BaseModelExtraForbid):
     nn_archive_params_override: bool = False
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
 
 def validate_normalize_params(params: Params) -> Params:
