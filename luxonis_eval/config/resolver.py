@@ -286,7 +286,12 @@ class EvalConfigResolver:
             return resolve_yolo_archive_parser(archive_head)
 
         parser_name = self._map_archive_parser_name(archive_head.parser)
-        return ParserConfig(name=parser_name, params={})
+        metadata = resolve_head_metadata(archive_head)
+        params = self._resolve_archive_parser_params(
+            parser_name=parser_name,
+            metadata=metadata,
+        )
+        return ParserConfig(name=parser_name, params=params)
 
     def _map_archive_parser_name(self, parser_name: str) -> str:
         mapping = {
@@ -302,6 +307,22 @@ class EvalConfigResolver:
                 f"NNArchive parser '{parser_name}' is not supported by luxonis-eval yet."
             )
         return resolved_name
+
+    def _resolve_archive_parser_params(
+        self,
+        *,
+        parser_name: str,
+        metadata: Params,
+    ) -> Params:
+        params: Params = {}
+
+        if parser_name == "ClassificationParser" and "is_softmax" in metadata:
+            # Archive metadata describes whether outputs are already softmaxed,
+            # while the eval parser flag controls whether softmax should be
+            # applied during parsing.
+            params["apply_softmax"] = not bool(metadata["is_softmax"])
+
+        return params
 
 
 def resolve_yolo_archive_parser(head: Any) -> ParserConfig:
