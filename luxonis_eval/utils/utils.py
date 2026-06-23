@@ -16,8 +16,19 @@ def check_loader_output(output: object) -> None:
     Raises
     ------
     TypeError
-        If the output is not of type 'luxonis_ml.typing.LoaderOutput': a tuple containing either a single image as a 'np.ndarray or a dictionary mapping image names to 'np.ndarray', along with a dictionary of task group names and their annotations.
+        If the output is not of type 'luxonis_ml.typing.LoaderOutput': a
+        tuple containing either a single image as an `np.ndarray` or a
+        dictionary mapping image names to `np.ndarray`, along with a
+        dictionary of task group names and their annotations.
     """
+
+    def _validate_image_array(image: np.ndarray) -> None:
+        if image.ndim not in (2, 3):
+            raise TypeError(
+                "Image arrays must be `HW` (grayscale) or `HWC` (color), "
+                f"got shape {image.shape}."
+            )
+
     if not isinstance(output, tuple) or len(output) != 2:
         raise TypeError(
             f"LoaderOutput must be a tuple of length 2, got {type(output)}"
@@ -26,7 +37,7 @@ def check_loader_output(output: object) -> None:
     images, labels = output
 
     if isinstance(images, np.ndarray):
-        pass  # LoaderSingleOutput
+        _validate_image_array(images)
     elif isinstance(images, dict) and all(
         isinstance(k, str) and isinstance(v, np.ndarray)
         for k, v in images.items()

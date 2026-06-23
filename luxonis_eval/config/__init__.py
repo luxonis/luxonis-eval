@@ -1,13 +1,15 @@
-from .config import (
+from luxonis_eval.config.config import EvalConfig
+from luxonis_eval.config.resolved import (
     DataLoaderConfig,
-    EngineConfig,
-    EvalConfig,
     EvaluatorConfig,
-    MetricConfig,
     NormalizeAugmentationConfig,
-    ParserConfig,
     PipelineConfig,
     PreProcessingConfig,
+)
+from luxonis_eval.config.shared import (
+    EngineConfig,
+    MetricConfig,
+    ParserConfig,
     RuntimeConfig,
     VisualizerConfig,
 )
