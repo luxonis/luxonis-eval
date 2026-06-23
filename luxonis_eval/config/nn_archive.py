@@ -4,20 +4,17 @@ from pathlib import Path
 
 from luxonis_ml.nn_archive.config import Config as NNArchiveConfig
 from luxonis_ml.nn_archive.config_building_blocks import HeadType, Input
+from luxonis_ml.nn_archive.utils import is_nn_archive
 from luxonis_ml.typing import Params
 
 from luxonis_eval.config.source import SourceEvalConfig
-
-
-def is_nn_archive_path(model_path: str) -> bool:
-    return model_path.endswith(".tar.xz")
 
 
 def load_nn_archive_from_source_config(
     source: SourceEvalConfig,
 ) -> NNArchiveConfig | None:
     model_path = source.pipeline.engine.model_path
-    if not is_nn_archive_path(model_path):
+    if not is_nn_archive(model_path):
         return None
     return load_nn_archive_config(model_path)
 

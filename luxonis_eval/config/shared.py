@@ -3,6 +3,7 @@ from typing import Protocol
 
 from loguru import logger
 from luxonis_ml.data import BucketStorage, LuxonisDataset
+from luxonis_ml.nn_archive.utils import is_nn_archive
 from luxonis_ml.typing import BaseModelExtraForbid, ConfigItem, Params
 from pydantic import field_validator, model_validator
 
@@ -81,7 +82,7 @@ class EngineConfig(ConfigItem):
 
     @model_validator(mode="after")
     def validate_backend_matches_inputs(self) -> "EngineConfig":
-        if self.model_path.endswith(".tar.xz") and self.name != "depthai":
+        if is_nn_archive(self.model_path) and self.name != "depthai":
             raise ValueError(
                 f"NNArchive model ({self.model_path}) can only be used with the 'depthai' backend."
             )
