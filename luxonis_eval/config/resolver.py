@@ -38,14 +38,18 @@ class EvalConfigResolver:
         source: SourceEvalConfig,
         nn_archive_cfg: NNArchiveConfig | None,
     ) -> ResolvedEvalConfig:
+        prefer_archive = source.runtime.nn_archive_params_override
         pipeline = PipelineConfig(
             loader=self._resolve_loader(
-                source.pipeline.loader, nn_archive_cfg
+                source.pipeline.loader,
+                nn_archive_cfg,
+                prefer_archive=prefer_archive,
             ),
             engine=source.pipeline.engine.model_copy(deep=True),
             evaluators=self._resolve_evaluators(
                 source.pipeline.evaluators,
                 nn_archive_cfg,
+                prefer_archive=prefer_archive,
             ),
             benchmark=source.pipeline.benchmark,
         )
@@ -61,16 +65,22 @@ class EvalConfigResolver:
         self,
         source_loader: SourceDataLoaderConfig,
         nn_archive_cfg: NNArchiveConfig | None,
+        *,
+        prefer_archive: bool,
     ) -> DataLoaderConfig:
-        color_space = (
-            source_loader.preprocessing.color_space
-            or resolve_archive_color_space(nn_archive_cfg)
-            or "RGB"
+        archive_color_space = resolve_archive_color_space(nn_archive_cfg)
+        source_color_space = source_loader.preprocessing.color_space
+        color_space = self._pick_preferred_value(
+            source_value=source_color_space,
+            archive_value=archive_color_space,
+            prefer_archive=prefer_archive,
+            default="RGB",
         )
         normalize = self._resolve_normalize_config(
             loader_name=source_loader.name,
             source_normalize=source_loader.preprocessing.normalize,
             nn_archive_cfg=nn_archive_cfg,
+            prefer_archive=prefer_archive,
         )
         return DataLoaderConfig(
             name=source_loader.name,
@@ -88,6 +98,7 @@ class EvalConfigResolver:
         loader_name: str,
         source_normalize: SourceNormalizeAugmentationConfig | None,
         nn_archive_cfg: NNArchiveConfig | None,
+        prefer_archive: bool,
     ) -> NormalizeAugmentationConfig:
         explicit_active = (
             source_normalize.active if source_normalize is not None else None
@@ -98,39 +109,77 @@ class EvalConfigResolver:
             and source_normalize.params is not None
             else None
         )
-        archive_params = self._resolve_archive_normalize_params(nn_archive_cfg)
+        archive_active, archive_params = (None, None)
+        if loader_name == "LuxonisLoader":
+            archive_active, archive_params = (
+                self._resolve_archive_normalize_state(nn_archive_cfg)
+            )
 
-        if explicit_active is False:
-            active = False
+        if prefer_archive:
+            if archive_active is not None:
+                active = archive_active
+            elif explicit_active is not None:
+                active = explicit_active
+            elif explicit_params is not None:
+                active = True
+            else:
+                active = False
+        else:  # noqa: PLR5501
+            if explicit_active is False:
+                active = False
+            elif explicit_active is True or explicit_params is not None:
+                active = True
+            elif archive_active is not None:
+                active = archive_active
+            else:
+                active = False
+
+        if not active:
             params = {}
-        elif explicit_active is True:
-            active = True
+        elif prefer_archive:
             params = (
-                explicit_params
-                or (archive_params if loader_name == "LuxonisLoader" else None)
+                archive_params
+                or explicit_params
                 or dict(DEFAULT_NORMALIZE_PARAMS)
             )
-        elif explicit_params is not None:
-            active = True
-            params = explicit_params
-        elif loader_name == "LuxonisLoader" and archive_params is not None:
-            active = True
-            params = archive_params
         else:
-            active = False
-            params = {}
+            params = (
+                explicit_params
+                or archive_params
+                or dict(DEFAULT_NORMALIZE_PARAMS)
+            )
 
         return NormalizeAugmentationConfig(active=active, params=params)
 
-    def _resolve_archive_normalize_params(
+    def _pick_preferred_value(
+        self,
+        *,
+        source_value: Any,
+        archive_value: Any,
+        prefer_archive: bool,
+        default: Any = None,
+    ) -> Any:
+        primary = archive_value if prefer_archive else source_value
+        secondary = source_value if prefer_archive else archive_value
+        return primary or secondary or default
+
+    def _resolve_archive_normalize_state(
         self, nn_archive_cfg: NNArchiveConfig | None
-    ) -> Params | None:
+    ) -> tuple[bool | None, Params | None]:
+        if nn_archive_cfg is None:
+            return None, None
+
         mean, scale = resolve_archive_normalization(nn_archive_cfg)
+        if mean is None and scale is None:
+            return False, None
         if mean is None or scale is None:
-            return None
+            raise ValueError(
+                "NNArchive preprocessing normalization must define both "
+                "`mean` and `scale`, or neither."
+            )
         if self._is_identity_normalization(mean, scale):
-            return None
-        return {"mean": list(mean), "std": list(scale)}
+            return False, None
+        return True, {"mean": list(mean), "std": list(scale)}
 
     def _is_identity_normalization(
         self, mean: list[float], scale: list[float]
@@ -143,15 +192,25 @@ class EvalConfigResolver:
         self,
         source_evaluators: list[SourceEvaluatorConfig] | None,
         nn_archive_cfg: NNArchiveConfig | None,
+        *,
+        prefer_archive: bool,
     ) -> list[EvaluatorConfig] | None:
         if source_evaluators is None:
             return None
-        return [self._resolve_evaluator(source_evaluators[0], nn_archive_cfg)]
+        return [
+            self._resolve_evaluator(
+                source_evaluators[0],
+                nn_archive_cfg,
+                prefer_archive=prefer_archive,
+            )
+        ]
 
     def _resolve_evaluator(
         self,
         source_evaluator: SourceEvaluatorConfig,
         nn_archive_cfg: NNArchiveConfig | None,
+        *,
+        prefer_archive: bool,
     ) -> EvaluatorConfig:
         archive_parser = self._resolve_archive_parser(nn_archive_cfg)
         parser_name = (
@@ -174,8 +233,16 @@ class EvalConfigResolver:
             if source_evaluator.parser is not None
             else {}
         )
-        outputs = source_evaluator.outputs or self._resolve_archive_outputs(
-            nn_archive_cfg
+        parser_params = (
+            {**source_params, **archive_params}
+            if prefer_archive
+            else {**archive_params, **source_params}
+        )
+        archive_outputs = self._resolve_archive_outputs(nn_archive_cfg)
+        outputs = self._pick_preferred_value(
+            source_value=source_evaluator.outputs,
+            archive_value=archive_outputs,
+            prefer_archive=prefer_archive,
         )
 
         return EvaluatorConfig(
@@ -184,7 +251,7 @@ class EvalConfigResolver:
             outputs=outputs,
             parser=ParserConfig(
                 name=parser_name,
-                params={**archive_params, **source_params},
+                params=parser_params,
             ),
             metrics=[
                 metric.model_copy(deep=True)

@@ -93,7 +93,7 @@ class EngineConfig(ConfigItem):
 
 
 class RuntimeConfig(BaseModelExtraForbid):
-    pass
+    nn_archive_params_override: bool = False
 
 
 def validate_normalize_params(params: Params) -> Params:

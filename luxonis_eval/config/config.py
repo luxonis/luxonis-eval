@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import yaml
+from loguru import logger
 from luxonis_ml.typing import Params, PathType
 from luxonis_ml.utils.config import LuxonisConfig
 from luxonis_ml.utils.filesystem import LuxonisFileSystem
@@ -24,11 +25,19 @@ class EvalConfig(ResolvedEvalConfig):
         overrides_dict = _normalize_overrides(overrides)
         LuxonisConfig._merge_overrides(raw_data, overrides_dict)
 
-        source = SourceEvalConfig(**raw_data)
+        source = SourceEvalConfig(**raw_data)  # type: ignore
+
+        logger.debug(f"Source config:\n{source}")
+
         nn_archive_cfg = load_nn_archive_from_source_config(source)
-        return EvalConfigResolver(config_cls=cls).resolve(
+        logger.debug(f"NNArchive config:\n{nn_archive_cfg}")
+
+        resolved_config = EvalConfigResolver(config_cls=cls).resolve(
             source, nn_archive_cfg
         )
+        logger.debug(f"Resolved config:\n{resolved_config}")
+
+        return resolved_config  # pyright: ignore[reportReturnType]
 
 
 def _load_raw_config_data(cfg: PathType | Params | None) -> Params:
