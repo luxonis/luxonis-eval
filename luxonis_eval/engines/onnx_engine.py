@@ -2,10 +2,10 @@ from typing import Any
 
 import numpy as np
 import onnxruntime as ort
+from luxonis_ml.nn_archive.utils import is_nn_archive
 from luxonis_ml.typing import PathType
 
 from luxonis_eval.config.nn_archive import (
-    is_nn_archive_path,
     load_onnx_bytes_from_nn_archive,
 )
 from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
@@ -42,7 +42,7 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
         spec."""
         if self._session is None:
             session_source: str | bytes
-            if is_nn_archive_path(str(self.model_path)):
+            if is_nn_archive(self.model_path):
                 session_source = load_onnx_bytes_from_nn_archive(
                     self.model_path
                 )
