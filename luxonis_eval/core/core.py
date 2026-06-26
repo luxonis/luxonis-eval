@@ -6,13 +6,6 @@ import numpy as np
 from loguru import logger
 from luxonis_ml.data.loaders import LuxonisLoader
 from luxonis_ml.typing import Params, PathType
-from rich.progress import (
-    BarColumn,
-    MofNCompleteColumn,
-    Progress,
-    TextColumn,
-    TimeElapsedColumn,
-)
 
 from luxonis_eval.config import EvalConfig, EvaluatorConfig
 from luxonis_eval.core.factories import (
@@ -23,6 +16,8 @@ from luxonis_eval.core.factories import (
     create_visualizers,
 )
 from luxonis_eval.core.reporting import (
+    RichProgressAdapter,
+    TQDMProgressAdapter,
     get_model_name,
     make_report_table,
 )
@@ -152,17 +147,10 @@ class LuxonisEval:
         assert self.throughput_metric is not None
         assert self.evaluator_cfg is not None
 
-        with Progress(
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            MofNCompleteColumn(),
-            TimeElapsedColumn(),
+        with self._progress(
+            f"Running {engine_name.upper()} inference ({model_name})...",
+            total=len(self.loader),
         ) as progress:
-            ptask = progress.add_task(
-                f"Running {engine_name.upper()} inference ({model_name})...",
-                total=len(self.loader),
-            )
-
             for sample in self.loader:
                 img: np.ndarray = sample[0]  # type: ignore
                 target = normalize_target(
@@ -219,7 +207,7 @@ class LuxonisEval:
                         **visualizer_cfg.params,
                     )
 
-                progress.update(ptask, advance=1)
+                progress.update(advance=1)
 
         metric_compute_t0 = time.perf_counter()
         results = [
@@ -346,3 +334,10 @@ class LuxonisEval:
                 "Throughput metric is unavailable before setup."
             )
         self.throughput_metric.reset()
+
+    def _progress(
+        self, description: str, total: int
+    ) -> TQDMProgressAdapter | RichProgressAdapter:
+        if self.cfg.runtime.logging.use_rich:
+            return RichProgressAdapter(description, total)
+        return TQDMProgressAdapter(description, total)

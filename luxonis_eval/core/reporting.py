@@ -1,8 +1,69 @@
 import re
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any
 
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    TaskID,
+    TextColumn,
+    TimeElapsedColumn,
+)
 from tabulate import tabulate
+from tqdm.auto import tqdm
+
+
+class TQDMProgressAdapter(AbstractContextManager["TQDMProgressAdapter"]):
+    def __init__(self, description: str, total: int) -> None:
+        self._description = description
+        self._total = total
+        self._progress: tqdm[Any] | None = None
+
+    def __enter__(self) -> "TQDMProgressAdapter":
+        self._progress = tqdm(
+            total=self._total,
+            desc=self._description,
+            leave=True,
+        )
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        assert self._progress is not None
+        self._progress.close()
+
+    def update(self, *, advance: int = 1) -> None:
+        assert self._progress is not None
+        self._progress.update(advance)
+
+
+class RichProgressAdapter(AbstractContextManager["RichProgressAdapter"]):
+    def __init__(self, description: str, total: int) -> None:
+        self._progress = Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+        )
+        self._description = description
+        self._total = total
+        self._task_id: TaskID | None = None
+
+    def __enter__(self) -> "RichProgressAdapter":
+        self._progress.__enter__()
+        self._task_id = self._progress.add_task(
+            self._description,
+            total=self._total,
+        )
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self._progress.__exit__(*args)
+
+    def update(self, *, advance: int = 1) -> None:
+        assert self._task_id is not None
+        self._progress.update(self._task_id, advance=advance)
 
 
 def get_model_name(path: str) -> str:
@@ -11,7 +72,7 @@ def get_model_name(path: str) -> str:
 
 
 def section(
-    title: str, width: int = 35, line_char: str = "═"
+    title: str, width: int = 35, line_char: str = "="
 ) -> list[list[str]]:
     label = f" {title} "
     centered = label.center(width, line_char)
