@@ -2,11 +2,11 @@ from typing import Any
 
 import depthai as dai
 import numpy as np
-from depthai import ADatatype
 from loguru import logger
 from luxonis_ml.typing import PathType
 
 from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
+from luxonis_eval.engines.io import DepthAIEngineOutput, TensorSpec
 
 
 class DepthAIEngine(BaseEngine, register_name="depthai"):
@@ -35,7 +35,8 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self.device: dai.Device | None = None
         self.device_platform: str | None = None
         self.nn_archive: dai.NNArchive | None = None
-        self.input_info: dict[str, Any] = {}
+        self.input_spec: TensorSpec | None = None
+        self.output_specs: tuple[TensorSpec, ...] = ()
         self.model_platform: str | None = None
         self._input_queue: Any = None
         self._output_queue: Any = None
@@ -45,7 +46,12 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         """Set up the DepthAI pipeline and resolve model spec."""
         if self._pipeline is None:
             self.device, self.device_platform = self._setup_device()
-            self.nn_archive, self.input_info, self.model_platform = (
+            (
+                self.nn_archive,
+                self.input_spec,
+                self.output_specs,
+                self.model_platform,
+            ) = (
                 self._load_nn_archive()
             )
 
@@ -85,35 +91,27 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
 
     def _resolve_model_spec(self) -> ModelSpec:
         """Resolve model input dimensions from the loaded archive."""
-        if not self.input_info or "shape" not in self.input_info:
+        if self.input_spec is None or self.input_spec.shape is None:
             raise ValueError("Invalid input shape information.")
 
-        shape = self.input_info["shape"]
+        shape = self.input_spec.shape
         platform_name = self._resolve_platform_name()
 
         if platform_name == "RVC2":
             # RVC2 uses NCHW format: [batch, channels, height, width]
-            if len(shape) != 4:
+            if len(shape) != 4 or self.input_spec.layout != "NCHW":
                 raise ValueError(
                     f"Unexpected input shape for RVC2: {shape}. Expected input shape in NCHW format."
                 )
-            height, width = shape[2], shape[3]
         else:
             # RVC4 uses NHWC format: [batch, height, width, channels]
-            if len(shape) != 4:
+            if len(shape) != 4 or self.input_spec.layout != "NHWC":
                 raise ValueError(
                     f"Unexpected input shape for {platform_name}: {shape}. Expected input shape in NHWC format."
                 )
-            height, width = shape[1], shape[2]
+        return ModelSpec(input=self.input_spec, outputs=self.output_specs)
 
-        if not isinstance(width, int) or not isinstance(height, int):
-            raise TypeError(
-                f"DepthAI input shape must be statically defined. Got {shape}."
-            )
-
-        return ModelSpec(width=width, height=height)
-
-    def infer_once(self, img: np.ndarray) -> ADatatype:
+    def infer_once(self, img: np.ndarray) -> DepthAIEngineOutput:
         """Run inference on a single image using DepthAI.
 
         Parameters
@@ -160,7 +158,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         new_input.setType(img_frame_type)
         self._input_queue.send(new_input)
 
-        return self._output_queue.get()
+        return DepthAIEngineOutput(self._output_queue.get())
 
     def vis_frame(self) -> np.ndarray:
         """Get visualization frame from passthrough.
@@ -189,7 +187,8 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self.device = None
         self.device_platform = None
         self.nn_archive = None
-        self.input_info = {}
+        self.input_spec = None
+        self.output_specs = ()
         self.model_platform = None
         self._input_queue = None
         self._output_queue = None
@@ -227,7 +226,9 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
 
         return device, platform_name
 
-    def _load_nn_archive(self) -> tuple[dai.NNArchive, dict, str | None]:
+    def _load_nn_archive(
+        self,
+    ) -> tuple[dai.NNArchive, TensorSpec, tuple[TensorSpec, ...], str | None]:
         """Load the model from an NNArchive.
 
         Returns
@@ -247,24 +248,61 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
             logger.error(f"Failed to load model: {e}")
             raise
 
-        input_info = {}
+        input_spec: TensorSpec | None = None
+        output_specs: tuple[TensorSpec, ...] = ()
         infered_platform = None
         try:
             inputs = nn_archive.getConfig().model.inputs
-            if inputs:
-                input_shape = inputs[0].shape
-                input_info = {
-                    "shape": input_shape,
-                    "name": inputs[0].name
-                    if hasattr(inputs[0], "name")
-                    else "input",
-                }
-                logger.info(f"Model input shape: {input_shape}")
-                if inputs[0].layout and inputs[0].layout == "NHWC":
-                    infered_platform = "RVC4"
-                elif inputs[0].layout and inputs[0].layout == "NCHW":
-                    infered_platform = "RVC2"
+            if len(inputs) != 1:
+                raise NotImplementedError(
+                    "Only single-input NNArchive models are supported in luxonis-eval."
+                )
+
+            input_meta = inputs[0]
+            input_shape = tuple(input_meta.shape)
+            input_layout = self._normalize_layout(getattr(input_meta, "layout", None))
+            input_spec = TensorSpec(
+                name=getattr(input_meta, "name", "input"),
+                shape=input_shape,
+                dtype=str(getattr(input_meta, "dtype", None))
+                if getattr(input_meta, "dtype", None) is not None
+                else None,
+                layout=input_layout,
+            )
+            logger.info(f"Model input shape: {input_shape}")
+            if input_layout == "NHWC":
+                infered_platform = "RVC4"
+            elif input_layout == "NCHW":
+                infered_platform = "RVC2"
+
+            outputs = getattr(nn_archive.getConfig().model, "outputs", [])
+            output_specs = tuple(
+                TensorSpec(
+                    name=getattr(output_meta, "name", f"output_{idx}"),
+                    shape=tuple(output_meta.shape)
+                    if getattr(output_meta, "shape", None) is not None
+                    else None,
+                    dtype=str(getattr(output_meta, "dtype", None))
+                    if getattr(output_meta, "dtype", None) is not None
+                    else None,
+                    layout=self._normalize_layout(
+                        getattr(output_meta, "layout", None)
+                    ),
+                )
+                for idx, output_meta in enumerate(outputs)
+            )
         except AttributeError:
             logger.warning("Could not extract input shape from model")
 
-        return nn_archive, input_info, infered_platform
+        if input_spec is None:
+            raise ValueError("Could not extract model input spec from NNArchive.")
+
+        return nn_archive, input_spec, output_specs, infered_platform
+
+    @staticmethod
+    def _normalize_layout(layout: object) -> str | None:
+        if layout is None:
+            return None
+        if isinstance(layout, str):
+            return layout
+        return getattr(layout, "name", None) or getattr(layout, "value", None)

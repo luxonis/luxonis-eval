@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -7,21 +6,8 @@ import numpy as np
 from luxonis_ml.typing import PathType
 from luxonis_ml.utils.registry import AutoRegisterMeta
 
+from luxonis_eval.engines.io import EngineOutput, ModelSpec
 from luxonis_eval.registry import ENGINES_REGISTRY
-
-
-@dataclass(frozen=True)
-class ModelSpec:
-    """Validated model input specification."""
-
-    width: int
-    height: int
-
-    def __post_init__(self) -> None:
-        if self.width <= 0 or self.height <= 0:
-            raise ValueError(
-                "ModelSpec width and height must be positive integers."
-            )
 
 
 class BaseEngine(
@@ -66,7 +52,7 @@ class BaseEngine(
         return self.model_spec
 
     @abstractmethod
-    def infer_once(self, img: np.ndarray) -> Any:
+    def infer_once(self, img: np.ndarray) -> EngineOutput:
         """Run inference on a single image."""
         ...
 

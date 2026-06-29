@@ -1,11 +1,11 @@
 from typing import Any
 
-import depthai as dai
 import numpy as np
 from depthai_nodes import SegmentationMask
 from depthai_nodes.message.creators import create_segmentation_message
-from loguru import logger
 
+from luxonis_eval.engines.base_engine import ModelSpec
+from luxonis_eval.engines.io import EngineOutput
 from .base_parser import BaseParser
 
 
@@ -18,8 +18,9 @@ class SemanticSegmentationParser(BaseParser):
 
     def parse(
         self,
-        raw_output: dai.NNData | list[np.ndarray],
+        output: EngineOutput,
         *,
+        model_spec: ModelSpec,
         classes_in_one_layer: bool = False,
         **kwargs: Any,
     ) -> SegmentationMask:
@@ -27,8 +28,10 @@ class SemanticSegmentationParser(BaseParser):
 
         Parameters
         ----------
-        raw_output : dai.NNData | list[np.ndarray]
-            Backend inference output.
+        output : EngineOutput
+            Engine-normalized inference output.
+        model_spec : ModelSpec
+            Resolved model IO metadata.
         classes_in_one_layer : bool, default=False
             Whether the model outputs classes in a single layer.
         **kwargs : Any
@@ -39,19 +42,9 @@ class SemanticSegmentationParser(BaseParser):
         SegmentationMask
             Detection results including boxes, scores, classes, and metadata.
         """
-        if isinstance(raw_output, dai.NNData):
-            layer_names = raw_output.getAllLayerNames()
-            logger.debug(f"Processing output with layers: {layer_names}")
-            output_name = layer_names[0]
-            segmentation_mask: np.ndarray = raw_output.getTensor(
-                output_name, dequantize=True
-            )  # type: ignore
-        elif isinstance(raw_output, list):
-            segmentation_mask: np.ndarray = raw_output[0]
-        else:
-            raise TypeError(
-                f"Unsupported raw_output type: {type(raw_output)}. Expected dai.NNData or list[np.ndarray]."
-            )
+        del model_spec, kwargs
+        _, segmentation_mask = output.first()
+        segmentation_mask = np.asarray(segmentation_mask)
 
         if len(segmentation_mask.shape) == 4:
             segmentation_mask = segmentation_mask[0]

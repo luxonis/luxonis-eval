@@ -6,7 +6,6 @@ import numpy as np
 from depthai_nodes.message.creators import create_detection_message
 from depthai_nodes.node.parsers.utils import normalize_bboxes, xyxy_to_xywh
 from depthai_nodes.node.parsers.utils.masks_utils import (
-    get_segmentation_outputs,
     process_single_mask,
 )
 from depthai_nodes.node.parsers.utils.yolo import (
@@ -15,6 +14,8 @@ from depthai_nodes.node.parsers.utils.yolo import (
 )
 from loguru import logger
 
+from luxonis_eval.engines.base_engine import ModelSpec
+from luxonis_eval.engines.io import EngineOutput
 from .base_parser import BaseParser
 
 
@@ -27,8 +28,9 @@ class YOLOInstanceSegmentationParser(BaseParser):
 
     def parse(
         self,
-        raw_output: dai.NNData | list[np.ndarray],
+        output: EngineOutput,
         *,
+        model_spec: ModelSpec,
         class_map: dict[int, str],
         subtype: str,
         n_classes: int | None = None,
@@ -43,8 +45,10 @@ class YOLOInstanceSegmentationParser(BaseParser):
 
         Parameters
         ----------
-        raw_output : dai.NNData | list[np.ndarray]
-            Backend inference output.
+        output : EngineOutput
+            Engine-normalized inference output.
+        model_spec : ModelSpec
+            Resolved model IO metadata.
         class_map : dict[int, str]
             Mapping from class indices to class names.
         subtype : str
@@ -76,36 +80,32 @@ class YOLOInstanceSegmentationParser(BaseParser):
                 f"Invalid YOLO subtype {subtype}. Supported YOLO subtypes are {[e.value for e in YOLOSubtype][:-1]}."
             ) from err
 
-        if isinstance(raw_output, dai.NNData):
-            layer_names = raw_output.getAllLayerNames()
-            logger.debug(f"Processing output with layers: {layer_names}")
+        layer_names = list(output.names())
+        logger.debug(f"Processing output with layers: {layer_names}")
 
-            outputs_names = sorted(
-                [n for n in layer_names if "_yolo" in n or "yolo-" in n]
-            )
-            outputs_values = [
-                raw_output.getTensor(
-                    o,
-                    dequantize=True,
-                    storageOrder=dai.TensorInfo.StorageOrder.NCHW,
-                ).astype(np.float32)  # type: ignore
-                for o in outputs_names
-            ]
-            (
-                masks_outputs_values,
-                protos_output,
-                protos_len,
-            ) = get_segmentation_outputs(raw_output)
-        elif isinstance(raw_output, list):
-            outputs_names = [f"output_{i}" for i in range(len(raw_output))]
-            outputs_values = raw_output[:3]
-            masks_outputs_values = raw_output[3:-1]
-            protos_output = raw_output[-1]
-            protos_len = protos_output.shape[1]
-        else:
-            raise TypeError(
-                f"Unsupported raw_output type: {type(raw_output)}. Expected dai.NNData or list[np.ndarray]."
-            )
+        outputs_names = sorted(
+            [name for name in layer_names if "_yolo" in name or "yolo-" in name]
+        ) or layer_names[:3]
+        outputs_values = [
+            output.get(name, layout="NCHW").astype(np.float32, copy=False)
+            for name in outputs_names
+        ]
+
+        mask_output_names = sorted(
+            [name for name in layer_names if "mask" in name]
+        ) or layer_names[len(outputs_names) : -1]
+        masks_outputs_values = [
+            output.get(name, layout="NCHW").astype(np.float32, copy=False)
+            for name in mask_output_names
+        ]
+
+        protos_name = (
+            "protos_output" if "protos_output" in layer_names else layer_names[-1]
+        )
+        protos_output = output.get(protos_name, layout="NCHW").astype(
+            np.float32, copy=False
+        )
+        protos_len = protos_output.shape[1]
 
         strides = (
             [8, 16, 32]
@@ -113,9 +113,7 @@ class YOLOInstanceSegmentationParser(BaseParser):
             not in [YOLOSubtype.V3UT, YOLOSubtype.V3T, YOLOSubtype.V4T]
             else [16, 32]
         )
-        input_shape = tuple(
-            dim * strides[0] for dim in outputs_values[0].shape[2:4]
-        )
+        input_shape = (model_spec.height, model_spec.width)
         final_anchors: np.ndarray | None = (
             np.array(anchors).reshape(len(strides), -1) if anchors else None
         )

@@ -10,6 +10,7 @@ from luxonis_ml.typing import Params
 
 from luxonis_eval.config import EvaluatorConfig
 from luxonis_eval.engines.base_engine import ModelSpec
+from luxonis_eval.engines.io import EngineOutput
 from luxonis_eval.loaders.base_loader import BaseEvalLoader
 from luxonis_eval.metrics.metrics_utils import normalized_xywh_to_coco_xywh
 
@@ -82,19 +83,13 @@ def get_metric_ctx(base_ctx: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
 
 
 def select_evaluator_outputs(
-    raw_output: Any,
+    raw_output: EngineOutput,
     outputs: list[str] | None,
-) -> Any:
+) -> EngineOutput:
     if not outputs:
         return raw_output
 
-    # TODO: Implement filtering
-
-    logger.warning(
-        "Evaluator outputs filtering is not implemented for this engine "
-        "output type yet. Using all raw outputs."
-    )
-    return raw_output
+    return raw_output.select(outputs)
 
 
 def resolve_luxonis_task_name(
