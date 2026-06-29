@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import depthai as dai
 import numpy as np
@@ -8,6 +8,9 @@ from luxonis_ml.typing import PathType
 from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
 from luxonis_eval.engines.io import DepthAIEngineOutput, TensorSpec
 
+if TYPE_CHECKING:
+    from luxonis_ml.nn_archive.config import Config as NNArchiveConfig
+
 
 class DepthAIEngine(BaseEngine, register_name="depthai"):
     """DepthAI inference engine."""
@@ -16,6 +19,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self,
         model_path: PathType,
         device_ip: str | None = None,
+        nn_archive_cfg: "NNArchiveConfig | None" = None,
         **kwargs: Any,
     ) -> None:
         """Initialize the DepthAI inference engine.
@@ -31,12 +35,14 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         """
         super().__init__(model_path=model_path, **kwargs)
         self.device_ip = device_ip
+        self.nn_archive_cfg = nn_archive_cfg
         self._pipeline: dai.Pipeline | None = None
         self.device: dai.Device | None = None
         self.device_platform: str | None = None
         self.nn_archive: dai.NNArchive | None = None
         self.input_spec: TensorSpec | None = None
         self.output_specs: tuple[TensorSpec, ...] = ()
+        self.input_dai_type: str | None = None
         self.model_platform: str | None = None
         self._input_queue: Any = None
         self._output_queue: Any = None
@@ -50,6 +56,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
                 self.nn_archive,
                 self.input_spec,
                 self.output_specs,
+                self.input_dai_type,
                 self.model_platform,
             ) = (
                 self._load_nn_archive()
@@ -144,12 +151,8 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         if channel_count == 1:
             img_frame_type = dai.ImgFrame.Type.GRAY8
             img_for_device = img
-        elif self._resolve_platform_name() == "RVC2":
-            img_frame_type = dai.ImgFrame.Type.BGR888p
-            img_for_device = np.transpose(img, (2, 0, 1))
         else:
-            img_frame_type = dai.ImgFrame.Type.BGR888i
-            img_for_device = img
+            img_frame_type, img_for_device = self._prepare_color_input(img)
 
         new_input = dai.ImgFrame()
         new_input.setFrame(img_for_device)
@@ -189,6 +192,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self.nn_archive = None
         self.input_spec = None
         self.output_specs = ()
+        self.input_dai_type = None
         self.model_platform = None
         self._input_queue = None
         self._output_queue = None
@@ -228,7 +232,13 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
 
     def _load_nn_archive(
         self,
-    ) -> tuple[dai.NNArchive, TensorSpec, tuple[TensorSpec, ...], str | None]:
+    ) -> tuple[
+        dai.NNArchive,
+        TensorSpec,
+        tuple[TensorSpec, ...],
+        str | None,
+        str | None,
+    ]:
         """Load the model from an NNArchive.
 
         Returns
@@ -250,6 +260,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
 
         input_spec: TensorSpec | None = None
         output_specs: tuple[TensorSpec, ...] = ()
+        input_dai_type: str | None = None
         infered_platform = None
         try:
             inputs = nn_archive.getConfig().model.inputs
@@ -275,6 +286,11 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
             elif input_layout == "NCHW":
                 infered_platform = "RVC2"
 
+            if self.nn_archive_cfg is not None and self.nn_archive_cfg.model.inputs:
+                input_dai_type = (
+                    self.nn_archive_cfg.model.inputs[0].preprocessing.dai_type
+                )
+
             outputs = getattr(nn_archive.getConfig().model, "outputs", [])
             output_specs = tuple(
                 TensorSpec(
@@ -297,7 +313,13 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         if input_spec is None:
             raise ValueError("Could not extract model input spec from NNArchive.")
 
-        return nn_archive, input_spec, output_specs, infered_platform
+        return (
+            nn_archive,
+            input_spec,
+            output_specs,
+            input_dai_type,
+            infered_platform,
+        )
 
     @staticmethod
     def _normalize_layout(layout: object) -> str | None:
@@ -306,3 +328,34 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         if isinstance(layout, str):
             return layout
         return getattr(layout, "name", None) or getattr(layout, "value", None)
+
+    def _prepare_color_input(
+        self, img: np.ndarray
+    ) -> tuple[dai.ImgFrame.Type, np.ndarray]:
+        dai_type = self._resolve_input_dai_type()
+        if dai_type.endswith("p"):
+            img_for_device = np.transpose(img, (2, 0, 1))
+        elif dai_type.endswith("i"):
+            img_for_device = img
+        else:
+            raise ValueError(
+                f"Unsupported NNArchive dai_type {dai_type!r}. Expected an interleaved or planar RGB/BGR type."
+            )
+
+        try:
+            img_frame_type = getattr(dai.ImgFrame.Type, dai_type)
+        except AttributeError as err:
+            raise ValueError(
+                f"Unsupported NNArchive dai_type {dai_type!r} for DepthAI input."
+            ) from err
+
+        return img_frame_type, img_for_device
+
+    def _resolve_input_dai_type(self) -> str:
+        if self.input_dai_type:
+            return self.input_dai_type
+
+        platform_name = self._resolve_platform_name()
+        if platform_name == "RVC2":
+            return "BGR888p"
+        return "BGR888i"
