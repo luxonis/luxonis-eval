@@ -87,9 +87,12 @@ class EngineConfig(ConfigItem):
 
     @model_validator(mode="after")
     def validate_backend_matches_inputs(self) -> "EngineConfig":
-        if is_nn_archive(self.model_path) and self.name != "depthai":
+        if is_nn_archive(self.model_path) and self.name not in {
+            "depthai",
+            "onnx",
+        }:
             raise ValueError(
-                f"NNArchive model ({self.model_path}) can only be used with the 'depthai' backend."
+                f"NNArchive model ({self.model_path}) can only be used with the 'depthai' or 'onnx' backend."
             )
         if self.model_path.endswith(".onnx") and self.name != "onnx":
             raise ValueError(

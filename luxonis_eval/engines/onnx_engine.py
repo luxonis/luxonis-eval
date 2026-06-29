@@ -2,8 +2,12 @@ from typing import Any
 
 import numpy as np
 import onnxruntime as ort
+from luxonis_ml.nn_archive.utils import is_nn_archive
 from luxonis_ml.typing import PathType
 
+from luxonis_eval.config.nn_archive import (
+    load_onnx_bytes_from_nn_archive,
+)
 from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
 
 
@@ -21,7 +25,7 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
         Parameters
         ----------
         model_path : PathType
-            Path to the ONNX model file.
+            Path to the ONNX model file or NNArchive.
         providers : list[str] | None, optional
             ONNX Runtime execution providers.
         **kwargs : Any
@@ -37,8 +41,16 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
         """Initialize the ONNX Runtime session and resolve model
         spec."""
         if self._session is None:
+            session_source: str | bytes
+            if is_nn_archive(self.model_path):
+                session_source = load_onnx_bytes_from_nn_archive(
+                    self.model_path
+                )
+            else:
+                session_source = str(self.model_path)
+
             self._session = ort.InferenceSession(
-                str(self.model_path), providers=self.providers
+                session_source, providers=self.providers
             )
             self._input_name = self._session.get_inputs()[0].name
 

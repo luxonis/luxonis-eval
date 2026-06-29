@@ -1,6 +1,6 @@
 import json
 import tarfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from luxonis_ml.nn_archive.config import Config as NNArchiveConfig
 from luxonis_ml.nn_archive.config_building_blocks import HeadType, Input
@@ -8,6 +8,8 @@ from luxonis_ml.nn_archive.utils import is_nn_archive
 from luxonis_ml.typing import Params
 
 from luxonis_eval.config.source import SourceEvalConfig
+
+_ARCHIVE_NORMALIZATION_SCALE = 255.0
 
 
 def load_nn_archive_from_source_config(
@@ -116,7 +118,12 @@ def resolve_archive_normalization(
     if archive_input is None:
         return None, None
 
-    return archive_input.preprocessing.mean, archive_input.preprocessing.scale
+    mean = archive_input.preprocessing.mean
+    scale = archive_input.preprocessing.scale
+    if mean is None or scale is None:
+        return mean, scale
+
+    return _normalize_archive_values(mean), _normalize_archive_values(scale)
 
 
 def resolve_archive_head_metadata(
@@ -130,3 +137,51 @@ def resolve_archive_head_metadata(
         return None
 
     return archive_head.metadata.model_dump(exclude_none=True)
+
+
+def load_onnx_bytes_from_nn_archive(model_path: str | Path) -> bytes:
+    model_path = str(model_path)
+    nn_archive_cfg = load_nn_archive_config(model_path)
+
+    with tarfile.open(model_path, "r:xz") as archive:
+        onnx_member = _resolve_onnx_member(
+            archive,
+            model_path=model_path,
+            nn_archive_cfg=nn_archive_cfg,
+        )
+        onnx_file = archive.extractfile(onnx_member)
+        if onnx_file is None:
+            raise ValueError(
+                f"NNArchive model '{model_path}' contains an unreadable ONNX payload '{onnx_member.name}'."
+            )
+        return onnx_file.read()
+
+
+def _resolve_onnx_member(
+    archive: tarfile.TarFile,
+    *,
+    model_path: str,
+    nn_archive_cfg: NNArchiveConfig,
+) -> tarfile.TarInfo:
+    declared_path = PurePosixPath(
+        nn_archive_cfg.model.metadata.path
+    ).as_posix()
+    matches = [
+        member
+        for member in archive.getmembers()
+        if member.isfile()
+        and PurePosixPath(member.name).as_posix() == declared_path
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        raise ValueError(
+            f"NNArchive model '{model_path}' declares ONNX payload '{declared_path}', but the archive contains multiple matches for that path."
+        )
+    raise ValueError(
+        f"NNArchive model '{model_path}' declares ONNX payload '{declared_path}' in config.json, but that file is missing from the archive."
+    )
+
+
+def _normalize_archive_values(values: list[float]) -> list[float]:
+    return [value / _ARCHIVE_NORMALIZATION_SCALE for value in values]
