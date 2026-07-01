@@ -1,0 +1,51 @@
+pipeline:
+  loader:
+    name: LuxonisLoader
+    preprocessing:
+      keep_aspect_ratio: true
+      color_space: RGB
+      normalize:
+        active: true
+        params:
+          mean: [0.0, 0.0, 0.0]
+          std: [1.0, 1.0, 1.0]
+    params:
+      dataset_name: your_segmentation_dataset
+      view: [val]
+
+  engine:
+    name: onnx
+    model_path: path/to/segmentation_model.onnx
+    params:
+      providers: [CPUExecutionProvider]
+
+  # engine:
+  #   name: depthai
+  #   model_path: path/to/segmentation_model.rvc4.tar.xz
+  #   params:
+  #     device_ip: 10.12.143.173
+
+  evaluators:
+    - task_name: ""
+      # Replace task_name if your Luxonis dataset uses a named segmentation task.
+      parser:
+        name: SemanticSegmentationParser
+        params:
+          # Set to true for binary / single-logit outputs that encode one class in one channel.
+          classes_in_one_layer: false
+      metrics:
+        - name: MIoU
+          params:
+            # Update this to match the number of classes in your dataset.
+            num_classes: 21
+            include_background: false
+            per_class: true
+            input_format: index
+        - name: DiceCoefficient
+          params:
+            # Update this to match the number of classes in your dataset.
+            num_classes: 21
+            include_background: false
+            average: micro
+            input_format: index
+      visualizers: []

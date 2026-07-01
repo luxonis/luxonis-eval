@@ -8,7 +8,7 @@ from depthai_nodes.node.parsers.yolo import (
 
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
-from luxonis_eval.parsers._depthai_nodes import build_yolo_compute_kwargs
+from luxonis_eval.utils._depthai_nodes import build_yolo_compute_kwargs
 from .base_parser import BaseParser
 
 
@@ -22,8 +22,8 @@ class YOLOInstanceSegmentationParser(BaseParser):
     def parse(
         self,
         output: EngineOutput,
-        *,
         model_spec: ModelSpec,
+        *,
         class_map: dict[int, str],
         subtype: str,
         n_classes: int | None = None,

@@ -29,8 +29,8 @@ class BaseParser(
     def parse(
         self,
         output: EngineOutput,
-        *,
         model_spec: ModelSpec,
+        *,
         **kwargs: Any,
     ) -> Any:
         """Parse raw backend output into predictions."""

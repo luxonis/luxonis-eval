@@ -1,6 +1,11 @@
 from .base_engine import BaseEngine, ModelSpec
 from .depthai_engine import DepthAIEngine
-from .io import DepthAIEngineOutput, EngineOutput, TensorMapOutput, TensorSpec
+from .io import (
+    DepthAIEngineOutput,
+    EngineOutput,
+    NumpyEngineOutput,
+    TensorSpec,
+)
 from .onnx_engine import OnnxEngine
 
 __all__ = [
@@ -10,6 +15,6 @@ __all__ = [
     "EngineOutput",
     "ModelSpec",
     "OnnxEngine",
-    "TensorMapOutput",
+    "NumpyEngineOutput",
     "TensorSpec",
 ]

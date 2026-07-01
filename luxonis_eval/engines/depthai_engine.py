@@ -42,7 +42,6 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self.nn_archive: dai.NNArchive | None = None
         self.input_spec: TensorSpec | None = None
         self.output_specs: tuple[TensorSpec, ...] = ()
-        self.input_dai_type: str | None = None
         self.model_platform: str | None = None
         self._input_queue: Any = None
         self._output_queue: Any = None
@@ -56,7 +55,6 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
                 self.nn_archive,
                 self.input_spec,
                 self.output_specs,
-                self.input_dai_type,
                 self.model_platform,
             ) = (
                 self._load_nn_archive()
@@ -192,7 +190,6 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self.nn_archive = None
         self.input_spec = None
         self.output_specs = ()
-        self.input_dai_type = None
         self.model_platform = None
         self._input_queue = None
         self._output_queue = None
@@ -237,7 +234,6 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         TensorSpec,
         tuple[TensorSpec, ...],
         str | None,
-        str | None,
     ]:
         """Load the model from an NNArchive.
 
@@ -260,7 +256,6 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
 
         input_spec: TensorSpec | None = None
         output_specs: tuple[TensorSpec, ...] = ()
-        input_dai_type: str | None = None
         infered_platform = None
         try:
             inputs = nn_archive.getConfig().model.inputs
@@ -285,11 +280,6 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
                 infered_platform = "RVC4"
             elif input_layout == "NCHW":
                 infered_platform = "RVC2"
-
-            if self.nn_archive_cfg is not None and self.nn_archive_cfg.model.inputs:
-                input_dai_type = (
-                    self.nn_archive_cfg.model.inputs[0].preprocessing.dai_type
-                )
 
             outputs = getattr(nn_archive.getConfig().model, "outputs", [])
             output_specs = tuple(
@@ -317,7 +307,6 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
             nn_archive,
             input_spec,
             output_specs,
-            input_dai_type,
             infered_platform,
         )
 
@@ -352,9 +341,6 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         return img_frame_type, img_for_device
 
     def _resolve_input_dai_type(self) -> str:
-        if self.input_dai_type:
-            return self.input_dai_type
-
         platform_name = self._resolve_platform_name()
         if platform_name == "RVC2":
             return "BGR888p"

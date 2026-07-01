@@ -1,0 +1,80 @@
+pipeline:
+  loader:
+    name: LuxonisLoader
+    preprocessing:
+      keep_aspect_ratio: true
+      color_space: RGB
+      normalize:
+        active: true
+        params:
+          mean: [0.0, 0.0, 0.0]
+          std: [1.0, 1.0, 1.0]
+    params:
+      dataset_name: your_pose_dataset
+      view: [val]
+      class_mapping:
+        0: person
+
+  engine:
+    name: onnx
+    model_path: path/to/yolov8n-pose.onnx
+    params:
+      providers: [CPUExecutionProvider]
+
+  # engine:
+  #   name: depthai
+  #   model_path: path/to/yolov8n-pose.rvc4.tar.xz
+  #   params:
+  #     device_ip: 10.12.143.173
+
+  evaluators:
+    - task_name: ""
+      # Replace task_name if your Luxonis dataset uses a named keypoint task.
+      parser:
+        name: YOLOKeypointDetectionParser
+        params:
+          subtype: yolov8
+          n_classes: 1
+          conf_threshold: 0.25
+          iou_threshold: 0.7
+          max_det: 300
+          keypoint_label_names:
+            - nose
+            - left_eye
+            - right_eye
+            - left_ear
+            - right_ear
+            - left_shoulder
+            - right_shoulder
+            - left_elbow
+            - right_elbow
+            - left_wrist
+            - right_wrist
+            - left_hip
+            - right_hip
+            - left_knee
+            - right_knee
+            - left_ankle
+            - right_ankle
+          keypoint_edges:
+            - [0, 1]
+            - [0, 2]
+            - [1, 3]
+            - [2, 4]
+            - [5, 6]
+            - [5, 7]
+            - [7, 9]
+            - [6, 8]
+            - [8, 10]
+            - [5, 11]
+            - [6, 12]
+            - [11, 12]
+            - [11, 13]
+            - [13, 15]
+            - [12, 14]
+            - [14, 16]
+      metrics:
+        - name: KeypointMeanAveragePrecision
+          params:
+            compute_area_from_keypoints: true
+      visualizers: []

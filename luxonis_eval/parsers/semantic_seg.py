@@ -22,8 +22,8 @@ class SemanticSegmentationParser(BaseParser):
     def parse(
         self,
         output: EngineOutput,
-        *,
         model_spec: ModelSpec,
+        *,
         classes_in_one_layer: bool = False,
         **kwargs: Any,
     ) -> SegmentationMask:

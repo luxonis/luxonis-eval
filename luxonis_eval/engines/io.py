@@ -58,6 +58,11 @@ class ModelSpec:
 
 
 class EngineOutput(ABC):
+    """Parser-facing abstraction over backend-specific inference outputs.
+
+    Implemented engines wrap their native output type behind this interface
+    """
+
     @abstractmethod
     def names(self) -> tuple[str, ...]:
         """Return output tensor names in engine-defined order."""
@@ -69,13 +74,16 @@ class EngineOutput(ABC):
         *,
         layout: TensorLayout | None = None,
     ) -> np.ndarray:
-        """Return one named tensor."""
+        """Return one named tensor as a NumPy array.
+        """
 
     @abstractmethod
     def select(self, names: Sequence[str] | None) -> "EngineOutput":
-        """Return a filtered view over this output."""
+        """Return a filtered view over this output.
+        """
 
     def first(self) -> tuple[str, np.ndarray]:
+        """Convenience helper for single-output models."""
         names = self.names()
         if len(names) != 1:
             raise ValueError(
@@ -86,7 +94,7 @@ class EngineOutput(ABC):
 
 
 @dataclass(frozen=True, slots=True)
-class TensorMapOutput(EngineOutput):
+class NumpyEngineOutput(EngineOutput):
     tensors: dict[str, np.ndarray]
 
     def names(self) -> tuple[str, ...]:
@@ -107,7 +115,7 @@ class TensorMapOutput(EngineOutput):
                 f"Available tensors: {list(self.tensors)}."
             ) from err
 
-    def select(self, names: Sequence[str] | None) -> "TensorMapOutput":
+    def select(self, names: Sequence[str] | None) -> "NumpyEngineOutput":
         if names is None:
             return self
 
@@ -117,7 +125,7 @@ class TensorMapOutput(EngineOutput):
                 f"Requested outputs are missing from engine result: {missing}"
             )
 
-        return TensorMapOutput(
+        return NumpyEngineOutput(
             tensors={name: self.tensors[name] for name in names}
         )
 
