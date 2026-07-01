@@ -1,17 +1,9 @@
 pipeline:
   loader:
     name: LuxonisLoader
-    preprocessing:
-      keep_aspect_ratio: true
-      color_space: RGB
-      normalize:
-        active: true
-        params:
-          mean: [0.0, 0.0, 0.0]
-          std: [1.0, 1.0, 1.0]
     params:
       dataset_name: your_pose_dataset
-      view: [val]
+      view: [test]
       class_mapping:
         0: person
 
@@ -29,7 +21,6 @@ pipeline:
 
   evaluators:
     - task_name: ""
-      # Replace task_name if your Luxonis dataset uses a named keypoint task.
       parser:
         name: YOLOKeypointDetectionParser
         params:

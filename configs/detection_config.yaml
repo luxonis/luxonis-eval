@@ -1,17 +1,9 @@
 pipeline:
   loader:
     name: LuxonisLoader
-    preprocessing:
-      keep_aspect_ratio: true
-      color_space: RGB
-      normalize:
-        active: true
-        params:
-          mean: [0.0, 0.0, 0.0]
-          std: [1.0, 1.0, 1.0]
     params:
       dataset_name: coco-2017
-      view: [val]
+      view: [test]
 
   engine:
     name: onnx
@@ -27,8 +19,6 @@ pipeline:
 
   evaluators:
     - task_name: ""
-      # Leave task_name empty for unnamed/single-task Luxonis datasets.
-      # Set it explicitly if your dataset exposes multiple tasks.
       parser:
         name: YOLODetectionParser
         params:

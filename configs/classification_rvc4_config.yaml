@@ -1,11 +1,6 @@
 pipeline:
   loader:
     name: LuxonisLoader
-    preprocessing:
-      keep_aspect_ratio: true
-      color_space: BGR
-      normalize:
-        active: false
     params:
       dataset_name: flowersclassification
       view: [test]
