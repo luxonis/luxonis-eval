@@ -2,14 +2,15 @@ from typing import Any
 
 import numpy as np
 from depthai_nodes import Classifications
+from depthai_nodes.message.creators import create_classification_message
 from depthai_nodes.node.parsers.classification import (
     ClassificationParser as DepthAINodesClassificationParser,
 )
-from depthai_nodes.message.creators import create_classification_message
 
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
 from luxonis_eval.parsers.base_parser import BaseParser
+from luxonis_eval.parsers._depthai_nodes import ordered_class_names
 
 
 class ClassificationParser(BaseParser):
@@ -47,7 +48,7 @@ class ClassificationParser(BaseParser):
             Classification scores.
         """
         del model_spec, kwargs
-        classes = list(class_map.values())
+        classes = ordered_class_names(class_map)
         _, scores = output.first()
         scores = np.asarray(scores).flatten()
         scores = DepthAINodesClassificationParser.compute(
