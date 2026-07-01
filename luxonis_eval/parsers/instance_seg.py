@@ -3,7 +3,7 @@ from typing import Any
 import depthai as dai
 from depthai_nodes.message.creators import create_detection_message
 from depthai_nodes.node.parsers.yolo import (
-    YOLOExtendedParser as DepthAINodesYOLOExtendedParser,
+    YOLOExtendedParser,
 )
 
 from luxonis_eval.engines.base_engine import ModelSpec
@@ -66,7 +66,7 @@ class YOLOInstanceSegmentationParser(BaseParser):
         dai.ImgDetections
             Detection results including boxes, scores, classes, and metadata.
         """
-        payload = DepthAINodesYOLOExtendedParser.compute(
+        payload = YOLOExtendedParser.compute(
             **build_yolo_compute_kwargs(
                 output,
                 model_spec=model_spec,

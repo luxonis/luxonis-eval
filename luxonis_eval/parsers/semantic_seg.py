@@ -4,7 +4,7 @@ import numpy as np
 from depthai_nodes import SegmentationMask
 from depthai_nodes.message.creators import create_segmentation_message
 from depthai_nodes.node.parsers.segmentation import (
-    SegmentationParser as DepthAINodesSegmentationParser,
+    SegmentationParser,
 )
 
 from luxonis_eval.engines.base_engine import ModelSpec
@@ -47,7 +47,7 @@ class SemanticSegmentationParser(BaseParser):
         """
         del model_spec, kwargs
         _, segmentation_mask = output.first()
-        class_map = DepthAINodesSegmentationParser.compute(
+        class_map = SegmentationParser.compute(
             np.asarray(segmentation_mask),
             classes_in_one_layer=classes_in_one_layer,
         )
