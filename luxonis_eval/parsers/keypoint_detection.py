@@ -8,7 +8,7 @@ from depthai_nodes.node.parsers.yolo import (
 
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
-from luxonis_eval.utils._depthai_nodes import build_yolo_compute_kwargs
+from luxonis_eval.utils.depthai_nodes import build_yolo_compute_kwargs
 from .base_parser import BaseParser
 
 

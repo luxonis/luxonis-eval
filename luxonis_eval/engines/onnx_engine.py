@@ -9,7 +9,7 @@ from luxonis_eval.config.nn_archive import (
     load_onnx_bytes_from_nn_archive,
 )
 from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
-from luxonis_eval.engines.io import NumpyEngineOutput, TensorSpec
+from luxonis_eval.engines.io import ONNXEngineOutput, TensorSpec
 
 
 class OnnxEngine(BaseEngine, register_name="onnx"):
@@ -101,7 +101,7 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
             )
         )
 
-    def infer_once(self, img: np.ndarray) -> NumpyEngineOutput:
+    def infer_once(self, img: np.ndarray) -> ONNXEngineOutput:
         """Run inference on a single image using ONNX Runtime.
 
         Parameters
@@ -136,7 +136,7 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
             )
 
         output_values = self._session.run(None, {self._input_name: x})
-        return NumpyEngineOutput(
+        return ONNXEngineOutput(
             tensors=dict(zip(self._output_names, output_values, strict=True))
         )
 

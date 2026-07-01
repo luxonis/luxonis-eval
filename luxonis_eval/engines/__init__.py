@@ -3,7 +3,7 @@ from .depthai_engine import DepthAIEngine
 from .io import (
     DepthAIEngineOutput,
     EngineOutput,
-    NumpyEngineOutput,
+    ONNXEngineOutput,
     TensorSpec,
 )
 from .onnx_engine import OnnxEngine
@@ -15,6 +15,6 @@ __all__ = [
     "EngineOutput",
     "ModelSpec",
     "OnnxEngine",
-    "NumpyEngineOutput",
+    "ONNXEngineOutput",
     "TensorSpec",
 ]

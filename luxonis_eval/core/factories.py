@@ -190,23 +190,12 @@ def _create_luxonis_loader(
     loader_params["filter_task_names"] = [loader_task_name]
 
     augmentation_config = []
-    if (
-        cfg.pipeline.loader.preprocessing.normalize.active
-        and cfg.pipeline.engine.name != "depthai"
-    ):
+    if cfg.pipeline.loader.preprocessing.normalize.active:
         augmentation_config.append(
             {
                 "name": "Normalize",
                 "params": cfg.pipeline.loader.preprocessing.normalize.params,
             }
-        )
-    elif (
-        cfg.pipeline.loader.preprocessing.normalize.active
-        and cfg.pipeline.engine.name == "depthai"
-    ):
-        logger.warning(
-            "Loader-side normalization is disabled for the DepthAI backend. "
-            "NNArchive preprocessing is expected to be handled by the device pipeline."
         )
 
     dataloader = LuxonisLoader(

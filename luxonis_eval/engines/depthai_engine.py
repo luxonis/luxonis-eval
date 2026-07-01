@@ -149,8 +149,12 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         if channel_count == 1:
             img_frame_type = dai.ImgFrame.Type.GRAY8
             img_for_device = img
+        elif self._resolve_platform_name() == "RVC2":
+            img_frame_type = dai.ImgFrame.Type.BGR888p
+            img_for_device = np.transpose(img, (2, 0, 1))
         else:
-            img_frame_type, img_for_device = self._prepare_color_input(img)
+            img_frame_type = dai.ImgFrame.Type.BGR888i
+            img_for_device = img
 
         new_input = dai.ImgFrame()
         new_input.setFrame(img_for_device)
@@ -266,7 +270,12 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
 
             input_meta = inputs[0]
             input_shape = tuple(input_meta.shape)
-            input_layout = self._normalize_layout(getattr(input_meta, "layout", None))
+            input_layout = getattr(input_meta, "layout", None)
+            if input_layout is not None and not isinstance(input_layout, str):
+                input_layout = (
+                    getattr(input_layout, "name", None)
+                    or getattr(input_layout, "value", None)
+                )
             input_spec = TensorSpec(
                 name=getattr(input_meta, "name", "input"),
                 shape=input_shape,
@@ -291,8 +300,16 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
                     dtype=str(getattr(output_meta, "dtype", None))
                     if getattr(output_meta, "dtype", None) is not None
                     else None,
-                    layout=self._normalize_layout(
+                    layout=(
                         getattr(output_meta, "layout", None)
+                        if isinstance(getattr(output_meta, "layout", None), str)
+                        or getattr(output_meta, "layout", None) is None
+                        else getattr(
+                            getattr(output_meta, "layout", None), "name", None
+                        )
+                        or getattr(
+                            getattr(output_meta, "layout", None), "value", None
+                        )
                     ),
                 )
                 for idx, output_meta in enumerate(outputs)
@@ -309,39 +326,3 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
             output_specs,
             infered_platform,
         )
-
-    @staticmethod
-    def _normalize_layout(layout: object) -> str | None:
-        if layout is None:
-            return None
-        if isinstance(layout, str):
-            return layout
-        return getattr(layout, "name", None) or getattr(layout, "value", None)
-
-    def _prepare_color_input(
-        self, img: np.ndarray
-    ) -> tuple[dai.ImgFrame.Type, np.ndarray]:
-        dai_type = self._resolve_input_dai_type()
-        if dai_type.endswith("p"):
-            img_for_device = np.transpose(img, (2, 0, 1))
-        elif dai_type.endswith("i"):
-            img_for_device = img
-        else:
-            raise ValueError(
-                f"Unsupported NNArchive dai_type {dai_type!r}. Expected an interleaved or planar RGB/BGR type."
-            )
-
-        try:
-            img_frame_type = getattr(dai.ImgFrame.Type, dai_type)
-        except AttributeError as err:
-            raise ValueError(
-                f"Unsupported NNArchive dai_type {dai_type!r} for DepthAI input."
-            ) from err
-
-        return img_frame_type, img_for_device
-
-    def _resolve_input_dai_type(self) -> str:
-        platform_name = self._resolve_platform_name()
-        if platform_name == "RVC2":
-            return "BGR888p"
-        return "BGR888i"

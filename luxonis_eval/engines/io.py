@@ -94,7 +94,7 @@ class EngineOutput(ABC):
 
 
 @dataclass(frozen=True, slots=True)
-class NumpyEngineOutput(EngineOutput):
+class ONNXEngineOutput(EngineOutput):
     tensors: dict[str, np.ndarray]
 
     def names(self) -> tuple[str, ...]:
@@ -115,7 +115,7 @@ class NumpyEngineOutput(EngineOutput):
                 f"Available tensors: {list(self.tensors)}."
             ) from err
 
-    def select(self, names: Sequence[str] | None) -> "NumpyEngineOutput":
+    def select(self, names: Sequence[str] | None) -> "ONNXEngineOutput":
         if names is None:
             return self
 
@@ -125,7 +125,7 @@ class NumpyEngineOutput(EngineOutput):
                 f"Requested outputs are missing from engine result: {missing}"
             )
 
-        return NumpyEngineOutput(
+        return ONNXEngineOutput(
             tensors={name: self.tensors[name] for name in names}
         )
 
