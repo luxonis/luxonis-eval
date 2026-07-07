@@ -213,7 +213,7 @@ class LuxonisEval:
 
         metric_compute_t0 = time.perf_counter()
         results = [
-            (metric.__class__.__name__, metric.compute())
+            (metric.report_name, metric.compute())
             for metric in self.metrics
         ]
         metric_compute_elapsed = time.perf_counter() - metric_compute_t0

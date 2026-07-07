@@ -17,6 +17,10 @@ from luxonis_eval.metrics.metrics_utils import (
 class DiceCoefficient(BaseMetric):
     """Dice coefficient metric for semantic segmentation."""
 
+    @property
+    def report_name(self) -> str:
+        return "F1Score"
+
     def __init__(
         self,
         num_classes: int,
@@ -99,10 +103,11 @@ class DiceCoefficient(BaseMetric):
         if class_index_map is not None and not binary_target:
             pred_mask = remap_prediction_mask(pred_mask, class_index_map)
 
-        if binary_target and not self.include_background and target_bg is None:
-            target_bg = 0
-
-        if not self.include_background and target_bg is not None:
+        if (
+            not binary_target
+            and not self.include_background
+            and target_bg is not None
+        ):
             pred_mask, target_mask = mask_ignore_pixels(
                 pred_mask, target_mask, ignore_index=target_bg
             )
@@ -120,4 +125,8 @@ class DiceCoefficient(BaseMetric):
         dict[str, float]
             Computed Dice coefficient results.
         """
-        return {"Dice Score": float(self.metric.compute())}
+        return {"F1Score": float(self.metric.compute())}
+
+
+class F1Score(DiceCoefficient):
+    """LuxonisTrain-compatible alias for semantic segmentation Dice/F1."""

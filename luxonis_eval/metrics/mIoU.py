@@ -17,6 +17,10 @@ from luxonis_eval.metrics.metrics_utils import (
 class MIoU(BaseMetric):
     """Mean IoU metric."""
 
+    @property
+    def report_name(self) -> str:
+        return "JaccardIndex"
+
     def __init__(
         self,
         num_classes: int,
@@ -100,10 +104,11 @@ class MIoU(BaseMetric):
         if class_index_map is not None and not binary_target:
             pred_mask = remap_prediction_mask(pred_mask, class_index_map)
 
-        if binary_target and not self.include_background and target_bg is None:
-            target_bg = 0
-
-        if not self.include_background and target_bg is not None:
+        if (
+            not binary_target
+            and not self.include_background
+            and target_bg is not None
+        ):
             pred_mask, target_mask = mask_ignore_pixels(
                 pred_mask, target_mask, ignore_index=target_bg
             )
@@ -124,7 +129,7 @@ class MIoU(BaseMetric):
         results = self.metric.compute()
 
         if not self.per_class:
-            return {"mIoU": float(results)}
+            return {"JaccardIndex": float(results)}
 
         class_names = [
             self.target_class_map.get(i, f"class_{i}")
@@ -134,6 +139,10 @@ class MIoU(BaseMetric):
         ]
 
         return {
-            f"mIoU ({name})": float(r)
+            f"JaccardIndex ({name})": float(r)
             for name, r in zip(class_names, results, strict=True)
         }
+
+
+class JaccardIndex(MIoU):
+    """LuxonisTrain-compatible alias for semantic segmentation IoU."""
