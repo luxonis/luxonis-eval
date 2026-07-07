@@ -40,8 +40,8 @@ def build_yolo_compute_kwargs(
     keypoint_label_names: list[str] | None = None,
     keypoint_edges: list[tuple[int, int]] | None = None,
 ) -> dict[str, Any]:
-    """Adapter that converts EngineOutput + ModelSpec into the exact
-    keyword-argument contract expected by depthai-nodes YOLO compute(...)."""
+    """Adapter that converts EngineOutput + ModelSpec into the field mapping
+    required to construct ``depthai_nodes`` ``YOLOComputeInputs``."""
     try:
         subtype_enum = YOLOSubtype(subtype.lower())
     except ValueError as err:

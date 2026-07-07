@@ -3,6 +3,7 @@ from typing import Any
 import depthai as dai
 from depthai_nodes.message.creators import create_detection_message
 from depthai_nodes.node.parsers.yolo import (
+    YOLOComputeInputs,
     YOLOExtendedParser,
 )
 
@@ -67,17 +68,19 @@ class YOLOInstanceSegmentationParser(BaseParser):
             Detection results including boxes, scores, classes, and metadata.
         """
         payload = YOLOExtendedParser.compute(
-            **build_yolo_compute_kwargs(
-                output,
-                model_spec=model_spec,
-                class_map=class_map,
-                subtype=subtype,
-                n_classes=n_classes,
-                anchors=anchors,
-                conf_threshold=conf_threshold,
-                iou_threshold=iou_threshold,
-                max_det=max_det,
-                mask_conf=mask_conf,
+            YOLOComputeInputs(
+                **build_yolo_compute_kwargs(
+                    output,
+                    model_spec=model_spec,
+                    class_map=class_map,
+                    subtype=subtype,
+                    n_classes=n_classes,
+                    anchors=anchors,
+                    conf_threshold=conf_threshold,
+                    iou_threshold=iou_threshold,
+                    max_det=max_det,
+                    mask_conf=mask_conf,
+                )
             )
         )
 
