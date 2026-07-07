@@ -110,18 +110,12 @@ class MaskMeanAveragePrecision(BaseMetric):
         detections = predictions.detections
         scores = [det.confidence for det in detections]
         classes = [det.label for det in detections]
-        masks: np.ndarray = predictions.getCvSegmentationMask()  # type: ignore
-        # Unflatten (N*H, W) → (N, H, W)
-        masks = (
-            masks.reshape(len(detections), -1, masks.shape[-1])
-            if detections
-            else np.zeros((0, 0, 0), dtype=np.uint8)
+        masks = self._resolve_prediction_masks(
+            predictions.getCvSegmentationMask(),  # type: ignore[arg-type]
+            n_detections=len(detections),
+            height=height,
+            width=width,
         )
-        if masks.size > 0 and masks.shape[1:] != (height, width):
-            raise ValueError(
-                f"Mask dimensions {masks.shape[1:]} do not match image dimensions ({height}, {width}). "
-                f"Ensure masks in 'dai.ImgDetections' are stored as (N*H, W)."
-            )
 
         for mask, score, cls in zip(masks, scores, classes, strict=True):
             cls = int(cls)
@@ -156,3 +150,52 @@ class MaskMeanAveragePrecision(BaseMetric):
             Computed mAP results.
         """
         return self._store.evaluate()
+
+    def _resolve_prediction_masks(
+        self,
+        raw_masks: np.ndarray | None,
+        *,
+        n_detections: int,
+        height: int,
+        width: int,
+    ) -> np.ndarray:
+        if raw_masks is None:
+            return np.zeros((0, height, width), dtype=np.uint8)
+
+        masks = np.asarray(raw_masks)
+        if masks.size == 0:
+            return np.zeros((0, height, width), dtype=np.uint8)
+
+        if masks.ndim == 3:
+            if masks.shape == (n_detections, height, width):
+                return masks.astype(np.uint8, copy=False)
+            raise ValueError(
+                "Unsupported 3D segmentation mask shape "
+                f"{masks.shape}. Expected ({n_detections}, {height}, {width})."
+            )
+
+        if masks.ndim != 2:
+            raise ValueError(
+                f"Unsupported segmentation mask rank {masks.ndim}. "
+                "Expected a 2D instance-id mask of shape (H, W) or a "
+                "flattened stack of shape (N*H, W)."
+            )
+
+        if masks.shape == (height, width):
+            if n_detections == 0:
+                return np.zeros((0, height, width), dtype=np.uint8)
+            return np.stack(
+                [(masks == idx).astype(np.uint8) for idx in range(n_detections)],
+                axis=0,
+            )
+
+        if n_detections > 0 and masks.shape == (n_detections * height, width):
+            return masks.reshape(n_detections, height, width).astype(
+                np.uint8, copy=False
+            )
+
+        raise ValueError(
+            f"Mask dimensions {masks.shape} do not match the expected image "
+            f"dimensions ({height}, {width}). Supported formats are (H, W) "
+            "for an instance-id mask and (N*H, W) for a flattened per-instance stack."
+        )
