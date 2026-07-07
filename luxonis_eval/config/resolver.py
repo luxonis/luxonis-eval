@@ -298,6 +298,7 @@ class EvalConfigResolver:
             "ClassificationParser": "ClassificationParser",
             "SemanticSegmentation": "SemanticSegmentationParser",
             "SemanticSegmentationParser": "SemanticSegmentationParser",
+            "SegmentationParser": "SemanticSegmentationParser",
             "Segmentation": "SemanticSegmentationParser",
         }
         resolved_name = mapping.get(parser_name, parser_name)
