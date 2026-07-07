@@ -117,6 +117,67 @@ def remap_prediction_mask(
     return remapped
 
 
+def target_segmentation_to_index_mask(
+    target_mask: np.ndarray,
+) -> tuple[np.ndarray, bool]:
+    """Convert a segmentation target tensor to an index mask.
+
+    Parameters
+    ----------
+    target_mask : np.ndarray
+        Target segmentation tensor, either shaped ``(C, H, W)`` or ``(H, W)``.
+
+    Returns
+    -------
+    tuple[np.ndarray, bool]
+        The index mask and whether the target represents a binary single-channel mask.
+    """
+    mask = np.asarray(target_mask)
+
+    if mask.ndim == 2:
+        return mask.astype(np.int64), False
+
+    if mask.ndim != 3:
+        raise ValueError(
+            f"Expected segmentation target with 2 or 3 dimensions, got {mask.ndim}."
+        )
+
+    if mask.shape[0] == 1:
+        return mask[0].astype(np.int64), True
+
+    return np.argmax(mask, axis=0).astype(np.int64), False
+
+
+def normalize_prediction_segmentation_mask(
+    pred_mask: np.ndarray,
+    *,
+    binary_target: bool,
+) -> np.ndarray:
+    """Normalize a predicted segmentation mask to class indices.
+
+    Parameters
+    ----------
+    pred_mask : np.ndarray
+        Predicted segmentation mask.
+    binary_target : bool
+        Whether the corresponding target is a binary single-channel mask.
+
+    Returns
+    -------
+    np.ndarray
+        Normalized predicted class-index mask.
+    """
+    mask = np.asarray(pred_mask).astype(np.int64)
+
+    if binary_target and mask.min() < 0:
+        # DepthAI semantic masks use -1 for background and 0 for the only
+        # foreground class. Binary metrics expect 0 for background and 1 for
+        # foreground, so shift the mask into that range.
+        mask = mask + 1
+
+    return mask
+
+
 def mask_ignore_pixels(
     pred_mask: np.ndarray, target_mask: np.ndarray, ignore_index: int = 0
 ) -> tuple[np.ndarray, np.ndarray]:

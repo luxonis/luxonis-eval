@@ -8,7 +8,9 @@ from torchmetrics.segmentation import DiceScore
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import (
     mask_ignore_pixels,
+    normalize_prediction_segmentation_mask,
     remap_prediction_mask,
+    target_segmentation_to_index_mask,
 )
 
 
@@ -86,11 +88,19 @@ class DiceCoefficient(BaseMetric):
         target_bg = kwargs.get("target_bg")
         class_index_map = kwargs.get("class_index_map")
 
-        pred_mask: np.ndarray = predictions.mask
-        target_mask = np.argmax(target[self.required_target_keys()[0]], axis=0)
+        target_mask, binary_target = target_segmentation_to_index_mask(
+            target[self.required_target_keys()[0]]
+        )
+        pred_mask = normalize_prediction_segmentation_mask(
+            predictions.mask,
+            binary_target=binary_target,
+        )
 
-        if class_index_map is not None:
+        if class_index_map is not None and not binary_target:
             pred_mask = remap_prediction_mask(pred_mask, class_index_map)
+
+        if binary_target and not self.include_background and target_bg is None:
+            target_bg = 0
 
         if not self.include_background and target_bg is not None:
             pred_mask, target_mask = mask_ignore_pixels(
