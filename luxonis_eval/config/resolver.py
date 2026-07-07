@@ -76,6 +76,7 @@ class EvalConfigResolver:
             prefer_archive=prefer_archive,
             default="RGB",
         )
+        keep_aspect_ratio = self._resolve_keep_aspect_ratio(source_loader)
         normalize = self._resolve_normalize_config(
             loader_name=source_loader.name,
             source_normalize=source_loader.preprocessing.normalize,
@@ -88,9 +89,21 @@ class EvalConfigResolver:
             preprocessing=PreProcessingConfig(
                 normalize=normalize,
                 color_space=color_space,
-                keep_aspect_ratio=source_loader.preprocessing.keep_aspect_ratio,
+                keep_aspect_ratio=keep_aspect_ratio,
             ),
         )
+
+    def _resolve_keep_aspect_ratio(
+        self, source_loader: SourceDataLoaderConfig
+    ) -> bool:
+        keep_aspect_ratio = source_loader.preprocessing.keep_aspect_ratio
+        if keep_aspect_ratio is not None:
+            return keep_aspect_ratio
+
+        if source_loader.name == "LuxonisLoader":
+            return True
+
+        return False
 
     def _resolve_normalize_config(
         self,
@@ -177,16 +190,7 @@ class EvalConfigResolver:
                 "NNArchive preprocessing normalization must define both "
                 "`mean` and `scale`, or neither."
             )
-        if self._is_identity_normalization(mean, scale):
-            return False, None
         return True, {"mean": list(mean), "std": list(scale)}
-
-    def _is_identity_normalization(
-        self, mean: list[float], scale: list[float]
-    ) -> bool:
-        return all(value == 0 for value in mean) and all(
-            value == 1 for value in scale
-        )
 
     def _resolve_evaluators(
         self,
