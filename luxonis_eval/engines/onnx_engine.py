@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -9,11 +11,50 @@ from luxonis_eval.config.nn_archive import (
     load_onnx_bytes_from_nn_archive,
 )
 from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
-from luxonis_eval.engines.io import ONNXEngineOutput, TensorSpec
+from luxonis_eval.engines.io import EngineOutput, TensorLayout, TensorSpec
+
+
+@dataclass(frozen=True, slots=True)
+class ONNXEngineOutput(EngineOutput):
+    tensors: dict[str, np.ndarray]
+
+    def names(self) -> tuple[str, ...]:
+        return tuple(self.tensors.keys())
+
+    def get(
+        self,
+        name: str,
+        *,
+        layout: TensorLayout | None = None,
+    ) -> np.ndarray:
+        del layout
+        try:
+            return self.tensors[name]
+        except KeyError as err:
+            raise ValueError(
+                f"Requested output tensor {name!r} is not available. "
+                f"Available tensors: {list(self.tensors)}."
+            ) from err
+
+    def select(self, names: Sequence[str] | None) -> "ONNXEngineOutput":
+        if names is None:
+            return self
+
+        missing = [name for name in names if name not in self.tensors]
+        if missing:
+            raise ValueError(
+                f"Requested outputs are missing from engine result: {missing}"
+            )
+
+        return ONNXEngineOutput(
+            tensors={name: self.tensors[name] for name in names}
+        )
 
 
 class OnnxEngine(BaseEngine, register_name="onnx"):
     """ONNX Runtime inference engine."""
+
+    output_type = ONNXEngineOutput
 
     def __init__(
         self,

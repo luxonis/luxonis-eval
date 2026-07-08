@@ -5,7 +5,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-import depthai as dai
 import numpy as np
 
 TensorLayout = Literal["NCHW", "NHWC", "NC", "CHW", "HWC", "HW"]
@@ -91,95 +90,3 @@ class EngineOutput(ABC):
             )
         name = names[0]
         return name, self.get(name)
-
-
-@dataclass(frozen=True, slots=True)
-class ONNXEngineOutput(EngineOutput):
-    tensors: dict[str, np.ndarray]
-
-    def names(self) -> tuple[str, ...]:
-        return tuple(self.tensors.keys())
-
-    def get(
-        self,
-        name: str,
-        *,
-        layout: TensorLayout | None = None,
-    ) -> np.ndarray:
-        del layout
-        try:
-            return self.tensors[name]
-        except KeyError as err:
-            raise ValueError(
-                f"Requested output tensor {name!r} is not available. "
-                f"Available tensors: {list(self.tensors)}."
-            ) from err
-
-    def select(self, names: Sequence[str] | None) -> "ONNXEngineOutput":
-        if names is None:
-            return self
-
-        missing = [name for name in names if name not in self.tensors]
-        if missing:
-            raise ValueError(
-                f"Requested outputs are missing from engine result: {missing}"
-            )
-
-        return ONNXEngineOutput(
-            tensors={name: self.tensors[name] for name in names}
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class DepthAIEngineOutput(EngineOutput):
-    raw_output: dai.NNData
-    _selected_names: tuple[str, ...] | None = None
-
-    def names(self) -> tuple[str, ...]:
-        available = tuple(self.raw_output.getAllLayerNames())
-        if self._selected_names is None:
-            return available
-
-        missing = [name for name in self._selected_names if name not in available]
-        if missing:
-            raise ValueError(
-                f"Requested outputs are missing from engine result: {missing}"
-            )
-        return self._selected_names
-
-    def get(
-        self,
-        name: str,
-        *,
-        layout: TensorLayout | None = None,
-    ) -> np.ndarray:
-        if name not in self.names():
-            raise ValueError(
-                f"Requested output tensor {name!r} is not available. "
-                f"Available tensors: {list(self.names())}."
-            )
-
-        get_tensor_kwargs: dict[str, object] = {"dequantize": True}
-        if layout == "NCHW":
-            get_tensor_kwargs["storageOrder"] = (
-                dai.TensorInfo.StorageOrder.NCHW
-            )
-        elif layout == "NHWC":
-            get_tensor_kwargs["storageOrder"] = (
-                dai.TensorInfo.StorageOrder.NHWC
-            )
-
-        tensor = self.raw_output.getTensor(name, **get_tensor_kwargs)
-        return np.asarray(tensor)
-
-    def select(self, names: Sequence[str] | None) -> "DepthAIEngineOutput":
-        if names is None:
-            return self
-
-        requested_names = tuple(names)
-        missing = [name for name in requested_names if name not in self.names()]
-        if missing:
-            raise ValueError(
-                f"Requested outputs are missing from engine result: {missing}"
-            )
-        return DepthAIEngineOutput(self.raw_output, requested_names)

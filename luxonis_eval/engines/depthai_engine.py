@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import depthai as dai
@@ -6,14 +8,71 @@ from loguru import logger
 from luxonis_ml.typing import PathType
 
 from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
-from luxonis_eval.engines.io import DepthAIEngineOutput, TensorSpec
+from luxonis_eval.engines.io import EngineOutput, TensorLayout, TensorSpec
 
 if TYPE_CHECKING:
     from luxonis_ml.nn_archive.config import Config as NNArchiveConfig
 
 
+@dataclass(frozen=True, slots=True)
+class DepthAIEngineOutput(EngineOutput):
+    raw_output: dai.NNData
+    _selected_names: tuple[str, ...] | None = None
+
+    def names(self) -> tuple[str, ...]:
+        available = tuple(self.raw_output.getAllLayerNames())
+        if self._selected_names is None:
+            return available
+
+        missing = [name for name in self._selected_names if name not in available]
+        if missing:
+            raise ValueError(
+                f"Requested outputs are missing from engine result: {missing}"
+            )
+        return self._selected_names
+
+    def get(
+        self,
+        name: str,
+        *,
+        layout: TensorLayout | None = None,
+    ) -> np.ndarray:
+        if name not in self.names():
+            raise ValueError(
+                f"Requested output tensor {name!r} is not available. "
+                f"Available tensors: {list(self.names())}."
+            )
+
+        get_tensor_kwargs: dict[str, object] = {"dequantize": True}
+        if layout == "NCHW":
+            get_tensor_kwargs["storageOrder"] = (
+                dai.TensorInfo.StorageOrder.NCHW
+            )
+        elif layout == "NHWC":
+            get_tensor_kwargs["storageOrder"] = (
+                dai.TensorInfo.StorageOrder.NHWC
+            )
+
+        tensor = self.raw_output.getTensor(name, **get_tensor_kwargs)
+        return np.asarray(tensor)
+
+    def select(self, names: Sequence[str] | None) -> "DepthAIEngineOutput":
+        if names is None:
+            return self
+
+        requested_names = tuple(names)
+        missing = [name for name in requested_names if name not in self.names()]
+        if missing:
+            raise ValueError(
+                f"Requested outputs are missing from engine result: {missing}"
+            )
+        return DepthAIEngineOutput(self.raw_output, requested_names)
+
+
 class DepthAIEngine(BaseEngine, register_name="depthai"):
     """DepthAI inference engine."""
+
+    output_type = DepthAIEngineOutput
 
     def __init__(
         self,

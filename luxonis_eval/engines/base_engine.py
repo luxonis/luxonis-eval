@@ -1,3 +1,4 @@
+import inspect
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,21 @@ class BaseEngine(
     register=False,
 ):
     """Abstract base class for inference engines."""
+
+    output_type: type[EngineOutput] | None = None
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if inspect.isabstract(cls):
+            return
+        if "output_type" not in cls.__dict__ or cls.output_type is None:
+            raise TypeError(
+                f"{cls.__name__} must define `output_type` as its EngineOutput class."
+            )
+        if not issubclass(cls.output_type, EngineOutput):
+            raise TypeError(
+                f"{cls.__name__}.output_type must be a subclass of EngineOutput."
+            )
 
     def __init__(self, model_path: PathType, **kwargs: Any) -> None:
         """Initialize the engine.
