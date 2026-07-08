@@ -292,9 +292,9 @@ class EvalConfigResolver:
         mapping = {
             "Classification": "ClassificationParser",
             "ClassificationParser": "ClassificationParser",
-            "SemanticSegmentation": "SemanticSegmentationParser",
-            "SemanticSegmentationParser": "SemanticSegmentationParser",
-            "Segmentation": "SemanticSegmentationParser",
+            "SemanticSegmentation": "SegmentationParser",
+            "SemanticSegmentationParser": "SegmentationParser",
+            "Segmentation": "SegmentationParser",
         }
         resolved_name = mapping.get(parser_name, parser_name)
         if resolved_name not in PARSERS_REGISTRY:
@@ -306,12 +306,7 @@ class EvalConfigResolver:
 
 def resolve_yolo_archive_parser(head: Any) -> ParserConfig:
     metadata = resolve_head_metadata(head)
-    if "n_keypoints" in metadata:
-        parser_name = "YOLOKeypointDetectionParser"
-    elif "n_prototypes" in metadata or "mask_outputs" in metadata:
-        parser_name = "YOLOInstanceSegmentationParser"
-    else:
-        parser_name = "YOLODetectionParser"
+    parser_name = "YOLOExtendedParser"
 
     params = {}
     for key in (

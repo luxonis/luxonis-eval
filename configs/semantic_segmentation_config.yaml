@@ -20,7 +20,7 @@ pipeline:
   evaluators:
     - task_name: ""
       parser:
-        name: SemanticSegmentationParser
+        name: SegmentationParser
         params:
           # Set to true for binary / single-logit outputs that encode one class in one channel.
           classes_in_one_layer: false
