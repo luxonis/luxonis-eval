@@ -1,7 +1,7 @@
 from typing import Any
 
+import depthai as dai
 import numpy as np
-from depthai_nodes import SegmentationMask
 from depthai_nodes.message.creators import create_segmentation_message
 from depthai_nodes.node.parsers.segmentation import (
     SegmentationParser as DepthAINodesSegmentationParser,
@@ -27,7 +27,7 @@ class SegmentationParser(BaseParser):
         *,
         classes_in_one_layer: bool = False,
         **kwargs: Any,
-    ) -> SegmentationMask:
+    ) -> dai.SegmentationMask:
         """Parse backend output into segmentation predictions."""
         del model_spec, kwargs
         _, segmentation_mask = output.first()
