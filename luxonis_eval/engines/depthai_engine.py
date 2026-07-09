@@ -7,6 +7,7 @@ import numpy as np
 from loguru import logger
 from luxonis_ml.typing import PathType
 
+from luxonis_eval.config.nn_archive import resolve_archive_dai_type
 from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
 from luxonis_eval.engines.io import EngineOutput, TensorLayout, TensorSpec
 
@@ -208,12 +209,8 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         if channel_count == 1:
             img_frame_type = dai.ImgFrame.Type.GRAY8
             img_for_device = img
-        elif self._resolve_platform_name() == "RVC2":
-            img_frame_type = dai.ImgFrame.Type.BGR888p
-            img_for_device = np.transpose(img, (2, 0, 1))
         else:
-            img_frame_type = dai.ImgFrame.Type.BGR888i
-            img_for_device = img
+            img_frame_type, img_for_device = self._prepare_color_input(img)
 
         new_input = dai.ImgFrame()
         new_input.setFrame(img_for_device)
@@ -223,6 +220,28 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self._input_queue.send(new_input)
 
         return DepthAIEngineOutput(self._output_queue.get())
+
+    def _prepare_color_input(
+        self,
+        img: np.ndarray,
+    ) -> tuple[dai.ImgFrame.Type, np.ndarray]:
+        archive_dai_type = resolve_archive_dai_type(self.nn_archive_cfg)
+
+        if archive_dai_type:
+            try:
+                img_frame_type = getattr(dai.ImgFrame.Type, archive_dai_type)
+            except AttributeError as err:
+                raise ValueError(
+                    f"Unsupported NNArchive dai_type {archive_dai_type!r}."
+                ) from err
+
+            if archive_dai_type.endswith("p"):
+                return img_frame_type, np.transpose(img, (2, 0, 1))
+            return img_frame_type, img
+
+        if self._resolve_platform_name() == "RVC2":
+            return dai.ImgFrame.Type.BGR888p, np.transpose(img, (2, 0, 1))
+        return dai.ImgFrame.Type.BGR888i, img
 
     def vis_frame(self) -> np.ndarray:
         """Get visualization frame from passthrough.
