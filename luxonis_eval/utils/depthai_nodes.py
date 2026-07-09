@@ -54,6 +54,7 @@ def build_yolo_compute_kwargs(
     subtype: str,
     n_classes: int | None = None,
     anchors: list[list[list[float]]] | None = None,
+    strides: list[int] | None = None,
     conf_threshold: float,
     iou_threshold: float,
     max_det: int,
@@ -163,14 +164,16 @@ def build_yolo_compute_kwargs(
             )
             protos_len = protos_output.shape[1]
 
-        strides = (
+        resolved_strides = strides or (
             [8, 16, 32]
             if subtype_enum
             not in [YOLOSubtype.V3UT, YOLOSubtype.V3T, YOLOSubtype.V4T]
             else [16, 32]
         )
         final_anchors: np.ndarray | None = (
-            np.array(anchors).reshape(len(strides), -1) if anchors else None
+            np.array(anchors).reshape(len(resolved_strides), -1)
+            if anchors
+            else None
         )
         inferred_n_classes = (
             outputs_values[0].shape[1] - 5
@@ -188,6 +191,7 @@ def build_yolo_compute_kwargs(
         "subtype": subtype_enum,
         "layer_names": layer_names,
         "outputs_values": outputs_values,
+        "strides": strides,
         "conf_threshold": conf_threshold,
         "n_classes": resolved_n_classes,
         "iou_threshold": iou_threshold,
