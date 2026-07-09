@@ -20,7 +20,7 @@ pipeline:
   evaluators:
     - task_name: ""
       parser:
-        name: YOLODetectionParser
+        name: YOLOExtendedParser
         params:
           subtype: yolov8
           n_classes: 80

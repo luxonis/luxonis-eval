@@ -27,7 +27,7 @@ pipeline:
 
   evaluators:
     - parser:
-        name: YOLOInstanceSegmentationParser
+        name: YOLOExtendedParser
         params:
           subtype: yolov8
           n_classes: 80
