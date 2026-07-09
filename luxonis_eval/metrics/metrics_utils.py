@@ -169,11 +169,8 @@ def normalize_prediction_segmentation_mask(
     """
     mask = np.asarray(pred_mask).astype(np.int64)
 
-    if binary_target and mask.min() < 0:
-        # DepthAI semantic masks use -1 for background and 0 for the only
-        # foreground class. Binary metrics expect 0 for background and 1 for
-        # foreground, so shift the mask into that range.
-        mask = mask + 1
+    if binary_target:
+        return (mask == 0).astype(np.int64)
 
     return mask
 
