@@ -29,8 +29,23 @@ class SegmentationParser(BaseParser):
         **kwargs: Any,
     ) -> dai.SegmentationMask:
         """Parse backend output into segmentation predictions."""
-        del model_spec, kwargs
-        _, segmentation_mask = output.first()
+        del kwargs
+        output_names = output.names()
+        if len(output_names) != 1:
+            raise ValueError(
+                f"Expected exactly one output tensor, got {list(output_names)}."
+            )
+
+        output_name = output_names[0]
+        output_layout = next(
+            (
+                output_spec.layout
+                for output_spec in model_spec.outputs
+                if output_spec.name == output_name
+            ),
+            None,
+        )
+        segmentation_mask = output.get(output_name, layout=output_layout)
         class_map = DepthAINodesSegmentationParser.compute(
             np.asarray(segmentation_mask),
             classes_in_one_layer=classes_in_one_layer,

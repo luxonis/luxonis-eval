@@ -108,19 +108,6 @@ def resolve_archive_color_space(
     return None
 
 
-def resolve_archive_dai_type(
-    nn_archive_cfg: NNArchiveConfig | None,
-) -> str | None:
-    if nn_archive_cfg is None:
-        return None
-
-    archive_input = get_archive_input(nn_archive_cfg)
-    if archive_input is None:
-        return None
-
-    return archive_input.preprocessing.dai_type
-
-
 def resolve_archive_normalization(
     nn_archive_cfg: NNArchiveConfig | None,
 ) -> tuple[list[float] | None, list[float] | None]:
