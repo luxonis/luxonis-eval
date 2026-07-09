@@ -25,6 +25,27 @@ def ordered_class_names(class_map: dict[int, str]) -> list[str]:
     return [class_map[index] for index in ordered_indices]
 
 
+def extract_segmentation_mask(predictions: Any) -> np.ndarray:
+    """Extract a semantic-segmentation mask from DepthAI-style messages."""
+    if hasattr(predictions, "getCvMask"):
+        mask = predictions.getCvMask()
+    elif hasattr(predictions, "getCvSegmentationMask"):
+        mask = predictions.getCvSegmentationMask()
+    elif hasattr(predictions, "mask"):
+        mask = predictions.mask
+    else:
+        raise TypeError(
+            "Unsupported segmentation prediction type "
+            f"{type(predictions)!r}: expected a DepthAI SegmentationMask "
+            "message or a compatible wrapper."
+        )
+
+    if mask is None:
+        raise ValueError("Segmentation prediction does not contain a mask.")
+
+    return np.asarray(mask)
+
+
 def build_yolo_compute_kwargs(
     output: EngineOutput,
     model_spec: ModelSpec,

@@ -1,8 +1,8 @@
 from typing import Any, Literal
 
+import depthai as dai
 import numpy as np
 import torch
-from depthai_nodes import SegmentationMask
 from torchmetrics.segmentation import DiceScore
 
 from luxonis_eval.metrics.base_metric import BaseMetric
@@ -13,6 +13,7 @@ from luxonis_eval.metrics.metrics_utils import (
     remap_prediction_mask,
     target_segmentation_to_index_mask,
 )
+from luxonis_eval.utils.depthai_nodes import extract_segmentation_mask
 
 
 class DiceCoefficient(BaseMetric):
@@ -73,7 +74,7 @@ class DiceCoefficient(BaseMetric):
 
     def update(
         self,
-        predictions: SegmentationMask,
+        predictions: dai.SegmentationMask,
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
@@ -97,7 +98,7 @@ class DiceCoefficient(BaseMetric):
             target[self.required_target_keys()[0]]
         )
         pred_mask = normalize_prediction_segmentation_mask(
-            predictions.mask,
+            extract_segmentation_mask(predictions),
             binary_target=binary_target,
         )
 
@@ -162,7 +163,7 @@ class F1Score(BaseMetric):
 
     def update(
         self,
-        predictions: SegmentationMask,
+        predictions: dai.SegmentationMask,
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
@@ -175,7 +176,7 @@ class F1Score(BaseMetric):
             target[self.required_target_keys()[0]]
         )
         pred_mask = normalize_prediction_segmentation_mask(
-            predictions.mask,
+            extract_segmentation_mask(predictions),
             binary_target=binary_target,
         )
 
