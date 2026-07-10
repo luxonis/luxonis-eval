@@ -19,10 +19,6 @@ from luxonis_eval.utils.depthai_nodes import extract_segmentation_mask
 class MIoU(BaseMetric):
     """Mean IoU metric."""
 
-    @property
-    def report_name(self) -> str:
-        return "MIoU"
-
     def __init__(
         self,
         num_classes: int,
@@ -31,21 +27,6 @@ class MIoU(BaseMetric):
         input_format: Literal["one-hot", "index", "mixed"] = "index",
         **kwargs: Any,
     ) -> None:
-        """Initialize the Mean IoU metric.
-
-        Parameters
-        ----------
-        num_classes : int
-            Number of classes in the segmentation task.
-        include_background : bool, default=False
-            Whether to include the background class in the metric calculation.
-        per_class : bool, default=False
-            Whether to compute IoU per class.
-        input_format : Literal["one-hot", "index", "mixed"], default="index"
-            Format of the input data.
-        **kwargs : Any
-            Additional metric configuration.
-        """
         self.metric = MeanIoU(
             num_classes=num_classes,
             include_background=include_background,
@@ -59,17 +40,9 @@ class MIoU(BaseMetric):
         super().__init__(**kwargs)
 
     def required_target_keys(self) -> list[str]:
-        """Return the ground-truth keys required by the metric.
-
-        Returns
-        -------
-        list[str]
-            Ground-truth key names.
-        """
         return ["/segmentation"]
 
     def reset(self) -> None:
-        """Reset internal metric state."""
         self.metric.reset()
 
     def update(
@@ -78,18 +51,6 @@ class MIoU(BaseMetric):
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
-        """Update internal metric state.
-
-        Parameters
-        ----------
-        predictions : SegmentationMask
-            Model predictions (logits or probabilities).
-        target : dict[str, np.ndarray]
-            Ground-truth labels.
-        **kwargs : Any
-            Additional context.
-        """
-        # Retrieve additional metric-specific options
         if self.target_class_map is None:
             self.target_class_map = kwargs.get("target_class_map", {})
         target_bg = kwargs.get("target_bg")
@@ -121,13 +82,6 @@ class MIoU(BaseMetric):
         )
 
     def compute(self) -> dict[str, float]:
-        """Compute final mIoU metrics.
-
-        Returns
-        -------
-        dict[str, float]
-            Computed mIoU results.
-        """
         results = self.metric.compute()
 
         if not self.per_class:
@@ -163,10 +117,6 @@ class JaccardIndex(BaseMetric):
         self.input_format = input_format
         self.target_class_map = None
         super().__init__(**kwargs)
-
-    @property
-    def report_name(self) -> str:
-        return "JaccardIndex"
 
     def required_target_keys(self) -> list[str]:
         return ["/segmentation"]

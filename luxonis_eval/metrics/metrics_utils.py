@@ -120,18 +120,7 @@ def remap_prediction_mask(
 def target_segmentation_to_index_mask(
     target_mask: np.ndarray,
 ) -> tuple[np.ndarray, bool]:
-    """Convert a segmentation target tensor to an index mask.
-
-    Parameters
-    ----------
-    target_mask : np.ndarray
-        Target segmentation tensor, either shaped ``(C, H, W)`` or ``(H, W)``.
-
-    Returns
-    -------
-    tuple[np.ndarray, bool]
-        The index mask and whether the target represents a binary single-channel mask.
-    """
+    """Convert a segmentation target tensor to an index mask."""
     mask = np.asarray(target_mask)
 
     if mask.ndim == 2:
@@ -153,20 +142,7 @@ def normalize_prediction_segmentation_mask(
     *,
     binary_target: bool,
 ) -> np.ndarray:
-    """Normalize a predicted segmentation mask to class indices.
-
-    Parameters
-    ----------
-    pred_mask : np.ndarray
-        Predicted segmentation mask.
-    binary_target : bool
-        Whether the corresponding target is a binary single-channel mask.
-
-    Returns
-    -------
-    np.ndarray
-        Normalized predicted class-index mask.
-    """
+    """Normalize a predicted segmentation mask to class indices."""
     mask = np.asarray(pred_mask).astype(np.int64)
 
     if binary_target:
