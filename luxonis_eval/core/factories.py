@@ -72,6 +72,13 @@ def create_loader(
         ) from e
 
     logger.info(f"{cfg.pipeline.loader.name} dataloader initialized.")
+    logger.info(
+        "Resolved loader preprocessing: "
+        f"color_space={cfg.pipeline.loader.preprocessing.color_space}, "
+        f"keep_aspect_ratio={cfg.pipeline.loader.preprocessing.keep_aspect_ratio}, "
+        f"normalize_active={cfg.pipeline.loader.preprocessing.normalize.active}, "
+        f"normalize_params={cfg.pipeline.loader.preprocessing.normalize.params}"
+    )
 
     return dataloader, loader_task_name
 
@@ -224,5 +231,12 @@ def _create_luxonis_loader(
     logger.info(
         "LuxonisLoader dataloader initialized with "
         f"task_name={loader_task_name!r}."
+    )
+    logger.info(
+        "Resolved loader preprocessing: "
+        f"color_space={cfg.pipeline.loader.preprocessing.color_space}, "
+        f"keep_aspect_ratio={cfg.pipeline.loader.preprocessing.keep_aspect_ratio}, "
+        f"normalize_active={cfg.pipeline.loader.preprocessing.normalize.active}, "
+        f"normalize_params={cfg.pipeline.loader.preprocessing.normalize.params}"
     )
     return dataloader, loader_task_name

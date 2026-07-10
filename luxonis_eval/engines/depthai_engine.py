@@ -129,10 +129,12 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self._input_queue: Any = None
         self._output_queue: Any = None
         self._passthrough: Any = None
+        self._logged_input_debug = False
 
     def setup(self) -> ModelSpec:
         """Set up the DepthAI pipeline and resolve model spec."""
         if self._pipeline is None:
+            self._log_archive_preprocessing()
             self.device, self.device_platform = self._setup_device()
             (
                 self.nn_archive,
@@ -250,6 +252,17 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         new_input.setWidth(model_spec.width)
         new_input.setHeight(model_spec.height)
         new_input.setType(img_frame_type)
+        if not self._logged_input_debug:
+            logger.info(
+                "DepthAI first input debug: "
+                f"loader_img_shape={img.shape}, loader_img_dtype={img.dtype}, "
+                f"device_frame_shape={np.asarray(img_for_device).shape}, "
+                f"device_frame_dtype={np.asarray(img_for_device).dtype}, "
+                f"img_frame_type={img_frame_type.name}, "
+                f"input_color_space={self.input_color_space}, "
+                f"platform={self._resolve_platform_name()}"
+            )
+            self._logged_input_debug = True
         self._input_queue.send(new_input)
 
         return DepthAIEngineOutput(
@@ -291,6 +304,36 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self._output_queue = None
         self._passthrough = None
         self.model_spec = None
+        self._logged_input_debug = False
+
+    def _log_archive_preprocessing(self) -> None:
+        if self.nn_archive_cfg is None:
+            logger.info(
+                "DepthAI archive preprocessing metadata unavailable in eval config."
+            )
+            return
+
+        try:
+            archive_input = self.nn_archive_cfg.model.inputs[0]
+        except (AttributeError, IndexError):
+            logger.warning(
+                "DepthAI archive preprocessing metadata is missing model input information."
+            )
+            return
+
+        preprocessing = archive_input.preprocessing
+        logger.info(
+            "DepthAI archive preprocessing: "
+            f"name={archive_input.name}, "
+            f"dtype={archive_input.dtype}, "
+            f"shape={archive_input.shape}, "
+            f"layout={archive_input.layout}, "
+            f"mean={preprocessing.mean}, "
+            f"scale={preprocessing.scale}, "
+            f"dai_type={preprocessing.dai_type}, "
+            f"reverse_channels={preprocessing.reverse_channels}, "
+            f"interleaved_to_planar={preprocessing.interleaved_to_planar}"
+        )
 
     def _setup_device(self) -> tuple[dai.Device, str]:
         """Set up and connect to a DepthAI device.
