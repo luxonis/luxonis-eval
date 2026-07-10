@@ -25,11 +25,6 @@ class BaseMetric(
         """
         self.reset()
 
-    @property
-    def report_name(self) -> str:
-        """Human-readable metric name for reports."""
-        return self.__class__.__name__
-
     @abstractmethod
     def required_target_keys(self) -> list[str]:
         """Return the ground-truth keys required by the metric."""

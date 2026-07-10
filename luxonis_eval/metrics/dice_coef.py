@@ -28,6 +28,21 @@ class DiceCoefficient(BaseMetric):
         input_format: Literal["one-hot", "index"] = "index",
         **kwargs: Any,
     ) -> None:
+        """Initialize the Dice coefficient metric.
+
+        Parameters
+        ----------
+        num_classes : int
+            Number of classes in the segmentation task.
+        include_background : bool, default=True
+            Whether to include the background class in the metric calculation.
+        average : Literal["micro", "macro", "weighted", "none"] | None, default="micro"
+            How to average the metric across classes.
+        input_format : Literal["one-hot", "index"], default="index"
+            Format of the input data.
+        **kwargs : Any
+            Additional metric configuration.
+        """
         self.metric = DiceScore(
             num_classes=num_classes,
             include_background=include_background,
@@ -40,9 +55,17 @@ class DiceCoefficient(BaseMetric):
         super().__init__(**kwargs)
 
     def required_target_keys(self) -> list[str]:
+        """Return the ground-truth keys required by the metric.
+
+        Returns
+        -------
+        list[str]
+            Ground-truth key names.
+        """
         return ["/segmentation"]
 
     def reset(self) -> None:
+        """Reset internal metric state."""
         self.metric.reset()
 
     def update(
@@ -51,6 +74,17 @@ class DiceCoefficient(BaseMetric):
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
+        """Update internal metric state.
+
+        Parameters
+        ----------
+        predictions : SegmentationMask
+            Model predictions (logits or probabilities).
+        target : dict[str, np.ndarray]
+            Ground-truth labels.
+        **kwargs : Any
+            Additional context.
+        """
         if self.target_class_map is None:
             self.target_class_map = kwargs.get("target_class_map", {})
         target_bg = kwargs.get("target_bg")
@@ -82,11 +116,18 @@ class DiceCoefficient(BaseMetric):
         )
 
     def compute(self) -> dict[str, float]:
+        """Compute final Dice coefficient metrics.
+
+        Returns
+        -------
+        dict[str, float]
+            Computed Dice coefficient results.
+        """
         return {"Dice Score": float(self.metric.compute())}
 
 
 class F1Score(BaseMetric):
-    """LuxonisTrain-compatible F1 score for semantic segmentation."""
+    """LuxonisTrain-compatible F1 score for binary semantic segmentation."""
 
     def __init__(
         self,
