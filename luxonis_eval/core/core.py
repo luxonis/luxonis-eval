@@ -32,15 +32,167 @@ from luxonis_eval.core.validation import (
     validate_engine_setup,
 )
 from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
+from luxonis_eval.metrics.metrics_utils import (
+    binary_segmentation_confusion,
+    normalize_prediction_segmentation_mask,
+    target_segmentation_to_index_mask,
+)
 from luxonis_eval.loaders.base_loader import BaseEvalLoader
 from luxonis_eval.metrics import ThroughputMetric
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.parsers.base_parser import BaseParser
+from luxonis_eval.utils.depthai_nodes import extract_segmentation_mask
 from luxonis_eval.visualizers.base_visualizer import BaseVisualizer
 
 
 class LuxonisEval:
     """Own the evaluation lifecycle and runtime state."""
+
+    @staticmethod
+    def _format_array_summary(name: str, array: np.ndarray) -> str:
+        arr = np.asarray(array)
+        summary = [
+            f"{name}: shape={arr.shape}",
+            f"dtype={arr.dtype}",
+        ]
+        if arr.size == 0:
+            summary.append("size=0")
+            return ", ".join(summary)
+
+        if np.issubdtype(arr.dtype, np.number) or np.issubdtype(
+            arr.dtype, np.bool_
+        ):
+            summary.extend(
+                [
+                    f"min={arr.min()}",
+                    f"max={arr.max()}",
+                    f"mean={float(arr.astype(np.float64).mean()):.6f}",
+                ]
+            )
+
+        unique_values, counts = np.unique(arr, return_counts=True)
+        preview_pairs = [
+            f"{value}:{count}"
+            for value, count in zip(
+                unique_values[:10],
+                counts[:10],
+                strict=False,
+            )
+        ]
+        summary.append(f"unique={len(unique_values)}")
+        summary.append(f"unique_preview=[{', '.join(preview_pairs)}]")
+        if len(unique_values) > 10:
+            summary.append("unique_preview_truncated=True")
+        return ", ".join(summary)
+
+    @staticmethod
+    def _foreground_bbox(mask: np.ndarray) -> str:
+        fg_y, fg_x = np.where(np.asarray(mask) > 0)
+        if fg_x.size == 0:
+            return "none"
+        return (
+            f"x=({int(fg_x.min())},{int(fg_x.max())}), "
+            f"y=({int(fg_y.min())},{int(fg_y.max())}), "
+            f"pixels={int(fg_x.size)}"
+        )
+
+    def _log_segmentation_sanity_diagnostics(
+        self,
+        *,
+        img: np.ndarray,
+        raw_output: Any,
+        predictions: Any,
+        target: dict[str, np.ndarray],
+    ) -> None:
+        if "/segmentation" not in target:
+            return
+
+        logger.info(
+            self._format_array_summary(
+                "Segmentation sanity image",
+                np.asarray(img),
+            )
+        )
+
+        if hasattr(raw_output, "names"):
+            for output_name in raw_output.names():
+                tensor = raw_output.get(output_name)
+                logger.info(
+                    self._format_array_summary(
+                        f"Segmentation raw output '{output_name}'",
+                        np.asarray(tensor),
+                    )
+                )
+                output_spec = next(
+                    (
+                        spec
+                        for spec in self.model_spec.outputs
+                        if spec.name == output_name
+                    ),
+                    None,
+                )
+                if output_spec is not None:
+                    logger.info(
+                        "Segmentation raw output spec "
+                        f"'{output_name}': shape={output_spec.shape}, "
+                        f"dtype={output_spec.dtype}, layout={output_spec.layout}"
+                    )
+
+        pred_mask_raw = extract_segmentation_mask(predictions)
+        logger.info(
+            self._format_array_summary(
+                "Segmentation parsed prediction mask",
+                pred_mask_raw,
+            )
+        )
+
+        target_mask_raw = target["/segmentation"]
+        logger.info(
+            self._format_array_summary(
+                "Segmentation target raw mask",
+                np.asarray(target_mask_raw),
+            )
+        )
+
+        target_mask, binary_target = target_segmentation_to_index_mask(
+            target_mask_raw
+        )
+        pred_mask = normalize_prediction_segmentation_mask(
+            pred_mask_raw,
+            binary_target=binary_target,
+        )
+
+        logger.info(
+            self._format_array_summary(
+                "Segmentation normalized prediction mask",
+                pred_mask,
+            )
+        )
+        logger.info(
+            self._format_array_summary(
+                "Segmentation normalized target mask",
+                target_mask,
+            )
+        )
+        logger.info(
+            "Segmentation binary_target="
+            f"{binary_target}, pred_fg_bbox={self._foreground_bbox(pred_mask)}, "
+            f"target_fg_bbox={self._foreground_bbox(target_mask)}"
+        )
+
+        if binary_target:
+            tp, fp, fn = binary_segmentation_confusion(
+                pred_mask,
+                target_mask,
+            )
+            denom_iou = tp + fp + fn
+            denom_f1 = 2 * tp + fp + fn
+            logger.info(
+                "Segmentation first-sample confusion: "
+                f"tp={tp}, fp={fp}, fn={fn}, "
+                f"iou={0.0 if denom_iou == 0 else tp / denom_iou:.6f}, "
+                f"f1={0.0 if denom_f1 == 0 else (2 * tp) / denom_f1:.6f}"
+            )
 
     def __init__(
         self,
@@ -285,6 +437,12 @@ class LuxonisEval:
             model_spec=self.model_spec,
             class_map=self.class_map,
             **self.evaluator_cfg.parser.params,
+        )
+        self._log_segmentation_sanity_diagnostics(
+            img=np.asarray(img),
+            raw_output=raw_output,
+            predictions=predictions,
+            target=target,
         )
 
         for metric, metric_ctx in zip(
