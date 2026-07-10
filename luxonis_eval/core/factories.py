@@ -3,6 +3,7 @@ from luxonis_ml.data import LuxonisDataset
 from luxonis_ml.data.loaders import LuxonisLoader
 
 from luxonis_eval.config import EvalConfig, EvaluatorConfig
+from luxonis_eval.config.nn_archive import resolve_archive_normalization
 from luxonis_eval.core.runtime import resolve_luxonis_task_name
 from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
 from luxonis_eval.loaders.base_loader import BaseEvalLoader
@@ -198,9 +199,18 @@ def _create_luxonis_loader(
     loader_params["filter_task_names"] = [loader_task_name]
 
     augmentation_config = []
+    archive_mean, _ = resolve_archive_normalization(cfg.nn_archive_cfg)
+    requires_host_depthai_normalization = bool(
+        cfg.pipeline.engine.name == "depthai"
+        and archive_mean is not None
+        and any(abs(value) > 1e-12 for value in archive_mean)
+    )
     if (
         cfg.pipeline.loader.preprocessing.normalize.active
-        and cfg.pipeline.engine.name != "depthai"
+        and (
+            cfg.pipeline.engine.name != "depthai"
+            or requires_host_depthai_normalization
+        )
     ):
         augmentation_config.append(
             {
@@ -208,6 +218,11 @@ def _create_luxonis_loader(
                 "params": cfg.pipeline.loader.preprocessing.normalize.params,
             }
         )
+        if requires_host_depthai_normalization:
+            logger.info(
+                "Applying host-side loader normalization for the DepthAI backend "
+                "because the NNArchive uses non-zero mean normalization."
+            )
     elif (
         cfg.pipeline.loader.preprocessing.normalize.active
         and cfg.pipeline.engine.name == "depthai"

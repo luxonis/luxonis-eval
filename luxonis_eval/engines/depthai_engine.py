@@ -130,6 +130,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self._output_queue: Any = None
         self._passthrough: Any = None
         self._logged_input_debug = False
+        self._tensor_input_enabled = False
 
     def setup(self) -> ModelSpec:
         """Set up the DepthAI pipeline and resolve model spec."""
@@ -144,6 +145,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
             ) = (
                 self._load_nn_archive()
             )
+            self._tensor_input_enabled = self._should_use_tensor_input()
 
             self._pipeline = dai.Pipeline(self.device)
             nn_node = self._pipeline.create(dai.node.NeuralNetwork)
@@ -247,6 +249,32 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
                 img_frame_type = dai.ImgFrame.Type.BGR888i
             img_for_device = img
 
+        if self._tensor_input_enabled:
+            tensor_input = self._prepare_tensor_input(img)
+            nn_input = dai.NNData()
+            nn_input.setLayer(
+                self.input_spec.name,
+                np.ascontiguousarray(tensor_input.astype(np.float32, copy=False)),
+            )
+            if not self._logged_input_debug:
+                logger.info(
+                    "DepthAI first input debug: "
+                    f"loader_img_shape={img.shape}, loader_img_dtype={img.dtype}, "
+                    f"tensor_input_shape={tensor_input.shape}, "
+                    f"tensor_input_dtype={tensor_input.dtype}, "
+                    f"tensor_input_enabled={self._tensor_input_enabled}, "
+                    f"input_name={self.input_spec.name}, "
+                    f"input_layout={self.input_spec.layout}, "
+                    f"input_color_space={self.input_color_space}, "
+                    f"platform={self._resolve_platform_name()}"
+                )
+                self._logged_input_debug = True
+            self._input_queue.send(nn_input)
+            return DepthAIEngineOutput(
+                self._output_queue.get(),
+                self.output_specs,
+            )
+
         new_input = dai.ImgFrame()
         new_input.setFrame(img_for_device)
         new_input.setWidth(model_spec.width)
@@ -305,6 +333,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         self._passthrough = None
         self.model_spec = None
         self._logged_input_debug = False
+        self._tensor_input_enabled = False
 
     def _log_archive_preprocessing(self) -> None:
         if self.nn_archive_cfg is None:
@@ -334,6 +363,58 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
             f"reverse_channels={preprocessing.reverse_channels}, "
             f"interleaved_to_planar={preprocessing.interleaved_to_planar}"
         )
+
+    def _should_use_tensor_input(self) -> bool:
+        if self.input_spec is None or self.input_spec.dtype is None:
+            return False
+        if "float" not in self.input_spec.dtype.lower():
+            return False
+        if self.nn_archive_cfg is None:
+            return False
+
+        try:
+            preprocessing = self.nn_archive_cfg.model.inputs[0].preprocessing
+        except (AttributeError, IndexError):
+            return False
+
+        mean = preprocessing.mean or []
+        return any(abs(value) > 1e-12 for value in mean)
+
+    def _prepare_tensor_input(self, img: np.ndarray) -> np.ndarray:
+        if self.input_spec is None:
+            raise RuntimeError("Input spec is unavailable.")
+
+        tensor_input = img
+        if self.input_spec.layout == "NCHW":
+            if img.ndim == 2:
+                tensor_input = img[np.newaxis, :, :]
+            elif img.ndim == 3 and img.shape[2] == 1:
+                tensor_input = np.transpose(img, (2, 0, 1))
+            elif img.ndim == 3:
+                tensor_input = np.transpose(img, (2, 0, 1))
+            else:
+                raise ValueError(
+                    f"Unsupported image shape for NCHW tensor input: {img.shape}."
+                )
+        elif self.input_spec.layout == "NHWC":
+            if img.ndim == 2:
+                tensor_input = img[:, :, np.newaxis]
+            elif img.ndim != 3:
+                raise ValueError(
+                    f"Unsupported image shape for NHWC tensor input: {img.shape}."
+                )
+        else:
+            raise ValueError(
+                f"Unsupported input layout for tensor input: {self.input_spec.layout}."
+            )
+
+        expected_shape = tuple(self.input_spec.shape[1:])
+        if tensor_input.shape != expected_shape:
+            raise ValueError(
+                "Prepared tensor input shape does not match model input shape: "
+                f"{tensor_input.shape} != {expected_shape}."
+            )
+        return tensor_input
 
     def _setup_device(self) -> tuple[dai.Device, str]:
         """Set up and connect to a DepthAI device.
