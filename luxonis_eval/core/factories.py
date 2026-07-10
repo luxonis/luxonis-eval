@@ -26,6 +26,7 @@ def create_engine(cfg: EvalConfig) -> BaseEngine:
             cfg.pipeline.engine.name,
             cfg.pipeline.engine.model_path,
             nn_archive_cfg=cfg.nn_archive_cfg,
+            input_color_space=cfg.pipeline.loader.preprocessing.color_space,
             **cfg.pipeline.engine.params,
         )
     except KeyError as e:

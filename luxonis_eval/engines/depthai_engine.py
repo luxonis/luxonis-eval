@@ -101,6 +101,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         model_path: PathType,
         device_ip: str | None = None,
         nn_archive_cfg: "NNArchiveConfig | None" = None,
+        input_color_space: str = "BGR",
         **kwargs: Any,
     ) -> None:
         """Initialize the DepthAI inference engine.
@@ -117,6 +118,7 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         super().__init__(model_path=model_path, **kwargs)
         self.device_ip = device_ip
         self.nn_archive_cfg = nn_archive_cfg
+        self.input_color_space = input_color_space.upper()
         self._pipeline: dai.Pipeline | None = None
         self.device: dai.Device | None = None
         self.device_platform: str | None = None
@@ -231,10 +233,16 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
             img_frame_type = dai.ImgFrame.Type.GRAY8
             img_for_device = img
         elif self._resolve_platform_name() == "RVC2":
-            img_frame_type = dai.ImgFrame.Type.BGR888p
+            if self.input_color_space == "RGB":
+                img_frame_type = dai.ImgFrame.Type.RGB888p
+            else:
+                img_frame_type = dai.ImgFrame.Type.BGR888p
             img_for_device = np.transpose(img, (2, 0, 1))
         else:
-            img_frame_type = dai.ImgFrame.Type.BGR888i
+            if self.input_color_space == "RGB":
+                img_frame_type = dai.ImgFrame.Type.RGB888i
+            else:
+                img_frame_type = dai.ImgFrame.Type.BGR888i
             img_for_device = img
 
         new_input = dai.ImgFrame()
