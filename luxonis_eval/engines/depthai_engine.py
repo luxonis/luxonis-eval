@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, slots=True)
 class DepthAIEngineOutput(EngineOutput):
     raw_output: dai.NNData
+    _output_specs: tuple[TensorSpec, ...] = ()
     _selected_names: tuple[str, ...] | None = None
 
     def names(self) -> tuple[str, ...]:
@@ -43,7 +44,9 @@ class DepthAIEngineOutput(EngineOutput):
                 f"Available tensors: {list(self.names())}."
             )
 
-        get_tensor_kwargs: dict[str, object] = {"dequantize": True}
+        get_tensor_kwargs: dict[str, object] = {
+            "dequantize": self._should_dequantize(name)
+        }
         if layout == "NCHW":
             get_tensor_kwargs["storageOrder"] = (
                 dai.TensorInfo.StorageOrder.NCHW
@@ -56,6 +59,21 @@ class DepthAIEngineOutput(EngineOutput):
         tensor = self.raw_output.getTensor(name, **get_tensor_kwargs)
         return np.asarray(tensor)
 
+    def _should_dequantize(self, name: str) -> bool:
+        spec = next(
+            (output_spec for output_spec in self._output_specs if output_spec.name == name),
+            None,
+        )
+        if spec is None or spec.dtype is None:
+            return True
+
+        dtype = spec.dtype.lower()
+        if "float" in dtype:
+            return True
+        if "bool" in dtype or "int" in dtype or "uint" in dtype:
+            return False
+        return True
+
     def select(self, names: Sequence[str] | None) -> "DepthAIEngineOutput":
         if names is None:
             return self
@@ -66,7 +84,11 @@ class DepthAIEngineOutput(EngineOutput):
             raise ValueError(
                 f"Requested outputs are missing from engine result: {missing}"
             )
-        return DepthAIEngineOutput(self.raw_output, requested_names)
+        return DepthAIEngineOutput(
+            self.raw_output,
+            self._output_specs,
+            requested_names,
+        )
 
 
 class DepthAIEngine(BaseEngine, register_name="depthai"):
@@ -222,7 +244,10 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
         new_input.setType(img_frame_type)
         self._input_queue.send(new_input)
 
-        return DepthAIEngineOutput(self._output_queue.get())
+        return DepthAIEngineOutput(
+            self._output_queue.get(),
+            self.output_specs,
+        )
 
     def vis_frame(self) -> np.ndarray:
         """Get visualization frame from passthrough.
