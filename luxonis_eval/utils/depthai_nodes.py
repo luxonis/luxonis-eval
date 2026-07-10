@@ -26,7 +26,7 @@ def ordered_class_names(class_map: dict[int, str]) -> list[str]:
 
 
 def extract_segmentation_mask(predictions: Any) -> np.ndarray:
-    """Extract a semantic-segmentation mask from DepthAI-style messages."""
+    """Extract a semantic-segmentation mask from a DepthAI message."""
     if hasattr(predictions, "getCvMask"):
         mask = predictions.getCvMask()
     elif hasattr(predictions, "getCvSegmentationMask"):
@@ -37,7 +37,7 @@ def extract_segmentation_mask(predictions: Any) -> np.ndarray:
         raise TypeError(
             "Unsupported segmentation prediction type "
             f"{type(predictions)!r}: expected a DepthAI SegmentationMask "
-            "message or a compatible wrapper."
+            "message."
         )
 
     if mask is None:
