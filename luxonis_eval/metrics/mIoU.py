@@ -7,7 +7,6 @@ from torchmetrics.segmentation import MeanIoU
 
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import (
-    binary_segmentation_confusion,
     mask_ignore_pixels,
     normalize_prediction_segmentation_mask,
     remap_prediction_mask,
@@ -140,72 +139,3 @@ class MIoU(BaseMetric):
             f"mIoU ({name})": float(r)
             for name, r in zip(class_names, results, strict=True)
         }
-
-
-class JaccardIndex(BaseMetric):
-    """LuxonisTrain-compatible Jaccard index for binary segmentation."""
-
-    def __init__(
-        self,
-        num_classes: int | None = None,
-        include_background: bool = False,
-        per_class: bool = False,
-        input_format: Literal["one-hot", "index", "mixed"] = "index",
-        **kwargs: Any,
-    ) -> None:
-        self.num_classes = num_classes
-        self.include_background = include_background
-        self.per_class = per_class
-        self.input_format = input_format
-        self.target_class_map = None
-        super().__init__(**kwargs)
-
-    def required_target_keys(self) -> list[str]:
-        return ["/segmentation"]
-
-    def reset(self) -> None:
-        self.true_positives = 0
-        self.false_positives = 0
-        self.false_negatives = 0
-
-    def update(
-        self,
-        predictions: dai.SegmentationMask,
-        target: dict[str, np.ndarray],
-        **kwargs: Any,
-    ) -> None:
-        if self.target_class_map is None:
-            self.target_class_map = kwargs.get("target_class_map", {})
-        class_index_map = kwargs.get("class_index_map")
-        target_bg = kwargs.get("target_bg")
-
-        target_mask, binary_target = target_segmentation_to_index_mask(
-            target[self.required_target_keys()[0]]
-        )
-        pred_mask = normalize_prediction_segmentation_mask(
-            extract_segmentation_mask(predictions),
-            binary_target=binary_target,
-        )
-
-        if binary_target:
-            tp, fp, fn = binary_segmentation_confusion(pred_mask, target_mask)
-            self.true_positives += tp
-            self.false_positives += fp
-            self.false_negatives += fn
-            return
-
-        del class_index_map, target_bg, pred_mask, target_mask
-        raise NotImplementedError(
-            "luxonis-eval `JaccardIndex` currently mirrors LuxonisTrain "
-            "behavior only for binary semantic segmentation. Use `MIoU` "
-            "for non-binary semantic segmentation."
-        )
-
-    def compute(self) -> dict[str, float]:
-        denom = (
-            self.true_positives
-            + self.false_positives
-            + self.false_negatives
-        )
-        score = 0.0 if denom == 0 else self.true_positives / denom
-        return {"JaccardIndex": float(score)}
