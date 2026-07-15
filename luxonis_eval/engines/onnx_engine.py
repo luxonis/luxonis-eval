@@ -28,7 +28,7 @@ class ONNXEngineOutput(EngineOutput):
     ) -> np.ndarray:
         del layout
         try:
-            return self.tensors[name]
+            return self.tensors[name].copy()
         except KeyError as err:
             raise ValueError(
                 f"Requested output tensor {name!r} is not available. "
