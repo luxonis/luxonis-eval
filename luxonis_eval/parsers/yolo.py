@@ -115,7 +115,24 @@ class YOLOExtendedParser(BaseParser):
                 label_names=payload["label_names"],
                 masks=payload["masks"],
             )
-            instance_masks = build_train_style_instance_masks(compute_kwargs)
+            mask_compute_kwargs = build_yolo_compute_kwargs(
+                output,
+                model_spec=model_spec,
+                class_map=class_map,
+                subtype=subtype,
+                n_classes=n_classes,
+                anchors=anchors,
+                strides=strides,
+                conf_threshold=conf_threshold,
+                iou_threshold=iou_threshold,
+                max_det=max_det,
+                mask_conf=mask_conf,
+                keypoint_label_names=keypoint_label_names,
+                keypoint_edges=keypoint_edges,
+            )
+            instance_masks = build_train_style_instance_masks(
+                mask_compute_kwargs
+            )
             if instance_masks.shape[0] != len(message.detections):
                 raise ValueError(
                     "YOLOExtendedParser received mismatched segmentation outputs: "
