@@ -1,6 +1,8 @@
+from dataclasses import dataclass
 from typing import Any
 
 import depthai as dai
+import numpy as np
 from depthai_nodes.message.creators import create_detection_message
 from depthai_nodes.node.parsers.yolo import (
     YOLOComputeInputs,
@@ -14,6 +16,22 @@ from luxonis_eval.engines.io import EngineOutput
 from luxonis_eval.utils.depthai_nodes import build_yolo_compute_kwargs
 
 from .base_parser import BaseParser
+
+
+@dataclass
+class ParsedImgDetections:
+    message: dai.ImgDetections
+    instance_masks: np.ndarray | None = None
+
+    @property
+    def detections(self) -> Any:
+        return self.message.detections
+
+    def getCvSegmentationMask(self) -> Any:
+        return self.message.getCvSegmentationMask()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.message, name)
 
 
 class YOLOExtendedParser(BaseParser):
@@ -45,7 +63,7 @@ class YOLOExtendedParser(BaseParser):
         keypoint_label_names: list[str] | None = None,
         keypoint_edges: list[tuple[int, int]] | None = None,
         **kwargs: Any,
-    ) -> dai.ImgDetections:
+    ) -> ParsedImgDetections | dai.ImgDetections:
         """Parse backend output into YOLO predictions."""
         del kwargs
         payload = DepthAINodesYOLOExtendedParser.compute(
@@ -88,12 +106,18 @@ class YOLOExtendedParser(BaseParser):
             )
 
         if mode == self._SEG_MODE:
-            return create_detection_message(
+            message = create_detection_message(
                 bboxes=payload["bboxes"],
                 scores=payload["scores"],
                 labels=payload["labels"],
                 label_names=payload["label_names"],
                 masks=payload["masks"],
+            )
+            return ParsedImgDetections(
+                message=message,
+                instance_masks=np.asarray(
+                    payload.get("instance_masks", np.zeros((0, 0, 0)))
+                ),
             )
 
         return create_detection_message(

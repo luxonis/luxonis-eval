@@ -1,7 +1,6 @@
 from collections.abc import Sequence
 from typing import Any
 
-import depthai as dai
 import numpy as np
 import torch
 from torchmetrics.detection import MeanAveragePrecision
@@ -10,6 +9,7 @@ from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import (
     detection_to_coco_xywh,
 )
+from luxonis_eval.parsers.yolo import ParsedImgDetections
 
 
 class MaskMeanAveragePrecision(BaseMetric):
@@ -54,7 +54,7 @@ class MaskMeanAveragePrecision(BaseMetric):
 
     def update(
         self,
-        predictions: dai.ImgDetections,
+        predictions: ParsedImgDetections,
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
@@ -62,7 +62,7 @@ class MaskMeanAveragePrecision(BaseMetric):
 
         Parameters
         ----------
-        predictions : dai.ImgDetections
+        predictions : ParsedImgDetections
             Model predictions.
         target : dict[str, np.ndarray]
             Ground-truth data.
@@ -98,8 +98,8 @@ class MaskMeanAveragePrecision(BaseMetric):
         )
 
         detections = predictions.detections
-        masks = self._resolve_prediction_masks(
-            predictions.getCvSegmentationMask(),  # type: ignore[arg-type]
+        masks = self._resolve_prediction_instance_masks(
+            predictions.instance_masks,
             n_detections=len(detections),
             height=height,
             width=width,
@@ -171,8 +171,8 @@ class MaskMeanAveragePrecision(BaseMetric):
             "AP50": float(metrics["segm_map_50"]),
         }
 
-    def _resolve_prediction_masks(
-        self,
+    @staticmethod
+    def _resolve_prediction_instance_masks(
         raw_masks: np.ndarray | None,
         *,
         n_detections: int,
@@ -180,45 +180,28 @@ class MaskMeanAveragePrecision(BaseMetric):
         width: int,
     ) -> np.ndarray:
         if raw_masks is None:
-            return np.zeros((0, height, width), dtype=np.uint8)
+            raise ValueError(
+                "MaskMeanAveragePrecision requires raw per-instance masks in "
+                "predictions.instance_masks."
+            )
 
         masks = np.asarray(raw_masks)
         if masks.size == 0:
             return np.zeros((0, height, width), dtype=np.uint8)
 
-        if masks.ndim == 3:
-            if masks.shape == (n_detections, height, width):
-                return masks.astype(np.uint8, copy=False)
+        if masks.ndim != 3:
             raise ValueError(
-                "Unsupported 3D segmentation mask shape "
-                f"{masks.shape}. Expected ({n_detections}, {height}, {width})."
+                f"Unsupported raw instance mask rank {masks.ndim}. "
+                "Expected shape (N, H, W)."
             )
 
-        if masks.ndim != 2:
+        if masks.shape != (n_detections, height, width):
             raise ValueError(
-                f"Unsupported segmentation mask rank {masks.ndim}. "
-                "Expected a 2D instance-id mask of shape (H, W) or a "
-                "flattened stack of shape (N*H, W)."
+                "Raw instance masks do not align with detections. Expected "
+                f"({n_detections}, {height}, {width}), got {masks.shape}."
             )
 
-        if masks.shape == (height, width):
-            if n_detections == 0:
-                return np.zeros((0, height, width), dtype=np.uint8)
-            return np.stack(
-                [(masks == idx).astype(np.uint8) for idx in range(n_detections)],
-                axis=0,
-            )
-
-        if n_detections > 0 and masks.shape == (n_detections * height, width):
-            return masks.reshape(n_detections, height, width).astype(
-                np.uint8, copy=False
-            )
-
-        raise ValueError(
-            f"Mask dimensions {masks.shape} do not match the expected image "
-            f"dimensions ({height}, {width}). Supported formats are (H, W) "
-            "for an instance-id mask and (N*H, W) for a flattened per-instance stack."
-        )
+        return masks.astype(np.uint8, copy=False)
 
     @staticmethod
     def _xywh_to_xyxy(boxes_xywh: np.ndarray) -> np.ndarray:
