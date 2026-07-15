@@ -5,6 +5,7 @@ from typing import Any
 import numpy as np
 import torch
 import torch.nn.functional as F
+from depthai_nodes.node.parsers.yolo import YOLOComputeInputs
 from depthai_nodes.node.parsers.utils.yolo import (
     YOLOSubtype,
     decode_yolo26,
@@ -50,7 +51,7 @@ def extract_segmentation_mask(predictions: Any) -> np.ndarray:
     return np.asarray(mask)
 
 
-def build_yolo_compute_kwargs(
+def build_yolo_compute_inputs(
     output: EngineOutput,
     model_spec: ModelSpec,
     *,
@@ -65,7 +66,7 @@ def build_yolo_compute_kwargs(
     mask_conf: float = 0.5,
     keypoint_label_names: list[str] | None = None,
     keypoint_edges: list[tuple[int, int]] | None = None,
-) -> dict[str, Any]:
+) -> YOLOComputeInputs:
     """Adapter that converts EngineOutput + ModelSpec into the field
     mapping required to construct ``depthai_nodes``
     ``YOLOComputeInputs``."""
@@ -194,34 +195,34 @@ def build_yolo_compute_kwargs(
             )
         resolved_n_classes = inferred_n_classes
 
-    return {
-        "subtype": subtype_enum,
-        "layer_names": layer_names,
-        "outputs_values": outputs_values,
-        "strides": strides,
-        "conf_threshold": conf_threshold,
-        "n_classes": resolved_n_classes,
-        "iou_threshold": iou_threshold,
-        "max_det": max_det,
-        "anchors": anchors,
-        "n_keypoints": kpts_outputs[0].shape[1] // 3 if kpts_outputs else 17,
-        "label_names": ordered_class_names(class_map),
-        "keypoint_label_names": keypoint_label_names,
-        "keypoint_edges": keypoint_edges,
-        "input_shape": (model_spec.height, model_spec.width),
-        "kpts_outputs": kpts_outputs,
-        "masks_outputs_values": masks_outputs_values,
-        "protos_output": protos_output,
-        "protos_len": protos_len,
-        "mask_conf": mask_conf,
-        "v26_mask_coeffs": v26_mask_coeffs,
-        "v26_protos": v26_protos,
-        "v26_pose_kpts": v26_pose_kpts,
-    }
+    return YOLOComputeInputs(
+        subtype=subtype_enum,
+        layer_names=layer_names,
+        outputs_values=outputs_values,
+        strides=strides,
+        conf_threshold=conf_threshold,
+        n_classes=resolved_n_classes,
+        iou_threshold=iou_threshold,
+        max_det=max_det,
+        anchors=anchors,
+        n_keypoints=kpts_outputs[0].shape[1] // 3 if kpts_outputs else 17,
+        label_names=ordered_class_names(class_map),
+        keypoint_label_names=keypoint_label_names,
+        keypoint_edges=keypoint_edges,
+        input_shape=(model_spec.height, model_spec.width),
+        kpts_outputs=kpts_outputs,
+        masks_outputs_values=masks_outputs_values,
+        protos_output=protos_output,
+        protos_len=protos_len,
+        mask_conf=mask_conf,
+        v26_mask_coeffs=v26_mask_coeffs,
+        v26_protos=v26_protos,
+        v26_pose_kpts=v26_pose_kpts,
+    )
 
 
-def build_luxonistrain_instance_masks(
-    compute_kwargs: dict[str, Any],
+def build_yolo_instance_masks(
+    compute_inputs: YOLOComputeInputs,
 ) -> np.ndarray:
     """Rebuild per-instance masks with refinement.
 
@@ -234,22 +235,24 @@ def build_luxonistrain_instance_masks(
     upsampling behavior.
     """
 
-    subtype = compute_kwargs["subtype"]
-    input_shape = compute_kwargs["input_shape"]
+    subtype = compute_inputs.subtype
+    input_shape = compute_inputs.input_shape
+    if input_shape is None:
+        raise ValueError("YOLO mask rebuilding requires an input shape.")
     height, width = input_shape
 
     if subtype == YOLOSubtype.V26:
         results, mask_coeffs = decode_yolo26(
-            compute_kwargs["outputs_values"][0],
-            compute_kwargs["conf_threshold"],
-            compute_kwargs["max_det"],
-            extra_raw=compute_kwargs["v26_mask_coeffs"],
+            compute_inputs.outputs_values[0],
+            compute_inputs.conf_threshold,
+            compute_inputs.max_det,
+            extra_raw=compute_inputs.v26_mask_coeffs,
         )
         if mask_coeffs is None:
             raise ValueError(
                 "YOLO26 instance segmentation requires mask coefficients."
             )
-        mask_prototypes = compute_kwargs["v26_protos"]
+        mask_prototypes = compute_inputs.v26_protos
         if mask_prototypes is None:
             raise ValueError(
                 "YOLO26 instance segmentation requires prototype masks."
@@ -262,7 +265,7 @@ def build_luxonistrain_instance_masks(
             width=width,
         )
 
-    resolved_strides = compute_kwargs["strides"]
+    resolved_strides = compute_inputs.strides
     if resolved_strides is None:
         resolved_strides = (
             [8, 16, 32]
@@ -270,7 +273,7 @@ def build_luxonistrain_instance_masks(
             else [16, 32]
         )
 
-    anchors = compute_kwargs["anchors"]
+    anchors = compute_inputs.anchors
     anchors_array = (
         np.array(anchors).reshape(len(resolved_strides), -1)
         if anchors is not None
@@ -278,19 +281,19 @@ def build_luxonistrain_instance_masks(
     )
 
     results = decode_yolo_output(
-        compute_kwargs["outputs_values"],
+        compute_inputs.outputs_values,
         resolved_strides,
         anchors_array,
-        conf_thres=compute_kwargs["conf_threshold"],
-        iou_thres=compute_kwargs["iou_threshold"],
-        num_classes=compute_kwargs["n_classes"],
+        conf_thres=compute_inputs.conf_threshold,
+        iou_thres=compute_inputs.iou_threshold,
+        num_classes=compute_inputs.n_classes,
         det_mode=False,
         subtype=subtype,
     )
 
-    protos_output = compute_kwargs["protos_output"]
-    masks_outputs_values = compute_kwargs["masks_outputs_values"]
-    protos_len = compute_kwargs["protos_len"]
+    protos_output = compute_inputs.protos_output
+    masks_outputs_values = compute_inputs.masks_outputs_values
+    protos_len = compute_inputs.protos_len
     if protos_output is None or masks_outputs_values is None or protos_len is None:
         raise ValueError(
             "YOLO instance segmentation requires prototype and mask outputs."

@@ -4,17 +4,14 @@ import depthai as dai
 import numpy as np
 from depthai_nodes.message.creators import create_detection_message
 from depthai_nodes.node.parsers.yolo import (
-    YOLOComputeInputs,
-)
-from depthai_nodes.node.parsers.yolo import (
     YOLOExtendedParser as DepthAINodesYOLOExtendedParser,
 )
 
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
 from luxonis_eval.utils.depthai_nodes import (
-    build_luxonistrain_instance_masks,
-    build_yolo_compute_kwargs,
+    build_yolo_compute_inputs,
+    build_yolo_instance_masks,
 )
 
 from .base_parser import BaseParser
@@ -71,7 +68,7 @@ class YOLOExtendedParser(BaseParser):
     ) -> dai.ImgDetections:
         """Parse backend output into YOLO predictions."""
         del kwargs
-        compute_kwargs = build_yolo_compute_kwargs(
+        compute_inputs = build_yolo_compute_inputs(
             output,
             model_spec=model_spec,
             class_map=class_map,
@@ -86,9 +83,7 @@ class YOLOExtendedParser(BaseParser):
             keypoint_label_names=keypoint_label_names,
             keypoint_edges=keypoint_edges,
         )
-        payload = DepthAINodesYOLOExtendedParser.compute(
-            YOLOComputeInputs(**compute_kwargs)
-        )
+        payload = DepthAINodesYOLOExtendedParser.compute(compute_inputs)
 
         mode = int(payload["mode"])
         if mode == self._KPTS_MODE:
@@ -111,8 +106,22 @@ class YOLOExtendedParser(BaseParser):
                 label_names=payload["label_names"],
                 masks=payload["masks"],
             )
-            instance_masks = build_luxonistrain_instance_masks(
-                compute_kwargs
+            instance_masks = build_yolo_instance_masks(
+                build_yolo_compute_inputs(
+                    output,
+                    model_spec=model_spec,
+                    class_map=class_map,
+                    subtype=subtype,
+                    n_classes=n_classes,
+                    anchors=anchors,
+                    strides=strides,
+                    conf_threshold=conf_threshold,
+                    iou_threshold=iou_threshold,
+                    max_det=max_det,
+                    mask_conf=mask_conf,
+                    keypoint_label_names=keypoint_label_names,
+                    keypoint_edges=keypoint_edges,
+                )
             )
             if instance_masks.shape[0] != len(message.detections):
                 raise ValueError(
