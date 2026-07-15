@@ -3,14 +3,13 @@ from typing import Any
 
 import depthai as dai
 import numpy as np
+import torch
+from torchmetrics.detection import MeanAveragePrecision
 
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import (
-    area_from_rle,
-    bbox_from_rle,
-    binary_mask_to_rle,
+    detection_to_coco_xywh,
 )
-from luxonis_eval.utils.coco_utils import COCOStore
 
 
 class MaskMeanAveragePrecision(BaseMetric):
@@ -29,7 +28,11 @@ class MaskMeanAveragePrecision(BaseMetric):
         **kwargs : Any
             Additional metric configuration.
         """
-        self._store = COCOStore(iou_type=iou_type)
+        if iou_type != "segm":
+            raise ValueError(
+                "MaskMeanAveragePrecision is fixed to instance-segmentation "
+                "evaluation and only supports iou_type='segm'."
+            )
         super().__init__(**kwargs)
 
     def required_target_keys(self) -> list[str]:
@@ -44,7 +47,10 @@ class MaskMeanAveragePrecision(BaseMetric):
 
     def reset(self) -> None:
         """Reset internal metric state."""
-        self._store.reset()
+        self.metric = MeanAveragePrecision(
+            iou_type=("bbox", "segm"),
+            backend="faster_coco_eval",
+        )
 
     def update(
         self,
@@ -69,47 +75,29 @@ class MaskMeanAveragePrecision(BaseMetric):
         width = int(kwargs["width"])
         height = int(kwargs["height"])
 
-        class_map: dict[int, str] = kwargs.get("class_map", {})
         category_ids: Sequence[int] | None = kwargs.get("category_ids")
         class_index_map = kwargs.get("class_index_map")
-
-        self._store.init_categories_once(
-            class_map=class_map, category_ids=category_ids
-        )
-        img_id = self._store.new_image(width=width, height=height)
-
-        # --- GT ---
-        target_classes = target_boxes[:, 0].astype(np.int64)
-
-        for mask, cls in zip(target_masks, target_classes, strict=True):
-            cls = int(cls)
-            if class_index_map is not None:
-                cls = int(class_index_map[cls])
-            if (
-                self._store.category_ids_set is not None
-                and cls not in self._store.category_ids_set
-            ):
-                continue
-
-            rle = binary_mask_to_rle(mask.astype(bool))
-            area = area_from_rle(rle)
-            coco_bbox = bbox_from_rle(rle)
-
-            self._store.add_gt(
-                {
-                    "image_id": img_id,
-                    "category_id": cls,
-                    "segmentation": rle,
-                    "bbox": coco_bbox,
-                    "area": area,
-                    "iscrowd": 0,
-                }
+        target_converter = kwargs.get("target_converter")
+        if target_converter is None:
+            raise ValueError(
+                "MaskMeanAveragePrecision requires target_converter in ctx."
             )
 
-        # --- Predictions ---
+        target_classes, target_boxes_xywh = target_converter(
+            target_boxes, width, height
+        )
+        if class_index_map is not None:
+            target_classes = np.array(
+                [class_index_map[int(cls)] for cls in target_classes],
+                dtype=np.int64,
+            )
+        category_ids_set = (
+            {int(category_id) for category_id in category_ids}
+            if category_ids is not None
+            else None
+        )
+
         detections = predictions.detections
-        scores = [det.confidence for det in detections]
-        classes = [det.label for det in detections]
         masks = self._resolve_prediction_masks(
             predictions.getCvSegmentationMask(),  # type: ignore[arg-type]
             n_detections=len(detections),
@@ -117,29 +105,52 @@ class MaskMeanAveragePrecision(BaseMetric):
             width=width,
         )
 
-        for mask, score, cls in zip(masks, scores, classes, strict=True):
-            cls = int(cls)
-            if (
-                self._store.category_ids_set is not None
-                and cls not in self._store.category_ids_set
-            ):
+        pred_boxes_xyxy: list[list[float]] = []
+        pred_scores: list[float] = []
+        pred_classes: list[int] = []
+        pred_masks: list[np.ndarray] = []
+        for det, mask in zip(detections, masks, strict=True):
+            cls = int(det.label)
+            if category_ids_set is not None and cls not in category_ids_set:
                 continue
 
             if mask.sum() == 0:
                 continue
 
-            rle = binary_mask_to_rle(mask.astype(bool))
-            coco_bbox = bbox_from_rle(rle)
+            x, y, w, h = detection_to_coco_xywh(det, width, height)
+            pred_boxes_xyxy.append([x, y, x + w, y + h])
+            pred_scores.append(float(det.confidence))
+            pred_classes.append(cls)
+            pred_masks.append(mask.astype(bool, copy=False))
 
-            self._store.add_pred(
-                {
-                    "image_id": img_id,
-                    "category_id": cls,
-                    "segmentation": rle,
-                    "bbox": coco_bbox,
-                    "score": float(score),
-                }
+        target_boxes_xyxy = self._xywh_to_xyxy(target_boxes_xywh)
+        if category_ids_set is not None:
+            keep = np.array(
+                [int(cls) in category_ids_set for cls in target_classes],
+                dtype=bool,
             )
+            target_classes = target_classes[keep]
+            target_boxes_xyxy = target_boxes_xyxy[keep]
+            target_masks = target_masks[keep]
+
+        preds = [
+            {
+                "boxes": self._as_boxes_tensor(pred_boxes_xyxy),
+                "scores": self._as_scores_tensor(pred_scores),
+                "labels": self._as_labels_tensor(pred_classes),
+                "masks": self._as_masks_tensor(pred_masks, height, width),
+            }
+        ]
+        targets = [
+            {
+                "boxes": self._as_boxes_tensor(target_boxes_xyxy.tolist()),
+                "labels": self._as_labels_tensor(target_classes.tolist()),
+                "masks": self._as_target_masks_tensor(
+                    target_masks, height, width
+                ),
+            }
+        ]
+        self.metric.update(preds, targets)
 
     def compute(self) -> dict[str, float]:
         """Compute final mAP metrics.
@@ -149,7 +160,16 @@ class MaskMeanAveragePrecision(BaseMetric):
         dict[str, float]
             Computed mAP results.
         """
-        return self._store.evaluate()
+        metrics = self.metric.compute()
+        if "segm_map" not in metrics or "segm_map_50" not in metrics:
+            raise RuntimeError(
+                "TorchMetrics MeanAveragePrecision did not return segmentation "
+                "metrics. Expected 'segm_map' and 'segm_map_50'."
+            )
+        return {
+            "AP": float(metrics["segm_map"]),
+            "AP50": float(metrics["segm_map_50"]),
+        }
 
     def _resolve_prediction_masks(
         self,
@@ -199,3 +219,49 @@ class MaskMeanAveragePrecision(BaseMetric):
             f"dimensions ({height}, {width}). Supported formats are (H, W) "
             "for an instance-id mask and (N*H, W) for a flattened per-instance stack."
         )
+
+    @staticmethod
+    def _xywh_to_xyxy(boxes_xywh: np.ndarray) -> np.ndarray:
+        boxes_xywh = np.asarray(boxes_xywh, dtype=np.float32)
+        if boxes_xywh.size == 0:
+            return np.zeros((0, 4), dtype=np.float32)
+
+        boxes_xyxy = boxes_xywh.copy()
+        boxes_xyxy[:, 2] = boxes_xyxy[:, 0] + boxes_xyxy[:, 2]
+        boxes_xyxy[:, 3] = boxes_xyxy[:, 1] + boxes_xyxy[:, 3]
+        return boxes_xyxy
+
+    @staticmethod
+    def _as_boxes_tensor(boxes: list[list[float]]) -> torch.Tensor:
+        if not boxes:
+            return torch.zeros((0, 4), dtype=torch.float32)
+        return torch.tensor(boxes, dtype=torch.float32)
+
+    @staticmethod
+    def _as_scores_tensor(scores: list[float]) -> torch.Tensor:
+        if not scores:
+            return torch.zeros((0,), dtype=torch.float32)
+        return torch.tensor(scores, dtype=torch.float32)
+
+    @staticmethod
+    def _as_labels_tensor(labels: list[int]) -> torch.Tensor:
+        if not labels:
+            return torch.zeros((0,), dtype=torch.int64)
+        return torch.tensor(labels, dtype=torch.int64)
+
+    @staticmethod
+    def _as_masks_tensor(
+        masks: list[np.ndarray], height: int, width: int
+    ) -> torch.Tensor:
+        if not masks:
+            return torch.zeros((0, height, width), dtype=torch.bool)
+        return torch.from_numpy(np.stack(masks, axis=0)).to(torch.bool)
+
+    @staticmethod
+    def _as_target_masks_tensor(
+        masks: np.ndarray, height: int, width: int
+    ) -> torch.Tensor:
+        masks = np.asarray(masks)
+        if masks.size == 0:
+            return torch.zeros((0, height, width), dtype=torch.bool)
+        return torch.from_numpy(masks.astype(bool, copy=False))
