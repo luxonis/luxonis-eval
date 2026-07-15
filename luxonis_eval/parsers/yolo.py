@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Any
 
 import depthai as dai
@@ -21,20 +20,23 @@ from luxonis_eval.utils.depthai_nodes import (
 from .base_parser import BaseParser
 
 
-@dataclass
-class ParsedImgDetections:
-    message: dai.ImgDetections
-    instance_masks: np.ndarray | None = None
+prediction_instance_masks_by_id: dict[int, np.ndarray] = {}
 
-    @property
-    def detections(self) -> Any:
-        return self.message.detections
 
-    def getCvSegmentationMask(self) -> Any:
-        return self.message.getCvSegmentationMask()
+def store_prediction_instance_masks(
+    predictions: dai.ImgDetections, instance_masks: np.ndarray
+) -> None:
+    prediction_instance_masks_by_id[id(predictions)] = instance_masks
 
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self.message, name)
+
+def get_prediction_instance_masks(
+    predictions: dai.ImgDetections,
+) -> np.ndarray | None:
+    return prediction_instance_masks_by_id.get(id(predictions))
+
+
+def discard_prediction_metadata(predictions: Any) -> None:
+    prediction_instance_masks_by_id.pop(id(predictions), None)
 
 
 class YOLOExtendedParser(BaseParser):
@@ -66,7 +68,7 @@ class YOLOExtendedParser(BaseParser):
         keypoint_label_names: list[str] | None = None,
         keypoint_edges: list[tuple[int, int]] | None = None,
         **kwargs: Any,
-    ) -> ParsedImgDetections | dai.ImgDetections:
+    ) -> dai.ImgDetections:
         """Parse backend output into YOLO predictions."""
         del kwargs
         compute_kwargs = build_yolo_compute_kwargs(
@@ -139,10 +141,8 @@ class YOLOExtendedParser(BaseParser):
                     f"{len(message.detections)} detections but "
                     f"{instance_masks.shape[0]} rebuilt instance masks."
                 )
-            return ParsedImgDetections(
-                message=message,
-                instance_masks=instance_masks,
-            )
+            store_prediction_instance_masks(message, instance_masks)
+            return message
 
         return create_detection_message(
             bboxes=payload["bboxes"],

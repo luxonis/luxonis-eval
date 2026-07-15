@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from typing import Any
 
+import depthai as dai
 import numpy as np
 import torch
 from torchmetrics.detection import MeanAveragePrecision
@@ -9,7 +10,7 @@ from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import (
     detection_to_coco_xywh,
 )
-from luxonis_eval.parsers.yolo import ParsedImgDetections
+from luxonis_eval.parsers.yolo import get_prediction_instance_masks
 
 
 class MaskMeanAveragePrecision(BaseMetric):
@@ -54,7 +55,7 @@ class MaskMeanAveragePrecision(BaseMetric):
 
     def update(
         self,
-        predictions: ParsedImgDetections,
+        predictions: dai.ImgDetections,
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
@@ -62,7 +63,7 @@ class MaskMeanAveragePrecision(BaseMetric):
 
         Parameters
         ----------
-        predictions : ParsedImgDetections
+        predictions : dai.ImgDetections
             Model predictions.
         target : dict[str, np.ndarray]
             Ground-truth data.
@@ -99,7 +100,7 @@ class MaskMeanAveragePrecision(BaseMetric):
 
         detections = predictions.detections
         masks = self._resolve_prediction_instance_masks(
-            predictions.instance_masks,
+            get_prediction_instance_masks(predictions),
             n_detections=len(detections),
             height=height,
             width=width,
@@ -181,8 +182,8 @@ class MaskMeanAveragePrecision(BaseMetric):
     ) -> np.ndarray:
         if raw_masks is None:
             raise ValueError(
-                "MaskMeanAveragePrecision requires raw per-instance masks in "
-                "predictions.instance_masks."
+                "MaskMeanAveragePrecision requires raw per-instance masks "
+                "for the prediction message."
             )
 
         masks = np.asarray(raw_masks)

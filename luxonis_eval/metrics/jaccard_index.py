@@ -18,7 +18,7 @@ class JaccardIndex(BaseMetric):
     def __init__(
         self,
         num_classes: int | None = None,
-        include_background: bool = False,
+        include_background: bool = True,
         per_class: bool = False,
         input_format: Literal["one-hot", "index", "mixed"] = "index",
         **kwargs: Any,

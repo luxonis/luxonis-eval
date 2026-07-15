@@ -13,12 +13,12 @@ from luxonis_eval.utils.depthai_nodes import extract_segmentation_mask
 
 
 class F1Score(BaseMetric):
-    """LuxonisTrain-compatible F1 score for binary semantic segmentation."""
+    """F1 score for binary semantic segmentation."""
 
     def __init__(
         self,
         num_classes: int | None = None,
-        include_background: bool = False,
+        include_background: bool = True,
         average: Literal["micro", "macro", "weighted", "none"]
         | None = "micro",
         input_format: Literal["one-hot", "index"] = "index",
