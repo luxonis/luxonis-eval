@@ -106,6 +106,13 @@ class YOLOExtendedParser(BaseParser):
             )
 
         if mode == self._SEG_MODE:
+            if "instance_masks" not in payload:
+                raise ValueError(
+                    "YOLOExtendedParser requires depthai_nodes YOLO compute() "
+                    "to return 'instance_masks' for instance segmentation. "
+                    "Update depthai-nodes to a version that exposes raw per-instance masks."
+                )
+
             message = create_detection_message(
                 bboxes=payload["bboxes"],
                 scores=payload["scores"],
@@ -113,11 +120,21 @@ class YOLOExtendedParser(BaseParser):
                 label_names=payload["label_names"],
                 masks=payload["masks"],
             )
+            instance_masks = np.asarray(payload["instance_masks"])
+            if instance_masks.ndim != 3:
+                raise ValueError(
+                    "YOLOExtendedParser expected raw instance masks with shape "
+                    f"(N, H, W), got {instance_masks.shape}."
+                )
+            if instance_masks.shape[0] != len(message.detections):
+                raise ValueError(
+                    "YOLOExtendedParser received mismatched segmentation outputs: "
+                    f"{len(message.detections)} detections but "
+                    f"{instance_masks.shape[0]} raw instance masks."
+                )
             return ParsedImgDetections(
                 message=message,
-                instance_masks=np.asarray(
-                    payload.get("instance_masks", np.zeros((0, 0, 0)))
-                ),
+                instance_masks=instance_masks,
             )
 
         return create_detection_message(

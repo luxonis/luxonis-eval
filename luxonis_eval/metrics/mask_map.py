@@ -187,6 +187,11 @@ class MaskMeanAveragePrecision(BaseMetric):
 
         masks = np.asarray(raw_masks)
         if masks.size == 0:
+            if n_detections != 0:
+                raise ValueError(
+                    "MaskMeanAveragePrecision received no raw instance masks "
+                    f"for {n_detections} detections."
+                )
             return np.zeros((0, height, width), dtype=np.uint8)
 
         if masks.ndim != 3:
