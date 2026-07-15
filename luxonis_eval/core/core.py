@@ -36,7 +36,7 @@ from luxonis_eval.loaders.base_loader import BaseEvalLoader
 from luxonis_eval.metrics import ThroughputMetric
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.parsers.base_parser import BaseParser
-from luxonis_eval.parsers.yolo import discard_prediction_metadata
+from luxonis_eval.parsers.yolo import clear_prediction_metadata
 from luxonis_eval.visualizers.base_visualizer import BaseVisualizer
 
 
@@ -213,7 +213,7 @@ class LuxonisEval:
                             **visualizer_cfg.params,
                         )
                 finally:
-                    discard_prediction_metadata(predictions)
+                    clear_prediction_metadata(predictions)
                 progress.update(advance=1)
 
         metric_compute_t0 = time.perf_counter()
@@ -312,7 +312,7 @@ class LuxonisEval:
                 metric.compute()
                 metric.reset()
         finally:
-            discard_prediction_metadata(predictions)
+            clear_prediction_metadata(predictions)
 
     def _clear_runtime_fields(self) -> None:
         self.engine: BaseEngine | None = None

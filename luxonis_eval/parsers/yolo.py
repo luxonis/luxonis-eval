@@ -35,7 +35,7 @@ def get_prediction_instance_masks(
     return prediction_instance_masks_by_id.get(id(predictions))
 
 
-def discard_prediction_metadata(predictions: Any) -> None:
+def clear_prediction_metadata(predictions: Any) -> None:
     prediction_instance_masks_by_id.pop(id(predictions), None)
 
 
