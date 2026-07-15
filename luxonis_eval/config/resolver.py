@@ -319,6 +319,7 @@ def construct_yolo_parser_config(head: Any) -> ParserConfig:
         "anchors",
         "conf_threshold",
         "iou_threshold",
+        "mask_conf",
         "max_det",
     ):
         if key in metadata:

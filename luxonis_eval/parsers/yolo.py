@@ -13,7 +13,10 @@ from depthai_nodes.node.parsers.yolo import (
 
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
-from luxonis_eval.utils.depthai_nodes import build_yolo_compute_kwargs
+from luxonis_eval.utils.depthai_nodes import (
+    build_train_style_instance_masks,
+    build_yolo_compute_kwargs,
+)
 
 from .base_parser import BaseParser
 
@@ -66,24 +69,23 @@ class YOLOExtendedParser(BaseParser):
     ) -> ParsedImgDetections | dai.ImgDetections:
         """Parse backend output into YOLO predictions."""
         del kwargs
+        compute_kwargs = build_yolo_compute_kwargs(
+            output,
+            model_spec=model_spec,
+            class_map=class_map,
+            subtype=subtype,
+            n_classes=n_classes,
+            anchors=anchors,
+            strides=strides,
+            conf_threshold=conf_threshold,
+            iou_threshold=iou_threshold,
+            max_det=max_det,
+            mask_conf=mask_conf,
+            keypoint_label_names=keypoint_label_names,
+            keypoint_edges=keypoint_edges,
+        )
         payload = DepthAINodesYOLOExtendedParser.compute(
-            YOLOComputeInputs(
-                **build_yolo_compute_kwargs(
-                    output,
-                    model_spec=model_spec,
-                    class_map=class_map,
-                    subtype=subtype,
-                    n_classes=n_classes,
-                    anchors=anchors,
-                    strides=strides,
-                    conf_threshold=conf_threshold,
-                    iou_threshold=iou_threshold,
-                    max_det=max_det,
-                    mask_conf=mask_conf,
-                    keypoint_label_names=keypoint_label_names,
-                    keypoint_edges=keypoint_edges,
-                )
-            )
+            YOLOComputeInputs(**compute_kwargs)
         )
 
         mode = self._resolve_mode(payload)
@@ -106,13 +108,6 @@ class YOLOExtendedParser(BaseParser):
             )
 
         if mode == self._SEG_MODE:
-            if "instance_masks" not in payload:
-                raise ValueError(
-                    "YOLOExtendedParser requires depthai_nodes YOLO compute() "
-                    "to return 'instance_masks' for instance segmentation. "
-                    "Update depthai-nodes to a version that exposes raw per-instance masks."
-                )
-
             message = create_detection_message(
                 bboxes=payload["bboxes"],
                 scores=payload["scores"],
@@ -120,17 +115,12 @@ class YOLOExtendedParser(BaseParser):
                 label_names=payload["label_names"],
                 masks=payload["masks"],
             )
-            instance_masks = np.asarray(payload["instance_masks"])
-            if instance_masks.ndim != 3:
-                raise ValueError(
-                    "YOLOExtendedParser expected raw instance masks with shape "
-                    f"(N, H, W), got {instance_masks.shape}."
-                )
+            instance_masks = build_train_style_instance_masks(compute_kwargs)
             if instance_masks.shape[0] != len(message.detections):
                 raise ValueError(
                     "YOLOExtendedParser received mismatched segmentation outputs: "
                     f"{len(message.detections)} detections but "
-                    f"{instance_masks.shape[0]} raw instance masks."
+                    f"{instance_masks.shape[0]} rebuilt instance masks."
                 )
             return ParsedImgDetections(
                 message=message,
