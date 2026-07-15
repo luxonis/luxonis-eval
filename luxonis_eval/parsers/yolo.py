@@ -4,6 +4,8 @@ import depthai as dai
 from depthai_nodes.message.creators import create_detection_message
 from depthai_nodes.node.parsers.yolo import (
     YOLOComputeInputs,
+)
+from depthai_nodes.node.parsers.yolo import (
     YOLOExtendedParser as DepthAINodesYOLOExtendedParser,
 )
 
@@ -15,7 +17,8 @@ from .base_parser import BaseParser
 
 
 class YOLOExtendedParser(BaseParser):
-    """Parser for YOLO-based detection, segmentation, and pose outputs."""
+    """Parser for YOLO-based detection, segmentation, and pose
+    outputs."""
 
     _DET_MODE = 0
     _KPTS_MODE = 1

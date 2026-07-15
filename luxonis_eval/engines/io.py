@@ -57,9 +57,11 @@ class ModelSpec:
 
 
 class EngineOutput(ABC):
-    """Parser-facing abstraction over backend-specific inference outputs.
+    """Parser-facing abstraction over backend-specific inference
+    outputs.
 
-    Implemented engines wrap their native output type behind this interface
+    Implemented engines wrap their native output type behind this
+    interface
     """
 
     @abstractmethod
@@ -73,13 +75,11 @@ class EngineOutput(ABC):
         *,
         layout: TensorLayout | None = None,
     ) -> np.ndarray:
-        """Return one named tensor as a NumPy array.
-        """
+        """Return one named tensor as a NumPy array."""
 
     @abstractmethod
-    def select(self, names: Sequence[str] | None) -> "EngineOutput":
-        """Return a filtered view over this output.
-        """
+    def select(self, names: Sequence[str] | None) -> EngineOutput:
+        """Return a filtered view over this output."""
 
     def first(self) -> tuple[str, np.ndarray]:
         """Convenience helper for single-output models."""

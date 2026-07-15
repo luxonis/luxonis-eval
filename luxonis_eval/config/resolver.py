@@ -283,7 +283,7 @@ class EvalConfigResolver:
             return None
 
         if archive_head.parser in {"YOLO", "YOLOExtendedParser"}:
-            return resolve_yolo_archive_parser(archive_head)
+            return construct_yolo_parser_config(archive_head)
 
         parser_name = self._map_archive_parser_name(archive_head.parser)
         return ParserConfig(name=parser_name, params={})
@@ -304,7 +304,7 @@ class EvalConfigResolver:
         return resolved_name
 
 
-def resolve_yolo_archive_parser(head: Any) -> ParserConfig:
+def construct_yolo_parser_config(head: Any) -> ParserConfig:
     metadata = resolve_head_metadata(head)
     parser_name = "YOLOExtendedParser"
 

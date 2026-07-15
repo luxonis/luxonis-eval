@@ -59,8 +59,9 @@ def build_yolo_compute_kwargs(
     keypoint_label_names: list[str] | None = None,
     keypoint_edges: list[tuple[int, int]] | None = None,
 ) -> dict[str, Any]:
-    """Adapter that converts EngineOutput + ModelSpec into the field mapping
-    required to construct ``depthai_nodes`` ``YOLOComputeInputs``."""
+    """Adapter that converts EngineOutput + ModelSpec into the field
+    mapping required to construct ``depthai_nodes``
+    ``YOLOComputeInputs``."""
     try:
         subtype_enum = YOLOSubtype(subtype.lower())
     except ValueError as err:
@@ -88,19 +89,15 @@ def build_yolo_compute_kwargs(
                 name for name in layer_names if "output_masks" in name
             )
             protos_name = next(
-                (
-                    name
-                    for name in layer_names
-                    if "protos" in name
-                ),
+                (name for name in layer_names if "protos" in name),
                 "protos_output",
             )
             v26_mask_coeffs = output.get(mask_name).astype(
                 np.float32, copy=False
             )
-            v26_protos = output.get(
-                protos_name, layout="NCHW"
-            ).astype(np.float32, copy=False)[0]
+            v26_protos = output.get(protos_name, layout="NCHW").astype(
+                np.float32, copy=False
+            )[0]
         elif any("kpt_output" in name for name in layer_names):
             outputs_values = [
                 output.get("output_yolo26").astype(np.float32, copy=False)
@@ -108,9 +105,7 @@ def build_yolo_compute_kwargs(
             kpt_name = next(
                 name for name in layer_names if "kpt_output" in name
             )
-            v26_pose_kpts = output.get(kpt_name).astype(
-                np.float32, copy=False
-            )
+            v26_pose_kpts = output.get(kpt_name).astype(np.float32, copy=False)
         else:
             outputs_values = [
                 output.get(name).astype(np.float32, copy=False)
@@ -119,7 +114,11 @@ def build_yolo_compute_kwargs(
         resolved_n_classes = n_classes or len(class_map)
     else:
         outputs_names = sorted(
-            [name for name in layer_names if "_yolo" in name or "yolo-" in name]
+            [
+                name
+                for name in layer_names
+                if "_yolo" in name or "yolo-" in name
+            ]
         ) or list(layer_names)
         outputs_values = [
             output.get(name, layout="NCHW").astype(np.float32, copy=False)
@@ -130,9 +129,10 @@ def build_yolo_compute_kwargs(
             any("kpt_output" in name for name in layer_names)
             and subtype_enum != YOLOSubtype.P
         ):
-            kpts_output_names = sorted(
-                [name for name in layer_names if "kpt_output" in name]
-            ) or layer_names[len(outputs_names) :]
+            kpts_output_names = (
+                sorted([name for name in layer_names if "kpt_output" in name])
+                or layer_names[len(outputs_names) :]
+            )
             kpts_outputs = [
                 output.get(name).astype(np.float32, copy=False)
                 for name in kpts_output_names
@@ -145,13 +145,16 @@ def build_yolo_compute_kwargs(
                 (name for name in layer_names if "protos" in name),
                 layer_names[-1],
             )
-            mask_output_names = sorted(
-                [
-                    name
-                    for name in layer_names
-                    if "mask" in name and "proto" not in name
-                ]
-            ) or layer_names[len(outputs_names) : -1]
+            mask_output_names = (
+                sorted(
+                    [
+                        name
+                        for name in layer_names
+                        if "mask" in name and "proto" not in name
+                    ]
+                )
+                or layer_names[len(outputs_names) : -1]
+            )
             masks_outputs_values = [
                 output.get(name, layout="NCHW").astype(np.float32, copy=False)
                 for name in mask_output_names

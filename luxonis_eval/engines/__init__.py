@@ -1,15 +1,15 @@
 from .base_engine import BaseEngine, ModelSpec
 from .depthai_engine import DepthAIEngine, DepthAIEngineOutput
 from .io import EngineOutput, TensorSpec
-from .onnx_engine import ONNXEngineOutput, OnnxEngine
+from .onnx_engine import OnnxEngine, ONNXEngineOutput
 
 __all__ = [
     "BaseEngine",
-    "DepthAIEngineOutput",
     "DepthAIEngine",
+    "DepthAIEngineOutput",
     "EngineOutput",
     "ModelSpec",
-    "OnnxEngine",
     "ONNXEngineOutput",
+    "OnnxEngine",
     "TensorSpec",
 ]
