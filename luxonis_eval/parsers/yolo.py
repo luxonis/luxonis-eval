@@ -13,7 +13,7 @@ from depthai_nodes.node.parsers.yolo import (
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
 from luxonis_eval.utils.depthai_nodes import (
-    build_train_style_instance_masks,
+    build_luxonistrain_instance_masks,
     build_yolo_compute_kwargs,
 )
 
@@ -90,7 +90,7 @@ class YOLOExtendedParser(BaseParser):
             YOLOComputeInputs(**compute_kwargs)
         )
 
-        mode = self._resolve_mode(payload)
+        mode = int(payload["mode"])
         if mode == self._KPTS_MODE:
             return create_detection_message(
                 bboxes=payload["bboxes"],
@@ -99,14 +99,8 @@ class YOLOExtendedParser(BaseParser):
                 label_names=payload["label_names"],
                 keypoints=payload["keypoints"],
                 keypoints_scores=payload["keypoints_scores"],
-                keypoint_label_names=payload.get(
-                    "keypoint_label_names",
-                    keypoint_label_names,
-                ),
-                keypoint_edges=payload.get(
-                    "keypoint_edges",
-                    keypoint_edges,
-                ),
+                keypoint_label_names=payload["keypoint_label_names"],
+                keypoint_edges=payload["keypoint_edges"],
             )
 
         if mode == self._SEG_MODE:
@@ -117,23 +111,8 @@ class YOLOExtendedParser(BaseParser):
                 label_names=payload["label_names"],
                 masks=payload["masks"],
             )
-            mask_compute_kwargs = build_yolo_compute_kwargs(
-                output,
-                model_spec=model_spec,
-                class_map=class_map,
-                subtype=subtype,
-                n_classes=n_classes,
-                anchors=anchors,
-                strides=strides,
-                conf_threshold=conf_threshold,
-                iou_threshold=iou_threshold,
-                max_det=max_det,
-                mask_conf=mask_conf,
-                keypoint_label_names=keypoint_label_names,
-                keypoint_edges=keypoint_edges,
-            )
-            instance_masks = build_train_style_instance_masks(
-                mask_compute_kwargs
+            instance_masks = build_luxonistrain_instance_masks(
+                compute_kwargs
             )
             if instance_masks.shape[0] != len(message.detections):
                 raise ValueError(
@@ -150,20 +129,3 @@ class YOLOExtendedParser(BaseParser):
             labels=payload["labels"],
             label_names=payload["label_names"],
         )
-
-    def _resolve_mode(self, payload: dict[str, Any]) -> int:
-        mode = payload.get("mode")
-        if mode is not None:
-            return int(mode)
-        keypoints = payload.get("keypoints")
-        if keypoints is not None:
-            keypoints_size = (
-                int(keypoints.size)
-                if hasattr(keypoints, "size")
-                else len(keypoints)
-            )
-            if keypoints_size > 0:
-                return self._KPTS_MODE
-        if payload.get("masks") is not None:
-            return self._SEG_MODE
-        return self._DET_MODE

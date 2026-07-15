@@ -13,7 +13,7 @@ from luxonis_eval.utils.depthai_nodes import extract_segmentation_mask
 
 
 class JaccardIndex(BaseMetric):
-    """LuxonisTrain-compatible Jaccard index for binary segmentation."""
+    """Jaccard index for binary segmentation."""
 
     def __init__(
         self,
@@ -66,8 +66,8 @@ class JaccardIndex(BaseMetric):
 
         del class_index_map, target_bg, pred_mask, target_mask
         raise NotImplementedError(
-            "luxonis-eval `JaccardIndex` currently mirrors LuxonisTrain "
-            "behavior only for binary semantic segmentation. Use `MIoU` "
+            "`JaccardIndex` behavior is only implemeted for "
+            "binary semantic segmentation. Use `MIoU` "
             "for non-binary semantic segmentation."
         )
 

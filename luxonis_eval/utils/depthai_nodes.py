@@ -37,8 +37,6 @@ def extract_segmentation_mask(predictions: Any) -> np.ndarray:
         mask = predictions.getCvMask()
     elif hasattr(predictions, "getCvSegmentationMask"):
         mask = predictions.getCvSegmentationMask()
-    elif hasattr(predictions, "mask"):
-        mask = predictions.mask
     else:
         raise TypeError(
             "Unsupported segmentation prediction type "
@@ -222,14 +220,18 @@ def build_yolo_compute_kwargs(
     }
 
 
-def build_train_style_instance_masks(
+def build_luxonistrain_instance_masks(
     compute_kwargs: dict[str, Any],
 ) -> np.ndarray:
-    """Rebuild per-instance masks using the same refinement rule as
-    luxonis-train.
+    """Rebuild per-instance masks with refinement.
 
     Detection selection still comes from the DepthAI YOLO decode path.
     This helper only regenerates instance masks from the kept detections.
+
+    Mirrored LuxonisTrain's
+    ``luxonis_train.nodes.heads.precision_seg_bbox_head.refine_and_apply_masks()``:
+    Eval uses the same prototype-combination, bbox-cropping, and
+    upsampling behavior.
     """
 
     subtype = compute_kwargs["subtype"]
@@ -321,6 +323,13 @@ def _refine_instance_masks(
     height: int,
     width: int,
 ) -> np.ndarray:
+    """NumPy/Torch port of LuxonisTrain's mask refinement step.
+
+    This mirrors
+    ``luxonis_train.nodes.heads.precision_seg_bbox_head.refine_and_apply_masks()``
+    because DepthAI returns a merged instance-id mask, while evaluation needs
+    the per-instance masks before that merge.
+    """
     if mask_coefficients.shape[0] == 0 or bounding_boxes.shape[0] == 0:
         return np.zeros((0, height, width), dtype=np.uint8)
 
@@ -354,6 +363,12 @@ def _apply_bounding_box_to_masks(
     masks: torch.Tensor,
     bounding_boxes: torch.Tensor,
 ) -> torch.Tensor:
+    """Mirror LuxonisTrain's bbox mask cropping helper.
+
+    This matches
+    ``luxonis_train.utils.boundingbox.apply_bounding_box_to_masks()`` so the
+    rebuilt masks follow the same crop semantics.
+    """
     _, mask_height, mask_width = masks.shape
     left, top, right, bottom = torch.split(
         bounding_boxes[:, :, None], 1, dim=1

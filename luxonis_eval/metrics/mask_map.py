@@ -79,10 +79,6 @@ class MaskMeanAveragePrecision(BaseMetric):
         category_ids: Sequence[int] | None = kwargs.get("category_ids")
         class_index_map = kwargs.get("class_index_map")
         target_converter = kwargs.get("target_converter")
-        if target_converter is None:
-            raise ValueError(
-                "MaskMeanAveragePrecision requires target_converter in ctx."
-            )
 
         target_classes, target_boxes_xywh = target_converter(
             target_boxes, width, height
@@ -162,11 +158,6 @@ class MaskMeanAveragePrecision(BaseMetric):
             Computed mAP results.
         """
         metrics = self.metric.compute()
-        if "segm_map" not in metrics or "segm_map_50" not in metrics:
-            raise RuntimeError(
-                "TorchMetrics MeanAveragePrecision did not return segmentation "
-                "metrics. Expected 'segm_map' and 'segm_map_50'."
-            )
         return {
             "AP": float(metrics["segm_map"]),
             "AP50": float(metrics["segm_map_50"]),

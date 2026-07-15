@@ -67,8 +67,8 @@ class F1Score(BaseMetric):
 
         del class_index_map, target_bg, pred_mask, target_mask
         raise NotImplementedError(
-            "luxonis-eval `F1Score` currently mirrors LuxonisTrain "
-            "behavior only for binary semantic segmentation. Use "
+            "`F1Score` behavior is only implemented for "
+            "binary semantic segmentation. Use "
             "`DiceCoefficient` for non-binary semantic segmentation."
         )
 
