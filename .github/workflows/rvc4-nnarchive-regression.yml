@@ -1,0 +1,127 @@
+name: RVC4 NNArchive Regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      reservation_name:
+        description: "Reservation name"
+        required: false
+        type: string
+      os_version:
+        description: "Optional camera OS version to install before the run"
+        required: false
+        type: string
+      hold_reservation:
+        description: "Hold testbed reservation"
+        required: false
+        type: boolean
+      depthai_version:
+        description: "DepthAI version to test against"
+        required: false
+        default: "3.8.0"
+        type: string
+      additional_options:
+        description: "Additional hil_runner options"
+        required: false
+        type: string
+  push:
+    branches:
+      - main
+      - "develop*"
+      - "develop/*"
+      - "develop/**"
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  rvc4-nnarchive-regression:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+        (github.ref_name == 'main' || startsWith(github.ref_name, 'develop'))) ||
+      (github.event_name == 'pull_request' &&
+        (github.head_ref == 'main' || startsWith(github.head_ref, 'develop')))
+    runs-on: ["self-hosted", "testbed-runner"]
+    permissions:
+      contents: read
+
+    env:
+      LUXONIS_TELEMETRY_ENABLED: "false"
+      HIL_FRAMEWORK_TOKEN: ${{ secrets.HIL_FRAMEWORK_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Write Google credentials
+        shell: bash
+        run: |
+          mkdir -p .ci
+          cat <<'EOF' > .ci/gcp-credentials.json
+          ${{ secrets.GCP_CREDENTIALS }}
+          EOF
+
+      - name: Install HIL runner
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade \
+            --index-url "https://__token__:${HIL_FRAMEWORK_TOKEN}@gitlab.luxonis.com/api/v4/projects/213/packages/pypi/simple" \
+            hil-framework
+
+      - name: Run RVC4 NNArchive regression tests
+        shell: bash
+        env:
+          DEPTHAI_VERSION_INPUT: ${{ github.event.inputs.depthai_version }}
+          RESERVATION_NAME_INPUT: ${{ github.event.inputs.reservation_name }}
+          HOLD_RESERVATION_INPUT: ${{ github.event.inputs.hold_reservation }}
+          OS_VERSION_INPUT: ${{ github.event.inputs.os_version }}
+          ADDITIONAL_OPTIONS_INPUT: ${{ github.event.inputs.additional_options }}
+        run: |
+          DEPTHAI_VERSION_VALUE="${DEPTHAI_VERSION_INPUT:-3.8.0}"
+          if [[ ! "$DEPTHAI_VERSION_VALUE" =~ ^3\.(8|9|[1-9][0-9])\.[0-9]{1,2}$ ]]; then
+            echo "DEPTHAI_VERSION must be within >=3.8.0,<4.0.0; got: $DEPTHAI_VERSION_VALUE" >&2
+            exit 1
+          fi
+
+          if [[ -n "$RESERVATION_NAME_INPUT" ]]; then
+            RESERVATION_OPTION="--reservation-name $RESERVATION_NAME_INPUT"
+          else
+            RESERVATION_OPTION="--reservation-name https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID#luxonis-eval-rvc4"
+          fi
+
+          HOLD_RESERVATION_OPTION=""
+          if [[ "$HOLD_RESERVATION_INPUT" == "true" ]]; then
+            HOLD_RESERVATION_OPTION="--hold-reservation"
+          fi
+
+          OS_VERSION_OPTION=""
+          if [[ -n "$OS_VERSION_INPUT" ]]; then
+            OS_VERSION_OPTION="--os-version $OS_VERSION_INPUT"
+          fi
+
+          ADDITIONAL_OPTIONS_VALUE=""
+          if [[ -n "$ADDITIONAL_OPTIONS_INPUT" ]]; then
+            ADDITIONAL_OPTIONS_VALUE="$ADDITIONAL_OPTIONS_INPUT"
+          fi
+
+          REMOTE_HIL_FRAMEWORK_TOKEN="$(printf '%q' "$HIL_FRAMEWORK_TOKEN")"
+          REMOTE_DEPTHAI_VERSION="$(printf '%q' "$DEPTHAI_VERSION_VALUE")"
+          REMOTE_CMD="cd /tmp/luxonis-eval && \
+            export GOOGLE_APPLICATION_CREDENTIALS=/tmp/luxonis-eval/.ci/gcp-credentials.json && \
+            export LUXONIS_TELEMETRY_ENABLED=false && \
+            export HIL_FRAMEWORK_TOKEN=$REMOTE_HIL_FRAMEWORK_TOKEN && \
+            export DEPTHAI_VERSION=$REMOTE_DEPTHAI_VERSION && \
+            bash ./tests/run_rvc4_nnarchive_hil_tests.sh"
+
+          exec hil_runner \
+            --platforms rvc4 \
+            $HOLD_RESERVATION_OPTION \
+            $ADDITIONAL_OPTIONS_VALUE \
+            --wait \
+            $OS_VERSION_OPTION \
+            $RESERVATION_OPTION \
+            --sync-workspace --rsync-args="--exclude=venv" \
+            --commands "$REMOTE_CMD"

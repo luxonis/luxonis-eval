@@ -14,11 +14,14 @@ from tests.nnarchive_regression_common import (
 )
 
 
+@pytest.mark.device
+@pytest.mark.rvc4
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case.name)
-def test_onnx_nnarchive_regression(
+def test_rvc4_nnarchive_regression(
     case: RegressionCase,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     nnarchive_testdata_root: Path,
+    rvc4_device_ip: str | None,
     tmp_path: Path,
 ) -> None:
     monkeypatch.setenv("LUXONISML_BASE_PATH", str(tmp_path / "luxonis_ml"))
@@ -30,11 +33,12 @@ def test_onnx_nnarchive_regression(
     expected_metrics = load_expected_metrics(case, nnarchive_testdata_root)
 
     result = quality_run(
-        resolved_case_dir / "onnx_eval.yaml",
+        resolved_case_dir / "depthai_eval.yaml",
         {
             "pipeline.engine.model_path": str(
-                resolved_case_dir / "onnx_model.onnx.tar.xz"
+                resolved_case_dir / "rvc4_model.rvc4.tar.xz"
             ),
+            "pipeline.engine.params.device_ip": rvc4_device_ip or "",
             "runtime.logging.level": "WARNING",
             "runtime.logging.use_rich": False,
         },
