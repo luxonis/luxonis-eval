@@ -164,19 +164,13 @@ def build_yolo_compute_kwargs(
             )
             protos_len = protos_output.shape[1]
 
-        strides = (
-            [8, 16, 32]
-            if subtype_enum
-            not in [YOLOSubtype.V3UT, YOLOSubtype.V3T, YOLOSubtype.V4T]
-            else [16, 32]
-        )
         final_anchors: np.ndarray | None = (
-            np.array(anchors).reshape(len(strides), -1) if anchors else None
+            np.asarray(anchors, dtype=np.float32) if anchors else None
         )
         inferred_n_classes = (
             outputs_values[0].shape[1] - 5
             if final_anchors is None
-            else (outputs_values[0].shape[1] // final_anchors.shape[0]) - 5
+            else (outputs_values[0].shape[1] // final_anchors.shape[1]) - 5
         )
         if n_classes is not None and inferred_n_classes != n_classes:
             raise ValueError(

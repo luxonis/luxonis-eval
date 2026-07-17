@@ -16,6 +16,7 @@ from luxonis_eval.engines.io import EngineOutput, TensorLayout, TensorSpec
 @dataclass(frozen=True, slots=True)
 class ONNXEngineOutput(EngineOutput):
     tensors: dict[str, np.ndarray]
+    tensor_specs: dict[str, TensorSpec] | None = None
 
     def names(self) -> tuple[str, ...]:
         return tuple(self.tensors.keys())
@@ -26,14 +27,26 @@ class ONNXEngineOutput(EngineOutput):
         *,
         layout: TensorLayout | None = None,
     ) -> np.ndarray:
-        del layout
         try:
-            return self.tensors[name]
+            tensor = self.tensors[name]
         except KeyError as err:
             raise ValueError(
                 f"Requested output tensor {name!r} is not available. "
                 f"Available tensors: {list(self.tensors)}."
             ) from err
+
+        if layout is None:
+            return tensor
+
+        tensor_spec = None if self.tensor_specs is None else self.tensor_specs.get(name)
+        if tensor_spec is not None and tensor_spec.layout == layout:
+            return tensor
+
+        raise ValueError(
+            f"Requested layout {layout!r} for ONNX output tensor {name!r} "
+            "cannot be verified. ONNX outputs are returned as-is unless the "
+            "engine has explicit layout metadata that matches the request."
+        )
 
     def select(self, names: Sequence[str] | None) -> "ONNXEngineOutput":
         if names is None:
@@ -46,7 +59,12 @@ class ONNXEngineOutput(EngineOutput):
             )
 
         return ONNXEngineOutput(
-            tensors={name: self.tensors[name] for name in names}
+            tensors={name: self.tensors[name] for name in names},
+            tensor_specs=(
+                None
+                if self.tensor_specs is None
+                else {name: self.tensor_specs[name] for name in names}
+            ),
         )
 
 class OnnxEngine(BaseEngine, register_name="onnx"):
@@ -176,7 +194,11 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
 
         output_values = self._session.run(None, {self._input_name: x})
         return ONNXEngineOutput(
-            tensors=dict(zip(self._output_names, output_values, strict=True))
+            tensors=dict(zip(self._output_names, output_values, strict=True)),
+            tensor_specs={
+                output_spec.name: output_spec
+                for output_spec in self._get_model_spec().outputs
+            },
         )
 
     def vis_frame(self) -> np.ndarray:
