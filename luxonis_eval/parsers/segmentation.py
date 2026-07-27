@@ -30,7 +30,7 @@ class SegmentationParser(BaseParser):
     ) -> dai.SegmentationMask:
         """Parse backend output into segmentation predictions."""
         del model_spec, kwargs
-        _, segmentation_mask = output.first()
+        _, segmentation_mask = output.get_first()
         class_map = DepthAINodesSegmentationParser.compute(
             np.asarray(segmentation_mask),
             classes_in_one_layer=classes_in_one_layer,

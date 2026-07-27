@@ -49,7 +49,7 @@ class ClassificationParser(BaseParser):
         """
         del model_spec, kwargs
         classes = ordered_class_names(class_map)
-        _, scores = output.first()
+        _, scores = output.get_first()
         scores = np.asarray(scores).flatten()
         scores = DepthAINodesClassificationParser.compute(
             scores,

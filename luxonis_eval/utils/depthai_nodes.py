@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import depthai as dai
 import numpy as np
 from depthai_nodes.node.parsers.utils.yolo import YOLOSubtype
 
@@ -25,19 +26,9 @@ def ordered_class_names(class_map: dict[int, str]) -> list[str]:
     return [class_map[index] for index in ordered_indices]
 
 
-def extract_segmentation_mask(predictions: Any) -> np.ndarray:
+def extract_segmentation_mask(predictions: dai.SegmentationMask) -> np.ndarray:
     """Extract a semantic-segmentation mask from a DepthAI message."""
-    if hasattr(predictions, "getCvMask"):
-        mask = predictions.getCvMask()
-    elif hasattr(predictions, "getCvSegmentationMask"):
-        mask = predictions.getCvSegmentationMask()
-    else:
-        raise TypeError(
-            "Unsupported segmentation prediction type "
-            f"{type(predictions)!r}: expected a DepthAI SegmentationMask "
-            "message."
-        )
-
+    mask = predictions.getCvMask()
     if mask is None:
         raise ValueError("Segmentation prediction does not contain a mask.")
 
@@ -52,9 +43,11 @@ def build_yolo_compute_kwargs(
     subtype: str,
     n_classes: int | None = None,
     anchors: list[list[list[float]]] | None = None,
+    strides: list[int] | tuple[int, ...] | None = None,
     conf_threshold: float,
     iou_threshold: float,
     max_det: int,
+    n_keypoints: int | None = None,
     mask_conf: float = 0.5,
     keypoint_label_names: list[str] | None = None,
     keypoint_edges: list[tuple[int, int]] | None = None,
@@ -176,19 +169,34 @@ def build_yolo_compute_kwargs(
             raise ValueError(
                 f"The provided number of classes {n_classes} does not match the "
                 f"model's {inferred_n_classes}."
-            )
+        )
         resolved_n_classes = inferred_n_classes
+
+    inferred_n_keypoints = (
+        kpts_outputs[0].shape[1] // 3 if kpts_outputs is not None else None
+    )
+    if (
+        n_keypoints is not None
+        and inferred_n_keypoints is not None
+        and inferred_n_keypoints != n_keypoints
+    ):
+        raise ValueError(
+            f"The provided number of keypoints {n_keypoints} does not match "
+            f"the model's {inferred_n_keypoints}."
+        )
+    resolved_n_keypoints = inferred_n_keypoints or n_keypoints or 17
 
     return {
         "subtype": subtype_enum,
         "layer_names": layer_names,
         "outputs_values": outputs_values,
+        "strides": list(strides) if strides is not None else None,
         "conf_threshold": conf_threshold,
         "n_classes": resolved_n_classes,
         "iou_threshold": iou_threshold,
         "max_det": max_det,
         "anchors": anchors,
-        "n_keypoints": kpts_outputs[0].shape[1] // 3 if kpts_outputs else 17,
+        "n_keypoints": resolved_n_keypoints,
         "label_names": ordered_class_names(class_map),
         "keypoint_label_names": keypoint_label_names,
         "keypoint_edges": keypoint_edges,
