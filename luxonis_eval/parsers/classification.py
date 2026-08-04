@@ -10,7 +10,7 @@ from depthai_nodes.node.parsers.classification import (
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
 from luxonis_eval.parsers.base_parser import BaseParser
-from luxonis_eval.utils.depthai_nodes import ordered_class_names
+from luxonis_eval.utils.utils import ordered_class_names
 
 
 class ClassificationParser(BaseParser):

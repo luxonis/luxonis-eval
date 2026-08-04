@@ -26,14 +26,6 @@ from luxonis_eval.config.source import (
 )
 from luxonis_eval.registry import PARSERS_REGISTRY
 
-_YOLO_OUTPUT_METADATA_KEYS = (
-    "yolo_outputs",
-    "keypoints_outputs",
-    "mask_outputs",
-    "protos_outputs",
-    "angles_outputs",
-)
-
 
 class EvalConfigResolver:
     def __init__(
@@ -279,11 +271,7 @@ class EvalConfigResolver:
         )
         if archive_head is None:
             return None
-        if archive_head.outputs is not None:
-            return list(archive_head.outputs)
-        if archive_head.parser in {"YOLO", "YOLOExtendedParser"}:
-            return resolve_yolo_output_names(archive_head)
-        return None
+        return list(archive_head.outputs) if archive_head.outputs is not None else None
 
     def _resolve_archive_parser(
         self, nn_archive_cfg: NNArchiveConfig | None
@@ -294,64 +282,23 @@ class EvalConfigResolver:
         if archive_head is None:
             return None
 
-        if archive_head.parser in {"YOLO", "YOLOExtendedParser"}:
-            return construct_yolo_parser_config(archive_head)
-
-        parser_name = self._map_archive_parser_name(archive_head.parser)
-        return ParserConfig(name=parser_name, params={})
-
-    def _map_archive_parser_name(self, parser_name: str) -> str:
-        mapping = {
-            "Classification": "ClassificationParser",
-            "ClassificationParser": "ClassificationParser",
-        }
-        resolved_name = mapping.get(parser_name, parser_name)
-        if resolved_name not in PARSERS_REGISTRY:
+        parser_name = archive_head.parser
+        if parser_name == "YOLO":
+            parser_name = "YOLOExtendedParser"
+        if parser_name not in PARSERS_REGISTRY:
             raise NotImplementedError(
                 f"NNArchive parser '{parser_name}' is not supported by luxonis-eval yet."
             )
-        return resolved_name
-
-
-def construct_yolo_parser_config(head: Any) -> ParserConfig:
-    metadata = resolve_head_metadata(head)
-    parser_name = "YOLOExtendedParser"
-    return ParserConfig(
-        name=parser_name,
-        params=resolve_yolo_parser_params(metadata),
-    )
-
-
-def resolve_yolo_output_names(head: Any) -> list[str] | None:
-    metadata = resolve_head_metadata(head)
-    outputs: list[str] = []
-    for key in _YOLO_OUTPUT_METADATA_KEYS:
-        value = metadata.get(key)
-        if isinstance(value, list):
-            outputs.extend(value)
-        elif isinstance(value, str):
-            outputs.append(value)
-
-    unique_outputs = list(dict.fromkeys(outputs))
-    return unique_outputs or None
-
-
-def resolve_yolo_parser_params(metadata: Params) -> Params:
-    return {
-        key: value
-        for key, value in metadata.items()
-        if key not in {"postprocessor_path", "classes", *_YOLO_OUTPUT_METADATA_KEYS}
-    }
+        return ParserConfig(
+            name=parser_name,
+            params=resolve_head_metadata(archive_head),
+        )
 
 
 def resolve_head_metadata(head: Any) -> Params:
     metadata = getattr(head, "metadata", None)
-    if metadata is None:
-        raise ValueError("NNArchive head metadata is missing.")
     if hasattr(metadata, "model_dump"):
         return metadata.model_dump(exclude_none=True)
     if isinstance(metadata, dict):
         return dict(metadata)
-    raise TypeError(
-        f"Unsupported NNArchive head metadata type: {type(metadata)}."
-    )
+    return {}
