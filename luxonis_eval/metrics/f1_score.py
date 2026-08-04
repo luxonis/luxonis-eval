@@ -2,18 +2,21 @@ from typing import Any, Literal
 
 import depthai as dai
 import numpy as np
+import torch
+import torchmetrics
 
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import (
-    binary_segmentation_confusion,
+    mask_ignore_pixels,
     normalize_prediction_segmentation_mask,
+    remap_prediction_mask,
     target_segmentation_to_index_mask,
 )
 from luxonis_eval.utils.depthai_nodes import extract_segmentation_mask
 
 
 class F1Score(BaseMetric):
-    """F1 score for binary semantic segmentation."""
+    """F1 score for semantic segmentation."""
 
     def __init__(
         self,
@@ -29,15 +32,15 @@ class F1Score(BaseMetric):
         self.average = average
         self.input_format = input_format
         self.target_class_map = None
+        self.metric: torchmetrics.Metric | None = None
         super().__init__(**kwargs)
 
     def required_target_keys(self) -> list[str]:
         return ["/segmentation"]
 
     def reset(self) -> None:
-        self.true_positives = 0
-        self.false_positives = 0
-        self.false_negatives = 0
+        if self.metric is not None:
+            self.metric.reset()
 
     def update(
         self,
@@ -47,8 +50,8 @@ class F1Score(BaseMetric):
     ) -> None:
         if self.target_class_map is None:
             self.target_class_map = kwargs.get("target_class_map", {})
-        class_index_map = kwargs.get("class_index_map")
         target_bg = kwargs.get("target_bg")
+        class_index_map = kwargs.get("class_index_map")
 
         target_mask, binary_target = target_segmentation_to_index_mask(
             target[self.required_target_keys()[0]]
@@ -58,25 +61,65 @@ class F1Score(BaseMetric):
             binary_target=binary_target,
         )
 
-        if binary_target:
-            tp, fp, fn = binary_segmentation_confusion(pred_mask, target_mask)
-            self.true_positives += tp
-            self.false_positives += fp
-            self.false_negatives += fn
-            return
+        if class_index_map is not None and not binary_target:
+            pred_mask = remap_prediction_mask(pred_mask, class_index_map)
 
-        del class_index_map, target_bg, pred_mask, target_mask
-        raise NotImplementedError(
-            "`F1Score` behavior is only implemented for "
-            "binary semantic segmentation. Use "
-            "`DiceCoefficient` for non-binary semantic segmentation."
-        )
+        if (
+            not binary_target
+            and not self.include_background
+            and target_bg is not None
+        ):
+            pred_mask, target_mask = mask_ignore_pixels(
+                pred_mask, target_mask, ignore_index=target_bg
+            )
+
+        pred_tensor = torch.from_numpy(pred_mask.astype(np.int64))
+        target_tensor = torch.from_numpy(target_mask.astype(np.int64))
+
+        if self.metric is None:
+            self.metric = self._create_metric(
+                target_mask=target_tensor,
+                binary_target=binary_target,
+            )
+        self.metric.update(pred_tensor, target_tensor)
 
     def compute(self) -> dict[str, float]:
-        denom = (
-            2 * self.true_positives
-            + self.false_positives
-            + self.false_negatives
+        if self.metric is None:
+            return {"F1Score": 0.0}
+
+        result = self.metric.compute()
+        if result.ndim == 0 or result.numel() == 1:
+            return {"F1Score": float(result)}
+
+        class_names = [
+            self.target_class_map.get(i, f"class_{i}")
+            if self.target_class_map is not None
+            else f"class_{i}"
+            for i in range(result.numel())
+        ]
+        return {
+            f"{type(self.metric).__name__}_{class_name}": float(value)
+            for class_name, value in zip(class_names, result, strict=True)
+        }
+
+    def _create_metric(
+        self,
+        target_mask: torch.Tensor,
+        binary_target: bool,
+    ) -> torchmetrics.Metric:
+        average = None if self.average == "none" else self.average
+        if binary_target:
+            return torchmetrics.F1Score(task="binary", average=average)
+
+        num_classes = self.num_classes
+        if num_classes is None:
+            if self.target_class_map:
+                num_classes = len(self.target_class_map)
+            else:
+                num_classes = int(target_mask.max().item()) + 1
+
+        return torchmetrics.F1Score(
+            task="multiclass",
+            num_classes=num_classes,
+            average=average,
         )
-        score = 0.0 if denom == 0 else (2 * self.true_positives) / denom
-        return {"F1Score": float(score)}
