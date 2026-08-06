@@ -63,6 +63,7 @@ def build_yolo_compute_inputs(
     conf_threshold: float,
     iou_threshold: float,
     max_det: int,
+    n_keypoints: int | None = None,
     mask_conf: float = 0.5,
     keypoint_label_names: list[str] | None = None,
     keypoint_edges: list[tuple[int, int]] | None = None,
@@ -179,14 +180,12 @@ def build_yolo_compute_inputs(
             else [16, 32]
         )
         final_anchors: np.ndarray | None = (
-            np.array(anchors).reshape(len(resolved_strides), -1)
-            if anchors
-            else None
+            np.asarray(anchors, dtype=np.float32) if anchors else None
         )
         inferred_n_classes = (
             outputs_values[0].shape[1] - 5
             if final_anchors is None
-            else (outputs_values[0].shape[1] // final_anchors.shape[0]) - 5
+            else (outputs_values[0].shape[1] // final_anchors.shape[1]) - 5
         )
         if n_classes is not None and inferred_n_classes != n_classes:
             raise ValueError(
@@ -194,6 +193,20 @@ def build_yolo_compute_inputs(
                 f"model's {inferred_n_classes}."
             )
         resolved_n_classes = inferred_n_classes
+
+    inferred_n_keypoints = (
+        kpts_outputs[0].shape[1] // 3 if kpts_outputs is not None else None
+    )
+    if (
+        n_keypoints is not None
+        and inferred_n_keypoints is not None
+        and inferred_n_keypoints != n_keypoints
+    ):
+        raise ValueError(
+            f"The provided number of keypoints {n_keypoints} does not match "
+            f"the model's {inferred_n_keypoints}."
+        )
+    resolved_n_keypoints = inferred_n_keypoints or n_keypoints or 17
 
     return YOLOComputeInputs(
         subtype=subtype_enum,
@@ -205,7 +218,7 @@ def build_yolo_compute_inputs(
         iou_threshold=iou_threshold,
         max_det=max_det,
         anchors=anchors,
-        n_keypoints=kpts_outputs[0].shape[1] // 3 if kpts_outputs else 17,
+        n_keypoints=resolved_n_keypoints,
         label_names=ordered_class_names(class_map),
         keypoint_label_names=keypoint_label_names,
         keypoint_edges=keypoint_edges,

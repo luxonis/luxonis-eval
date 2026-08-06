@@ -37,15 +37,13 @@ def clear_prediction_metadata(predictions: Any) -> None:
 
 
 class YOLOExtendedParser(BaseParser):
-    """Parser for YOLO-based detection, segmentation, and pose
-    outputs."""
+    """Parser for YOLO-based detection, segmentation, and pose outputs."""
 
     _DET_MODE = 0
     _KPTS_MODE = 1
     _SEG_MODE = 2
 
     def __init__(self, **kwargs: Any) -> None:
-        """Initialize the YOLO parser."""
         super().__init__(**kwargs)
 
     def parse(
@@ -57,16 +55,16 @@ class YOLOExtendedParser(BaseParser):
         subtype: str,
         n_classes: int | None = None,
         anchors: list[list[list[float]]] | None = None,
-        strides: list[int] | None = None,
+        strides: list[int] | tuple[int, ...] | None = None,
         conf_threshold: float = 0.5,
         iou_threshold: float = 0.5,
+        n_keypoints: int | None = None,
         mask_conf: float = 0.5,
         max_det: int = 300,
         keypoint_label_names: list[str] | None = None,
         keypoint_edges: list[tuple[int, int]] | None = None,
         **kwargs: Any,
     ) -> dai.ImgDetections:
-        """Parse backend output into YOLO predictions."""
         del kwargs
         compute_inputs = build_yolo_compute_inputs(
             output,
@@ -75,17 +73,18 @@ class YOLOExtendedParser(BaseParser):
             subtype=subtype,
             n_classes=n_classes,
             anchors=anchors,
-            strides=strides,
+            strides=list(strides) if strides is not None else None,
             conf_threshold=conf_threshold,
             iou_threshold=iou_threshold,
             max_det=max_det,
+            n_keypoints=n_keypoints,
             mask_conf=mask_conf,
             keypoint_label_names=keypoint_label_names,
             keypoint_edges=keypoint_edges,
         )
         payload = DepthAINodesYOLOExtendedParser.compute(compute_inputs)
 
-        mode = int(payload["mode"])
+        mode = self._resolve_mode(payload)
         if mode == self._KPTS_MODE:
             return create_detection_message(
                 bboxes=payload["bboxes"],
@@ -94,8 +93,14 @@ class YOLOExtendedParser(BaseParser):
                 label_names=payload["label_names"],
                 keypoints=payload["keypoints"],
                 keypoints_scores=payload["keypoints_scores"],
-                keypoint_label_names=payload["keypoint_label_names"],
-                keypoint_edges=payload["keypoint_edges"],
+                keypoint_label_names=payload.get(
+                    "keypoint_label_names",
+                    keypoint_label_names,
+                ),
+                keypoint_edges=payload.get(
+                    "keypoint_edges",
+                    keypoint_edges,
+                ),
             )
 
         if mode == self._SEG_MODE:
@@ -106,23 +111,7 @@ class YOLOExtendedParser(BaseParser):
                 label_names=payload["label_names"],
                 masks=payload["masks"],
             )
-            instance_masks = build_yolo_instance_masks(
-                build_yolo_compute_inputs(
-                    output,
-                    model_spec=model_spec,
-                    class_map=class_map,
-                    subtype=subtype,
-                    n_classes=n_classes,
-                    anchors=anchors,
-                    strides=strides,
-                    conf_threshold=conf_threshold,
-                    iou_threshold=iou_threshold,
-                    max_det=max_det,
-                    mask_conf=mask_conf,
-                    keypoint_label_names=keypoint_label_names,
-                    keypoint_edges=keypoint_edges,
-                )
-            )
+            instance_masks = build_yolo_instance_masks(compute_inputs)
             if instance_masks.shape[0] != len(message.detections):
                 raise ValueError(
                     "YOLOExtendedParser received mismatched segmentation outputs: "
@@ -138,3 +127,20 @@ class YOLOExtendedParser(BaseParser):
             labels=payload["labels"],
             label_names=payload["label_names"],
         )
+
+    def _resolve_mode(self, payload: dict[str, Any]) -> int:
+        mode = payload.get("mode")
+        if mode is not None:
+            return int(mode)
+        keypoints = payload.get("keypoints")
+        if keypoints is not None:
+            keypoints_size = (
+                int(keypoints.size)
+                if hasattr(keypoints, "size")
+                else len(keypoints)
+            )
+            if keypoints_size > 0:
+                return self._KPTS_MODE
+        if payload.get("masks") is not None:
+            return self._SEG_MODE
+        return self._DET_MODE

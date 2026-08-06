@@ -12,7 +12,7 @@ from luxonis_eval.metrics.metrics_utils import (
     remap_prediction_mask,
     target_segmentation_to_index_mask,
 )
-from luxonis_eval.utils.depthai_nodes import extract_segmentation_mask
+from luxonis_eval.utils.utils import extract_segmentation_mask
 
 
 class DiceCoefficient(BaseMetric):
