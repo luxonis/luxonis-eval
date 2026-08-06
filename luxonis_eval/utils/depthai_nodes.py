@@ -10,6 +10,7 @@ from depthai_nodes.node.parsers.utils.yolo import (
     YOLOSubtype,
     decode_yolo26,
     decode_yolo_output,
+    resolve_yolo_strides,
 )
 
 from luxonis_eval.engines.base_engine import ModelSpec
@@ -173,19 +174,22 @@ def build_yolo_compute_inputs(
             )
             protos_len = protos_output.shape[1]
 
-        resolved_strides = strides or (
-            [8, 16, 32]
-            if subtype_enum
-            not in [YOLOSubtype.V3UT, YOLOSubtype.V3T, YOLOSubtype.V4T]
-            else [16, 32]
+        resolved_strides = resolve_yolo_strides(
+            strides,
+            subtype_enum,
+            num_outputs=len(outputs_values),
         )
         final_anchors: np.ndarray | None = (
-            np.asarray(anchors, dtype=np.float32) if anchors else None
+            np.asarray(anchors, dtype=np.float32).reshape(
+                len(resolved_strides), -1
+            )
+            if anchors
+            else None
         )
         inferred_n_classes = (
             outputs_values[0].shape[1] - 5
             if final_anchors is None
-            else (outputs_values[0].shape[1] // final_anchors.shape[1]) - 5
+            else (outputs_values[0].shape[1] // final_anchors.shape[0]) - 5
         )
         if n_classes is not None and inferred_n_classes != n_classes:
             raise ValueError(
@@ -212,7 +216,7 @@ def build_yolo_compute_inputs(
         subtype=subtype_enum,
         layer_names=layer_names,
         outputs_values=outputs_values,
-        strides=strides,
+        strides=resolved_strides if subtype_enum != YOLOSubtype.V26 else strides,
         conf_threshold=conf_threshold,
         n_classes=resolved_n_classes,
         iou_threshold=iou_threshold,
@@ -236,6 +240,8 @@ def build_yolo_compute_inputs(
 
 def build_yolo_instance_masks(
     compute_inputs: YOLOComputeInputs,
+    *,
+    outputs_values: list[np.ndarray] | None = None,
 ) -> np.ndarray:
     """Rebuild per-instance masks with refinement.
 
@@ -278,23 +284,25 @@ def build_yolo_instance_masks(
             width=width,
         )
 
-    resolved_strides = compute_inputs.strides
-    if resolved_strides is None:
-        resolved_strides = (
-            [8, 16, 32]
-            if subtype not in [YOLOSubtype.V3UT, YOLOSubtype.V3T, YOLOSubtype.V4T]
-            else [16, 32]
-        )
+    resolved_outputs_values = outputs_values or compute_inputs.outputs_values
+
+    resolved_strides = resolve_yolo_strides(
+        compute_inputs.strides,
+        subtype,
+        num_outputs=len(resolved_outputs_values),
+    )
 
     anchors = compute_inputs.anchors
     anchors_array = (
-        np.array(anchors).reshape(len(resolved_strides), -1)
+        np.asarray(anchors, dtype=np.float32).reshape(
+            len(resolved_strides), -1
+        )
         if anchors is not None
         else None
     )
 
     results = decode_yolo_output(
-        compute_inputs.outputs_values,
+        resolved_outputs_values,
         resolved_strides,
         anchors_array,
         conf_thres=compute_inputs.conf_threshold,

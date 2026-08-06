@@ -82,6 +82,11 @@ class YOLOExtendedParser(BaseParser):
             keypoint_label_names=keypoint_label_names,
             keypoint_edges=keypoint_edges,
         )
+        raw_outputs_values = None
+        if any("mask" in name for name in compute_inputs.layer_names):
+            raw_outputs_values = [
+                value.copy() for value in compute_inputs.outputs_values
+            ]
         payload = DepthAINodesYOLOExtendedParser.compute(compute_inputs)
 
         mode = self._resolve_mode(payload)
@@ -111,7 +116,10 @@ class YOLOExtendedParser(BaseParser):
                 label_names=payload["label_names"],
                 masks=payload["masks"],
             )
-            instance_masks = build_yolo_instance_masks(compute_inputs)
+            instance_masks = build_yolo_instance_masks(
+                compute_inputs,
+                outputs_values=raw_outputs_values,
+            )
             if instance_masks.shape[0] != len(message.detections):
                 raise ValueError(
                     "YOLOExtendedParser received mismatched segmentation outputs: "
