@@ -146,6 +146,7 @@ class LuxonisEval:
         assert self.parser is not None
         assert self.throughput_metric is not None
         assert self.evaluator_cfg is not None
+        assert self.model_spec is not None
 
         with self._progress(
             f"Running {engine_name.upper()} inference ({model_name})...",
@@ -169,6 +170,7 @@ class LuxonisEval:
                         raw_output,
                         self.evaluator_cfg.outputs,
                     ),
+                    model_spec=self.model_spec,
                     class_map=self.class_map,
                     **self.evaluator_cfg.parser.params,
                 )
@@ -261,6 +263,7 @@ class LuxonisEval:
         assert self.engine is not None
         assert self.parser is not None
         assert self.evaluator_cfg is not None
+        assert self.model_spec is not None
 
         if len(self.loader) == 0:
             raise ValueError(
@@ -279,6 +282,7 @@ class LuxonisEval:
         raw_output = self.engine.infer_once(img)
         predictions = self.parser.parse(
             select_evaluator_outputs(raw_output, self.evaluator_cfg.outputs),
+            model_spec=self.model_spec,
             class_map=self.class_map,
             **self.evaluator_cfg.parser.params,
         )

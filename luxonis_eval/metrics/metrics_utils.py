@@ -117,6 +117,42 @@ def remap_prediction_mask(
     return remapped
 
 
+def target_segmentation_to_index_mask(
+    target_mask: np.ndarray,
+) -> tuple[np.ndarray, bool]:
+    """Convert a segmentation target tensor to an index mask."""
+    mask = np.asarray(target_mask)
+
+    if mask.ndim == 2:
+        return mask.astype(np.int64), False
+
+    if mask.ndim != 3:
+        raise ValueError(
+            f"Expected segmentation target with 2 or 3 dimensions, got {mask.ndim}."
+        )
+
+    if mask.shape[0] == 1:
+        return mask[0].astype(np.int64), True
+
+    return np.argmax(mask, axis=0).astype(np.int64), False
+
+
+def normalize_prediction_segmentation_mask(
+    pred_mask: np.ndarray,
+    *,
+    binary_target: bool,
+) -> np.ndarray:
+    """Normalize a predicted segmentation mask to class indices."""
+    mask = np.asarray(pred_mask).astype(np.int64)
+
+    if binary_target:
+        # Current depthai-nodes binary semantic parsing emits 255 for
+        # background/unassigned pixels and 0 for the only foreground class.
+        return (mask == 0).astype(np.int64)
+
+    return mask
+
+
 def mask_ignore_pixels(
     pred_mask: np.ndarray, target_mask: np.ndarray, ignore_index: int = 0
 ) -> tuple[np.ndarray, np.ndarray]:

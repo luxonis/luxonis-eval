@@ -1,44 +1,34 @@
 pipeline:
   loader:
     name: LuxonisLoader
-    preprocessing:
-      keep_aspect_ratio: true
-      color_space: RGB
-      normalize:
-        active: true
-        params:
-          mean: [0.0, 0.0, 0.0]
-          std: [1.0, 1.0, 1.0]
     params:
       dataset_name: coco-2017
-      view: [val]
+      view: [test]
 
   engine:
-    model_path: examples/quickstart_inst_seg/models/yolov8n-seg.onnx
     name: onnx
+    model_path: path/to/yolov8n.onnx
     params:
       providers: [CPUExecutionProvider]
 
   # engine:
-  #   model_path: examples/quickstart_inst_seg/models/yolov8n-seg.rvc4.tar.xz
   #   name: depthai
+  #   model_path: path/to/yolov8n.rvc4.tar.xz
   #   params:
   #     device_ip: 10.12.143.173
 
   evaluators:
-    - parser:
+    - task_name: ""
+      parser:
         name: YOLOExtendedParser
         params:
           subtype: yolov8
           n_classes: 80
           conf_threshold: 0.25
           iou_threshold: 0.7
-          mask_conf: 0.25
+          max_det: 300
       metrics:
         - name: BboxMeanAveragePrecision
           params:
             iou_type: bbox
-        - name: MaskMeanAveragePrecision
-          params:
-            iou_type: segm
       visualizers: []

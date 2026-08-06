@@ -1,0 +1,25 @@
+pipeline:
+  loader:
+    name: LuxonisLoader
+    params:
+      dataset_name: flowersclassification
+      view: [test]
+
+  engine:
+    name: depthai
+    model_path: classification_light.rvc4.tar.xz
+    params:
+       device_ip: 10.12.143.168
+
+  evaluators:
+    - task_name: ""
+      parser:
+        name: ClassificationParser
+        params:
+          # Set to false if the NNArchive already outputs probabilities.
+          apply_softmax: true
+      metrics:
+        - name: TopKAccuracy
+          params:
+            topk: [1]
+      visualizers: []

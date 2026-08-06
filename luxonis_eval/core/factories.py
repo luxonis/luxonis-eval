@@ -25,6 +25,7 @@ def create_engine(cfg: EvalConfig) -> BaseEngine:
             ENGINES_REGISTRY,
             cfg.pipeline.engine.name,
             cfg.pipeline.engine.model_path,
+            nn_archive_cfg=cfg.nn_archive_cfg,
             **cfg.pipeline.engine.params,
         )
     except KeyError as e:

@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any
 
+import depthai as dai
 import numpy as np
 import onnxruntime as ort
 
@@ -87,6 +88,31 @@ def check_loader_classes(classes: dict[str, int]) -> None:
             f"`dict[str, int]` (str name -> int index). "
             f"Found invalid entries: {invalid}"
         )
+
+
+def ordered_class_names(class_map: dict[int, str]) -> list[str]:
+    """Return class names ordered by class index."""
+    if not class_map:
+        return []
+
+    ordered_indices = sorted(class_map)
+    expected_indices = list(range(len(ordered_indices)))
+    if ordered_indices != expected_indices:
+        raise ValueError(
+            "class_map must contain contiguous zero-based indices, got "
+            f"{ordered_indices}."
+        )
+
+    return [class_map[index] for index in ordered_indices]
+
+
+def extract_segmentation_mask(predictions: dai.SegmentationMask) -> np.ndarray:
+    """Extract a semantic-segmentation mask from a DepthAI message."""
+    mask = predictions.getCvMask()
+    if mask is None:
+        raise ValueError("Segmentation prediction does not contain a mask.")
+
+    return np.asarray(mask)
 
 
 def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:

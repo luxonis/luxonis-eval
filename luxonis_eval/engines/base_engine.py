@@ -1,5 +1,5 @@
+import inspect
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -7,21 +7,8 @@ import numpy as np
 from luxonis_ml.typing import PathType
 from luxonis_ml.utils.registry import AutoRegisterMeta
 
+from luxonis_eval.engines.io import EngineOutput, ModelSpec
 from luxonis_eval.registry import ENGINES_REGISTRY
-
-
-@dataclass(frozen=True)
-class ModelSpec:
-    """Validated model input specification."""
-
-    width: int
-    height: int
-
-    def __post_init__(self) -> None:
-        if self.width <= 0 or self.height <= 0:
-            raise ValueError(
-                "ModelSpec width and height must be positive integers."
-            )
 
 
 class BaseEngine(
@@ -31,6 +18,21 @@ class BaseEngine(
     register=False,
 ):
     """Abstract base class for inference engines."""
+
+    output_type: type[EngineOutput] | None = None
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if inspect.isabstract(cls):
+            return
+        if "output_type" not in cls.__dict__ or cls.output_type is None:
+            raise TypeError(
+                f"{cls.__name__} must define `output_type` as its EngineOutput class."
+            )
+        if not issubclass(cls.output_type, EngineOutput):
+            raise TypeError(
+                f"{cls.__name__}.output_type must be a subclass of EngineOutput."
+            )
 
     def __init__(self, model_path: PathType, **kwargs: Any) -> None:
         """Initialize the engine.
@@ -66,7 +68,7 @@ class BaseEngine(
         return self.model_spec
 
     @abstractmethod
-    def infer_once(self, img: np.ndarray) -> Any:
+    def infer_once(self, img: np.ndarray) -> EngineOutput:
         """Run inference on a single image."""
         ...
 

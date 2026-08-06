@@ -315,7 +315,7 @@ pipeline:
   evaluators:
     - task_name: instance_segmentation
       parser:
-        name: YOLOInstanceSegmentationParser
+        name: YOLOExtendedParser
         params:
           subtype: yolov8
           n_classes: 80
@@ -395,7 +395,7 @@ pipeline:
   evaluators:
     - task_name: instance_segmentation
       parser:
-        name: YOLOInstanceSegmentationParser
+        name: YOLOExtendedParser
         params:
           subtype: yolov8
           n_classes: 80
@@ -471,10 +471,8 @@ Subclass [`BaseParser`](luxonis_eval/parsers/base_parser.py) and implement the s
 The parser bridges the gap between model-specific tensor layouts and the standardized message types that downstream metrics expect. The built-in parsers produce the following output types:
 
 - [**ClassificationParser**](luxonis_eval/parsers/classification.py) -> [depthai_nodes.Classifications](https://github.com/luxonis/depthai-nodes/tree/main/depthai_nodes/message#classifications)
-- [**YOLODetectionParser**](luxonis_eval/parsers/detection.py) -> [dai.ImgDetections](https://docs.luxonis.com/software-v3/depthai/api/cpp/#classdai_1_1ImgDetections)
-- [**YOLOInstanceSegmentationParser**](luxonis_eval/parsers/instance_seg.py) -> [dai.ImgDetections](https://docs.luxonis.com/software-v3/depthai/api/cpp/#classdai_1_1ImgDetections)
-- [**YOLOKeypointDetectionParser**](luxonis_eval/parsers/keypoint_detection.py) -> [dai.ImgDetections](https://docs.luxonis.com/software-v3/depthai/api/cpp/#classdai_1_1ImgDetections)
-- [**SemanticSegmentationParser**](luxonis_eval/parsers/semantic_seg.py) -> [depthai_nodes.SegmentationMask](https://github.com/luxonis/depthai-nodes/tree/main/depthai_nodes/message#segmentationmask)
+- [**YOLOExtendedParser**](luxonis_eval/parsers/yolo.py) -> [dai.ImgDetections](https://docs.luxonis.com/software-v3/depthai/api/cpp/#classdai_1_1ImgDetections)
+- [**SegmentationParser**](luxonis_eval/parsers/segmentation.py) -> [depthai_nodes.SegmentationMask](https://github.com/luxonis/depthai-nodes/tree/main/depthai_nodes/message#segmentationmask)
 
 > [!IMPORTANT]
 > The parser must produce outputs that the configured metrics can consume. For example, if a metric expects `dai.ImgDetections`, the parser must return that message type.

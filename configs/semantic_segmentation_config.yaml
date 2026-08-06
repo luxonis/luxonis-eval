@@ -1,0 +1,40 @@
+pipeline:
+  loader:
+    name: LuxonisLoader
+    params:
+      dataset_name: your_segmentation_dataset
+      view: [test]
+
+  engine:
+    name: onnx
+    model_path: path/to/segmentation_model.onnx
+    params:
+      providers: [CPUExecutionProvider]
+
+  # engine:
+  #   name: depthai
+  #   model_path: path/to/segmentation_model.rvc4.tar.xz
+  #   params:
+  #     device_ip: 10.12.143.173
+
+  evaluators:
+    - task_name: ""
+      parser:
+        name: SegmentationParser
+        params:
+          # Set to true for binary / single-logit outputs that encode one class in one channel.
+          classes_in_one_layer: false
+      metrics:
+        - name: MIoU
+          params:
+            num_classes: 21
+            include_background: false
+            per_class: true
+            input_format: index
+        - name: DiceCoefficient
+          params:
+            num_classes: 21
+            include_background: false
+            average: micro
+            input_format: index
+      visualizers: []
