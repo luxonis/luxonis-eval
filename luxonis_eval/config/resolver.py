@@ -286,9 +286,14 @@ class EvalConfigResolver:
             return None
 
         return ParserConfig(
-            name=archive_head.parser,
+            name=self._resolve_archive_parser_name(archive_head.parser),
             params=resolve_head_metadata(archive_head),
         )
+
+    def _resolve_archive_parser_name(self, parser_name: str) -> str:
+        if parser_name == "YOLO":
+            return "YOLOExtendedParser"
+        return parser_name
 
 
 def resolve_head_metadata(head: Any) -> Params:
