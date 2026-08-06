@@ -83,13 +83,13 @@ class YOLOExtendedParser(BaseParser):
             keypoint_edges=keypoint_edges,
         )
         raw_outputs_values = None
-        if any("mask" in name for name in compute_inputs.layer_names):
+        if compute_inputs.masks_outputs_values is not None:
             raw_outputs_values = [
                 value.copy() for value in compute_inputs.outputs_values
             ]
         payload = DepthAINodesYOLOExtendedParser.compute(compute_inputs)
 
-        mode = self._resolve_mode(payload)
+        mode = int(payload["mode"])
         if mode == self._KPTS_MODE:
             return create_detection_message(
                 bboxes=payload["bboxes"],
@@ -135,20 +135,3 @@ class YOLOExtendedParser(BaseParser):
             labels=payload["labels"],
             label_names=payload["label_names"],
         )
-
-    def _resolve_mode(self, payload: dict[str, Any]) -> int:
-        mode = payload.get("mode")
-        if mode is not None:
-            return int(mode)
-        keypoints = payload.get("keypoints")
-        if keypoints is not None:
-            keypoints_size = (
-                int(keypoints.size)
-                if hasattr(keypoints, "size")
-                else len(keypoints)
-            )
-            if keypoints_size > 0:
-                return self._KPTS_MODE
-        if payload.get("masks") is not None:
-            return self._SEG_MODE
-        return self._DET_MODE

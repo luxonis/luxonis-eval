@@ -129,7 +129,7 @@ def build_yolo_compute_inputs(
                 for name in layer_names
                 if "_yolo" in name or "yolo-" in name
             ]
-        ) or list(layer_names)
+        )
         outputs_values = [
             output.get(name, layout="NCHW").astype(np.float32, copy=False)
             for name in outputs_names
@@ -139,31 +139,23 @@ def build_yolo_compute_inputs(
             any("kpt_output" in name for name in layer_names)
             and subtype_enum != YOLOSubtype.P
         ):
-            kpts_output_names = (
-                sorted([name for name in layer_names if "kpt_output" in name])
-                or layer_names[len(outputs_names) :]
+            kpts_output_names = sorted(
+                [name for name in layer_names if "kpt_output" in name]
             )
             kpts_outputs = [
                 output.get(name).astype(np.float32, copy=False)
                 for name in kpts_output_names
             ]
         elif (
-            any("mask" in name for name in layer_names)
+            any("_masks" in name for name in layer_names)
             and subtype_enum != YOLOSubtype.P
         ):
             protos_name = next(
                 (name for name in layer_names if "protos" in name),
-                layer_names[-1],
+                "protos_output",
             )
-            mask_output_names = (
-                sorted(
-                    [
-                        name
-                        for name in layer_names
-                        if "mask" in name and "proto" not in name
-                    ]
-                )
-                or layer_names[len(outputs_names) : -1]
+            mask_output_names = sorted(
+                [name for name in layer_names if "_masks" in name]
             )
             masks_outputs_values = [
                 output.get(name, layout="NCHW").astype(np.float32, copy=False)

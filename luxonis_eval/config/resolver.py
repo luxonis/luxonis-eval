@@ -24,7 +24,6 @@ from luxonis_eval.config.source import (
     SourceEvaluatorConfig,
     SourceNormalizeAugmentationConfig,
 )
-from luxonis_eval.registry import PARSERS_REGISTRY
 
 
 class EvalConfigResolver:
@@ -286,49 +285,10 @@ class EvalConfigResolver:
         if archive_head is None:
             return None
 
-        parser_name = archive_head.parser
-        if parser_name in {"YOLO", "YOLOExtendedParser"}:
-            return construct_yolo_parser_config(archive_head)
-
-        parser_name = self._map_archive_parser_name(parser_name)
-        return ParserConfig(name=parser_name, params={})
-
-    def _map_archive_parser_name(self, parser_name: str) -> str:
-        mapping = {
-            "Classification": "ClassificationParser",
-            "ClassificationParser": "ClassificationParser",
-            "SemanticSegmentation": "SegmentationParser",
-            "SemanticSegmentationParser": "SegmentationParser",
-            "Segmentation": "SegmentationParser",
-        }
-        resolved_name = mapping.get(parser_name, parser_name)
-        if resolved_name not in PARSERS_REGISTRY:
-            raise NotImplementedError(
-                f"NNArchive parser '{parser_name}' is not supported by luxonis-eval yet."
-            )
-        return resolved_name
-
-
-def construct_yolo_parser_config(head: Any) -> ParserConfig:
-    metadata = resolve_head_metadata(head)
-    parser_name = "YOLOExtendedParser"
-
-    params = {}
-    for key in (
-        "subtype",
-        "n_classes",
-        "anchors",
-        "strides",
-        "conf_threshold",
-        "iou_threshold",
-        "n_keypoints",
-        "mask_conf",
-        "max_det",
-    ):
-        if key in metadata:
-            params[key] = metadata[key]
-
-    return ParserConfig(name=parser_name, params=params)
+        return ParserConfig(
+            name=archive_head.parser,
+            params=resolve_head_metadata(archive_head),
+        )
 
 
 def resolve_head_metadata(head: Any) -> Params:
