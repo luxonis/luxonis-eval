@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -15,41 +13,7 @@ from depthai_nodes.node.parsers.utils.yolo import (
 
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
-
-
-def ordered_class_names(class_map: dict[int, str]) -> list[str]:
-    """Return class names ordered by class index."""
-    if not class_map:
-        return []
-
-    ordered_indices = sorted(class_map)
-    expected_indices = list(range(len(ordered_indices)))
-    if ordered_indices != expected_indices:
-        raise ValueError(
-            "class_map must contain contiguous zero-based indices, got "
-            f"{ordered_indices}."
-        )
-
-    return [class_map[index] for index in ordered_indices]
-
-
-def extract_segmentation_mask(predictions: Any) -> np.ndarray:
-    """Extract a semantic-segmentation mask from a DepthAI message."""
-    if hasattr(predictions, "getCvMask"):
-        mask = predictions.getCvMask()
-    elif hasattr(predictions, "getCvSegmentationMask"):
-        mask = predictions.getCvSegmentationMask()
-    else:
-        raise TypeError(
-            "Unsupported segmentation prediction type "
-            f"{type(predictions)!r}: expected a DepthAI SegmentationMask "
-            "message."
-        )
-
-    if mask is None:
-        raise ValueError("Segmentation prediction does not contain a mask.")
-
-    return np.asarray(mask)
+from luxonis_eval.utils.utils import ordered_class_names
 
 
 def build_yolo_compute_inputs(
