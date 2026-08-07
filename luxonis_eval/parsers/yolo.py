@@ -17,25 +17,6 @@ from luxonis_eval.utils.depthai_nodes import (
 from .base_parser import BaseParser
 
 
-prediction_instance_masks_by_id: dict[int, np.ndarray] = {}
-
-
-def store_prediction_instance_masks(
-    predictions: dai.ImgDetections, instance_masks: np.ndarray
-) -> None:
-    prediction_instance_masks_by_id[id(predictions)] = instance_masks
-
-
-def get_prediction_instance_masks(
-    predictions: dai.ImgDetections,
-) -> np.ndarray | None:
-    return prediction_instance_masks_by_id.get(id(predictions))
-
-
-def clear_prediction_metadata(predictions: Any) -> None:
-    prediction_instance_masks_by_id.pop(id(predictions), None)
-
-
 class YOLOExtendedParser(BaseParser):
     """Parser for YOLO-based detection, segmentation, and pose outputs."""
 
@@ -135,3 +116,22 @@ class YOLOExtendedParser(BaseParser):
             labels=payload["labels"],
             label_names=payload["label_names"],
         )
+
+
+prediction_instance_masks_by_id: dict[int, np.ndarray] = {}
+
+
+def store_prediction_instance_masks(
+    predictions: dai.ImgDetections, instance_masks: np.ndarray
+) -> None:
+    prediction_instance_masks_by_id[id(predictions)] = instance_masks
+
+
+def get_prediction_instance_masks(
+    predictions: dai.ImgDetections,
+) -> np.ndarray | None:
+    return prediction_instance_masks_by_id.get(id(predictions))
+
+
+def clear_prediction_metadata(predictions: Any) -> None:
+    prediction_instance_masks_by_id.pop(id(predictions), None)

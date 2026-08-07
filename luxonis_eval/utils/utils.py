@@ -106,7 +106,7 @@ def ordered_class_names(class_map: dict[int, str]) -> list[str]:
     return [class_map[index] for index in ordered_indices]
 
 
-def extract_segmentation_mask(predictions: Any) -> np.ndarray:
+def extract_segmentation_mask(predictions: dai.SegmentationMask) -> np.ndarray:
     """Extract a semantic-segmentation mask from a DepthAI message."""
     if hasattr(predictions, "getCvMask"):
         mask = predictions.getCvMask()
