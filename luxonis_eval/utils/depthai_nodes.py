@@ -142,10 +142,15 @@ def build_yolo_compute_inputs(
             if anchors
             else None
         )
+        n_anchors_per_head = (
+            final_anchors.shape[1] // 2
+            if final_anchors is not None
+            else 1
+        )
         inferred_n_classes = (
             outputs_values[0].shape[1] - 5
             if final_anchors is None
-            else (outputs_values[0].shape[1] // final_anchors.shape[0]) - 5
+            else (outputs_values[0].shape[1] // n_anchors_per_head) - 5
         )
         if n_classes is not None and inferred_n_classes != n_classes:
             raise ValueError(
