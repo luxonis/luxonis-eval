@@ -146,8 +146,6 @@ def normalize_prediction_segmentation_mask(
     mask = np.asarray(pred_mask).astype(np.int64)
 
     if binary_target:
-        # Current depthai-nodes binary semantic parsing emits 255 for
-        # background/unassigned pixels and 0 for the only foreground class.
         return (mask == 0).astype(np.int64)
 
     return mask
@@ -181,6 +179,20 @@ def mask_ignore_pixels(
     pred_mask[ignore_mask] = 0
 
     return pred_mask, target_mask
+
+
+def binary_segmentation_confusion(
+    pred_mask: np.ndarray,
+    target_mask: np.ndarray,
+) -> tuple[int, int, int]:
+    """Compute TP, FP and FN for binary segmentation masks."""
+    pred_fg = np.asarray(pred_mask) > 0
+    target_fg = np.asarray(target_mask) > 0
+
+    tp = int(np.logical_and(pred_fg, target_fg).sum())
+    fp = int(np.logical_and(pred_fg, np.logical_not(target_fg)).sum())
+    fn = int(np.logical_and(np.logical_not(pred_fg), target_fg).sum())
+    return tp, fp, fn
 
 
 def to_coco_kpts_flat(kpts: np.ndarray) -> list[float]:

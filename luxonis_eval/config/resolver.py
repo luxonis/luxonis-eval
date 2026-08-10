@@ -24,7 +24,6 @@ from luxonis_eval.config.source import (
     SourceEvaluatorConfig,
     SourceNormalizeAugmentationConfig,
 )
-from luxonis_eval.registry import PARSERS_REGISTRY
 
 
 class EvalConfigResolver:
@@ -76,6 +75,7 @@ class EvalConfigResolver:
             prefer_archive=prefer_archive,
             default="RGB",
         )
+        keep_aspect_ratio = self._resolve_keep_aspect_ratio(source_loader)
         normalize = self._resolve_normalize_config(
             loader_name=source_loader.name,
             source_normalize=source_loader.preprocessing.normalize,
@@ -88,9 +88,21 @@ class EvalConfigResolver:
             preprocessing=PreProcessingConfig(
                 normalize=normalize,
                 color_space=color_space,
-                keep_aspect_ratio=source_loader.preprocessing.keep_aspect_ratio,
+                keep_aspect_ratio=keep_aspect_ratio,
             ),
         )
+
+    def _resolve_keep_aspect_ratio(
+        self, source_loader: SourceDataLoaderConfig
+    ) -> bool:
+        keep_aspect_ratio = source_loader.preprocessing.keep_aspect_ratio
+        if keep_aspect_ratio is not None:
+            return keep_aspect_ratio
+
+        if source_loader.name == "LuxonisLoader":
+            return True
+
+        return False
 
     def _resolve_normalize_config(
         self,
@@ -177,16 +189,7 @@ class EvalConfigResolver:
                 "NNArchive preprocessing normalization must define both "
                 "`mean` and `scale`, or neither."
             )
-        if self._is_identity_normalization(mean, scale):
-            return False, None
         return True, {"mean": list(mean), "std": list(scale)}
-
-    def _is_identity_normalization(
-        self, mean: list[float], scale: list[float]
-    ) -> bool:
-        return all(value == 0 for value in mean) and all(
-            value == 1 for value in scale
-        )
 
     def _resolve_evaluators(
         self,
@@ -282,17 +285,15 @@ class EvalConfigResolver:
         if archive_head is None:
             return None
 
-        parser_name = archive_head.parser
-        if parser_name == "YOLO":
-            parser_name = "YOLOExtendedParser"
-        if parser_name not in PARSERS_REGISTRY:
-            raise NotImplementedError(
-                f"NNArchive parser '{parser_name}' is not supported by luxonis-eval yet."
-            )
         return ParserConfig(
-            name=parser_name,
+            name=self._resolve_archive_parser_name(archive_head.parser),
             params=resolve_head_metadata(archive_head),
         )
+
+    def _resolve_archive_parser_name(self, parser_name: str) -> str:
+        if parser_name == "YOLO":
+            return "YOLOExtendedParser"
+        return parser_name
 
 
 def resolve_head_metadata(head: Any) -> Params:

@@ -32,7 +32,7 @@ class SourceNormalizeAugmentationConfig(BaseModelExtraForbid):
 class SourcePreProcessingConfig(BaseModelExtraForbid):
     normalize: SourceNormalizeAugmentationConfig | None = None
     color_space: Literal["RGB", "BGR", "GRAY"] | None = None
-    keep_aspect_ratio: bool = False
+    keep_aspect_ratio: bool | None = None
 
 
 class SourceDataLoaderConfig(BaseModelExtraForbid):

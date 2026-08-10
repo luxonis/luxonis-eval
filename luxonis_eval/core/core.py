@@ -36,6 +36,7 @@ from luxonis_eval.loaders.base_loader import BaseEvalLoader
 from luxonis_eval.metrics import ThroughputMetric
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.parsers.base_parser import BaseParser
+from luxonis_eval.parsers.yolo import clear_prediction_metadata
 from luxonis_eval.visualizers.base_visualizer import BaseVisualizer
 
 
@@ -176,39 +177,43 @@ class LuxonisEval:
                 )
                 parsing_elapsed = time.perf_counter() - parsing_t0
 
-                metric_update_t0 = time.perf_counter()
-                for metric, metric_ctx in zip(
-                    self.metrics, self.metric_contexts, strict=True
-                ):
-                    metric.update(
-                        predictions=predictions,
-                        target=target,
-                        **metric_ctx,
-                    )
-                metric_update_elapsed = time.perf_counter() - metric_update_t0
-
-                self.throughput_metric.update(
-                    inference=inference_elapsed,
-                    parsing=parsing_elapsed,
-                    metric_update=metric_update_elapsed,
-                )
-
-                active_visualizer_cfgs = [
-                    visualizer_cfg
-                    for visualizer_cfg in self.evaluator_cfg.visualizers
-                    if visualizer_cfg.active
-                ]
-                for visualizer, visualizer_cfg in zip(
-                    self.visualizers,
-                    active_visualizer_cfgs,
-                    strict=True,
-                ):
-                    visualizer.visualize(
-                        predictions,
-                        self.engine.vis_frame(),
-                        **visualizer_cfg.params,
+                try:
+                    metric_update_t0 = time.perf_counter()
+                    for metric, metric_ctx in zip(
+                        self.metrics, self.metric_contexts, strict=True
+                    ):
+                        metric.update(
+                            predictions=predictions,
+                            target=target,
+                            **metric_ctx,
+                        )
+                    metric_update_elapsed = (
+                        time.perf_counter() - metric_update_t0
                     )
 
+                    self.throughput_metric.update(
+                        inference=inference_elapsed,
+                        parsing=parsing_elapsed,
+                        metric_update=metric_update_elapsed,
+                    )
+
+                    active_visualizer_cfgs = [
+                        visualizer_cfg
+                        for visualizer_cfg in self.evaluator_cfg.visualizers
+                        if visualizer_cfg.active
+                    ]
+                    for visualizer, visualizer_cfg in zip(
+                        self.visualizers,
+                        active_visualizer_cfgs,
+                        strict=True,
+                    ):
+                        visualizer.visualize(
+                            predictions,
+                            self.engine.vis_frame(),
+                            **visualizer_cfg.params,
+                        )
+                finally:
+                    clear_prediction_metadata(predictions)
                 progress.update(advance=1)
 
         metric_compute_t0 = time.perf_counter()
@@ -287,24 +292,27 @@ class LuxonisEval:
             **self.evaluator_cfg.parser.params,
         )
 
-        for metric, metric_ctx in zip(
-            self.metrics, self.metric_contexts, strict=True
-        ):
-            missing = set(metric.required_target_keys()) - set(target)
-            if missing:
-                raise ValueError(
-                    "Target is missing required keys for "
-                    f"{metric.__class__.__name__}: {sorted(missing)}. "
-                    f"Got keys: {sorted(target.keys())}."
-                )
+        try:
+            for metric, metric_ctx in zip(
+                self.metrics, self.metric_contexts, strict=True
+            ):
+                missing = set(metric.required_target_keys()) - set(target)
+                if missing:
+                    raise ValueError(
+                        "Target is missing required keys for "
+                        f"{metric.__class__.__name__}: {sorted(missing)}. "
+                        f"Got keys: {sorted(target.keys())}."
+                    )
 
-            metric.update(
-                predictions=predictions,
-                target=target,
-                **metric_ctx,
-            )
-            metric.compute()
-            metric.reset()
+                metric.update(
+                    predictions=predictions,
+                    target=target,
+                    **metric_ctx,
+                )
+                metric.compute()
+                metric.reset()
+        finally:
+            clear_prediction_metadata(predictions)
 
     def _clear_runtime_fields(self) -> None:
         self.engine: BaseEngine | None = None

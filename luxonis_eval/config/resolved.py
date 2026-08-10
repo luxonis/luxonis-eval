@@ -44,7 +44,7 @@ class PreProcessingConfig(BaseModelExtraForbid):
         default_factory=NormalizeAugmentationConfig
     )
     color_space: Literal["RGB", "BGR", "GRAY"] = "RGB"
-    keep_aspect_ratio: bool = False
+    keep_aspect_ratio: bool = True
 
 
 class DataLoaderConfig(BaseModelExtraForbid):
