@@ -17,25 +17,6 @@ from luxonis_eval.utils.depthai_nodes import (
 from .base_parser import BaseParser
 
 
-prediction_instance_masks_by_id: dict[int, np.ndarray] = {}
-
-
-def store_prediction_instance_masks(
-    predictions: dai.ImgDetections, instance_masks: np.ndarray
-) -> None:
-    prediction_instance_masks_by_id[id(predictions)] = instance_masks
-
-
-def get_prediction_instance_masks(
-    predictions: dai.ImgDetections,
-) -> np.ndarray | None:
-    return prediction_instance_masks_by_id.get(id(predictions))
-
-
-def clear_prediction_metadata(predictions: Any) -> None:
-    prediction_instance_masks_by_id.pop(id(predictions), None)
-
-
 class YOLOExtendedParser(BaseParser):
     """Parser for YOLO-based detection, segmentation, and pose outputs."""
 
@@ -83,13 +64,13 @@ class YOLOExtendedParser(BaseParser):
             keypoint_edges=keypoint_edges,
         )
         raw_outputs_values = None
-        if any("mask" in name for name in compute_inputs.layer_names):
+        if compute_inputs.masks_outputs_values is not None:
             raw_outputs_values = [
                 value.copy() for value in compute_inputs.outputs_values
             ]
         payload = DepthAINodesYOLOExtendedParser.compute(compute_inputs)
 
-        mode = self._resolve_mode(payload)
+        mode = int(payload["mode"])
         if mode == self._KPTS_MODE:
             return create_detection_message(
                 bboxes=payload["bboxes"],
@@ -136,19 +117,21 @@ class YOLOExtendedParser(BaseParser):
             label_names=payload["label_names"],
         )
 
-    def _resolve_mode(self, payload: dict[str, Any]) -> int:
-        mode = payload.get("mode")
-        if mode is not None:
-            return int(mode)
-        keypoints = payload.get("keypoints")
-        if keypoints is not None:
-            keypoints_size = (
-                int(keypoints.size)
-                if hasattr(keypoints, "size")
-                else len(keypoints)
-            )
-            if keypoints_size > 0:
-                return self._KPTS_MODE
-        if payload.get("masks") is not None:
-            return self._SEG_MODE
-        return self._DET_MODE
+
+prediction_instance_masks_by_id: dict[int, np.ndarray] = {}
+
+
+def store_prediction_instance_masks(
+    predictions: dai.ImgDetections, instance_masks: np.ndarray
+) -> None:
+    prediction_instance_masks_by_id[id(predictions)] = instance_masks
+
+
+def get_prediction_instance_masks(
+    predictions: dai.ImgDetections,
+) -> np.ndarray | None:
+    return prediction_instance_masks_by_id.get(id(predictions))
+
+
+def clear_prediction_metadata(predictions: Any) -> None:
+    prediction_instance_masks_by_id.pop(id(predictions), None)

@@ -61,26 +61,15 @@ class ClassificationParser(BaseParser):
             )
 
         if apply_softmax:
+            # Subtract the largest value first so softmax stays numerically stable.
             scores = scores - np.max(scores)
             scores = DepthAINodesClassificationParser.compute(
                 scores,
                 is_softmax=False,
             )
         else:
-            if np.any(scores < 0):
-                raise ValueError(
-                    "Classification scores contain negative values while "
-                    "`apply_softmax` is disabled. Set `apply_softmax: true` "
-                    "if the model outputs logits."
-                )
-            score_sum = float(np.sum(scores))
-            if not np.isfinite(score_sum) or score_sum <= 0:
-                raise ValueError(
-                    "Classification scores must sum to a positive finite "
-                    "value when `apply_softmax` is disabled."
-                )
             scores = DepthAINodesClassificationParser.compute(
-                scores / score_sum,
+                scores,
                 is_softmax=True,
             )
 

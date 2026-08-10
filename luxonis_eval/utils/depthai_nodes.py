@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -15,41 +13,7 @@ from depthai_nodes.node.parsers.utils.yolo import (
 
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
-
-
-def ordered_class_names(class_map: dict[int, str]) -> list[str]:
-    """Return class names ordered by class index."""
-    if not class_map:
-        return []
-
-    ordered_indices = sorted(class_map)
-    expected_indices = list(range(len(ordered_indices)))
-    if ordered_indices != expected_indices:
-        raise ValueError(
-            "class_map must contain contiguous zero-based indices, got "
-            f"{ordered_indices}."
-        )
-
-    return [class_map[index] for index in ordered_indices]
-
-
-def extract_segmentation_mask(predictions: Any) -> np.ndarray:
-    """Extract a semantic-segmentation mask from a DepthAI message."""
-    if hasattr(predictions, "getCvMask"):
-        mask = predictions.getCvMask()
-    elif hasattr(predictions, "getCvSegmentationMask"):
-        mask = predictions.getCvSegmentationMask()
-    else:
-        raise TypeError(
-            "Unsupported segmentation prediction type "
-            f"{type(predictions)!r}: expected a DepthAI SegmentationMask "
-            "message."
-        )
-
-    if mask is None:
-        raise ValueError("Segmentation prediction does not contain a mask.")
-
-    return np.asarray(mask)
+from luxonis_eval.utils.utils import ordered_class_names
 
 
 def build_yolo_compute_inputs(
@@ -129,7 +93,7 @@ def build_yolo_compute_inputs(
                 for name in layer_names
                 if "_yolo" in name or "yolo-" in name
             ]
-        ) or list(layer_names)
+        )
         outputs_values = [
             output.get(name, layout="NCHW").astype(np.float32, copy=False)
             for name in outputs_names
@@ -139,31 +103,23 @@ def build_yolo_compute_inputs(
             any("kpt_output" in name for name in layer_names)
             and subtype_enum != YOLOSubtype.P
         ):
-            kpts_output_names = (
-                sorted([name for name in layer_names if "kpt_output" in name])
-                or layer_names[len(outputs_names) :]
+            kpts_output_names = sorted(
+                [name for name in layer_names if "kpt_output" in name]
             )
             kpts_outputs = [
                 output.get(name).astype(np.float32, copy=False)
                 for name in kpts_output_names
             ]
         elif (
-            any("mask" in name for name in layer_names)
+            any("_masks" in name for name in layer_names)
             and subtype_enum != YOLOSubtype.P
         ):
             protos_name = next(
                 (name for name in layer_names if "protos" in name),
-                layer_names[-1],
+                "protos_output",
             )
-            mask_output_names = (
-                sorted(
-                    [
-                        name
-                        for name in layer_names
-                        if "mask" in name and "proto" not in name
-                    ]
-                )
-                or layer_names[len(outputs_names) : -1]
+            mask_output_names = sorted(
+                [name for name in layer_names if "_masks" in name]
             )
             masks_outputs_values = [
                 output.get(name, layout="NCHW").astype(np.float32, copy=False)
@@ -186,10 +142,15 @@ def build_yolo_compute_inputs(
             if anchors
             else None
         )
+        n_anchors_per_head = (
+            final_anchors.shape[1] // 2
+            if final_anchors is not None
+            else 1
+        )
         inferred_n_classes = (
             outputs_values[0].shape[1] - 5
             if final_anchors is None
-            else (outputs_values[0].shape[1] // final_anchors.shape[0]) - 5
+            else (outputs_values[0].shape[1] // n_anchors_per_head) - 5
         )
         if n_classes is not None and inferred_n_classes != n_classes:
             raise ValueError(
