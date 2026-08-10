@@ -1,14 +1,12 @@
-import json
-from pathlib import Path
 from importlib.metadata import version
 from typing import Any, Literal
 
 from cyclopts import App, Group
 from luxonis_ml.typing import Params, PathType
-import numpy as np
 
 from luxonis_eval.config import EvalConfig
 from luxonis_eval.core import LuxonisEval
+from luxonis_eval.utils.json_utils import write_output_json
 
 app = App(
     help="Luxonis Eval CLI",
@@ -41,51 +39,10 @@ def quality_run(
     try:
         result = evaluator.evaluate()
         if output_json is not None:
-            _write_output_json(output_json, result)
+            write_output_json(output_json, result)
         return result
     finally:
         evaluator.close()
-
-
-def _to_jsonable(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {str(key): _to_jsonable(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_to_jsonable(item) for item in value]
-    if isinstance(value, np.ndarray):
-        return value.tolist()
-    if isinstance(value, np.generic):
-        return value.item()
-    if isinstance(value, Path):
-        return str(value)
-    return value
-
-
-def _build_output_json_payload(result: dict[str, Any]) -> dict[str, Any]:
-    metrics_payload: dict[str, Any] = {}
-    for metric_name, metric_values in result["metrics"]:
-        if metric_name in metrics_payload:
-            raise ValueError(
-                "Cannot serialize duplicate metric names into --output-json: "
-                f"{metric_name!r} appears more than once."
-            )
-        metrics_payload[metric_name] = _to_jsonable(metric_values)
-
-    return {
-        "engine": result["engine"],
-        "model_name": result["model_name"],
-        "metrics": metrics_payload,
-    }
-
-
-def _write_output_json(path: str, result: dict[str, Any]) -> None:
-    output_path = Path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = _build_output_json_payload(result)
-    output_path.write_text(
-        json.dumps(payload, indent=2) + "\n",
-        encoding="utf-8",
-    )
 
 
 def _build_overrides(
