@@ -1,18 +1,16 @@
 from typing import Any, Literal
 
-import depthai as dai
 import numpy as np
 import torch
 import torchmetrics
 
 from luxonis_eval.metrics.base_metric import BaseMetric
-from luxonis_eval.metrics.metrics_utils import (
-    mask_ignore_pixels,
-    normalize_prediction_segmentation_mask,
-    remap_prediction_mask,
-    target_segmentation_to_index_mask,
+from luxonis_eval.metrics.utils import (
+    format_torchmetric_result,
+    infer_num_classes,
+    prepare_segmentation_metric_inputs,
 )
-from luxonis_eval.utils.utils import extract_segmentation_mask
+from luxonis_eval.parsers.predictions import Prediction
 
 
 class JaccardIndex(BaseMetric):
@@ -43,63 +41,38 @@ class JaccardIndex(BaseMetric):
 
     def update(
         self,
-        predictions: dai.SegmentationMask,
+        predictions: Prediction,
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
         if self.target_class_map is None:
             self.target_class_map = kwargs.get("target_class_map", {})
-        target_bg = kwargs.get("target_bg")
-        class_index_map = kwargs.get("class_index_map")
-
-        target_mask, binary_target = target_segmentation_to_index_mask(
-            target[self.required_target_keys()[0]]
+        prepared = prepare_segmentation_metric_inputs(
+            predictions,
+            target,
+            include_background=self.include_background,
+            target_key=self.required_target_keys()[0],
+            target_bg=kwargs.get("target_bg"),
+            class_index_map=kwargs.get("class_index_map"),
         )
-        pred_mask = normalize_prediction_segmentation_mask(
-            extract_segmentation_mask(predictions),
-            binary_target=binary_target,
-        )
-
-        if class_index_map is not None and not binary_target:
-            pred_mask = remap_prediction_mask(pred_mask, class_index_map)
-
-        if (
-            not binary_target
-            and not self.include_background
-            and target_bg is not None
-        ):
-            pred_mask, target_mask = mask_ignore_pixels(
-                pred_mask, target_mask, ignore_index=target_bg
-            )
-
-        pred_tensor = torch.from_numpy(pred_mask.astype(np.int64))
-        target_tensor = torch.from_numpy(target_mask.astype(np.int64))
 
         if self.metric is None:
             self.metric = self._create_metric(
-                target_mask=target_tensor,
-                binary_target=binary_target,
+                target_mask=prepared.target_tensor,
+                binary_target=prepared.binary_target,
             )
-        self.metric.update(pred_tensor, target_tensor)
+        self.metric.update(prepared.pred_tensor, prepared.target_tensor)
 
     def compute(self) -> dict[str, float]:
         if self.metric is None:
             return {"JaccardIndex": 0.0}
 
-        result = self.metric.compute()
-        if result.ndim == 0 or result.numel() == 1:
-            return {"JaccardIndex": float(result)}
-
-        class_names = [
-            self.target_class_map.get(i, f"class_{i}")
-            if self.target_class_map is not None
-            else f"class_{i}"
-            for i in range(result.numel())
-        ]
-        return {
-            f"{type(self.metric).__name__}_{class_name}": float(value)
-            for class_name, value in zip(class_names, result, strict=True)
-        }
+        return format_torchmetric_result(
+            self.metric.compute(),
+            scalar_name="JaccardIndex",
+            per_class_prefix=type(self.metric).__name__,
+            target_class_map=self.target_class_map,
+        )
 
     def _create_metric(
         self,
@@ -110,15 +83,12 @@ class JaccardIndex(BaseMetric):
         if binary_target:
             return torchmetrics.JaccardIndex(task="binary")
 
-        num_classes = self.num_classes
-        if num_classes is None:
-            if self.target_class_map:
-                num_classes = len(self.target_class_map)
-            else:
-                num_classes = int(target_mask.max().item()) + 1
-
         return torchmetrics.JaccardIndex(
             task="multiclass",
-            num_classes=num_classes,
+            num_classes=infer_num_classes(
+                target_mask,
+                configured_num_classes=self.num_classes,
+                target_class_map=self.target_class_map,
+            ),
             average=average,
         )

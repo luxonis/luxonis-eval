@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Any
 
-import depthai as dai
 import numpy as np
 import onnxruntime as ort
 
@@ -104,25 +103,6 @@ def ordered_class_names(class_map: dict[int, str]) -> list[str]:
         )
 
     return [class_map[index] for index in ordered_indices]
-
-
-def extract_segmentation_mask(predictions: dai.SegmentationMask) -> np.ndarray:
-    """Extract a semantic-segmentation mask from a DepthAI message."""
-    if hasattr(predictions, "getCvMask"):
-        mask = predictions.getCvMask()
-    elif hasattr(predictions, "getCvSegmentationMask"):
-        mask = predictions.getCvSegmentationMask()
-    else:
-        raise TypeError(
-            "Unsupported segmentation prediction type "
-            f"{type(predictions)!r}: expected a DepthAI SegmentationMask "
-            "message."
-        )
-
-    if mask is None:
-        raise ValueError("Segmentation prediction does not contain a mask.")
-
-    return np.asarray(mask)
 
 
 def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:

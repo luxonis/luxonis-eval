@@ -4,8 +4,8 @@ from typing import Any
 import numpy as np
 from luxonis_ml.utils.registry import AutoRegisterMeta
 
+from luxonis_eval.parsers.predictions import Prediction
 from luxonis_eval.registry import VISUALIZERS_REGISTRY
-
 
 class BaseVisualizer(
     ABC,
@@ -27,7 +27,7 @@ class BaseVisualizer(
     @abstractmethod
     def visualize(
         self,
-        predictions: Any,
+        predictions: Prediction,
         vis_frame: np.ndarray,
         **kwargs: Any,
     ) -> None:

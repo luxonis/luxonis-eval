@@ -1,7 +1,6 @@
 from collections.abc import Sequence
 from typing import Any
 
-import depthai as dai
 import numpy as np
 import torch
 from torchmetrics.detection import MeanAveragePrecision
@@ -10,7 +9,7 @@ from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import (
     detection_to_coco_xywh,
 )
-from luxonis_eval.parsers.yolo import get_prediction_instance_masks
+from luxonis_eval.parsers.predictions import Prediction
 
 
 class MaskMeanAveragePrecision(BaseMetric):
@@ -55,7 +54,7 @@ class MaskMeanAveragePrecision(BaseMetric):
 
     def update(
         self,
-        predictions: dai.ImgDetections,
+        predictions: Prediction,
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
@@ -63,8 +62,8 @@ class MaskMeanAveragePrecision(BaseMetric):
 
         Parameters
         ----------
-        predictions : dai.ImgDetections
-            Model predictions.
+        predictions : Prediction
+            Structured instance-segmentation predictions.
         target : dict[str, np.ndarray]
             Ground-truth data.
         **kwargs : Any
@@ -94,9 +93,9 @@ class MaskMeanAveragePrecision(BaseMetric):
             else None
         )
 
-        detections = predictions.detections
+        detections = predictions.require_detections().detections
         masks = self._resolve_prediction_instance_masks(
-            get_prediction_instance_masks(predictions),
+            predictions.require_instance_masks(),
             n_detections=len(detections),
             height=height,
             width=width,

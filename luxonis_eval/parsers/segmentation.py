@@ -9,6 +9,7 @@ from depthai_nodes.node.parsers.segmentation import (
 
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
+from luxonis_eval.parsers.predictions import Prediction
 
 from .base_parser import BaseParser
 
@@ -27,7 +28,7 @@ class SegmentationParser(BaseParser):
         *,
         classes_in_one_layer: bool = False,
         **kwargs: Any,
-    ) -> dai.SegmentationMask:
+    ) -> Prediction:
         """Parse backend output into segmentation predictions."""
         del model_spec, kwargs
         _, segmentation_mask = output.get_first()
@@ -36,4 +37,6 @@ class SegmentationParser(BaseParser):
             classes_in_one_layer=classes_in_one_layer,
         )
 
-        return create_segmentation_message(class_map)
+        return Prediction(
+            segmentation_mask=create_segmentation_message(class_map)
+        )

@@ -6,6 +6,7 @@ from luxonis_ml.typing import Params, PathType
 
 from luxonis_eval.config import EvalConfig
 from luxonis_eval.core import LuxonisEval
+from luxonis_eval.core.results import EvaluationResult
 from luxonis_eval.utils.json_utils import write_output_json
 
 app = App(
@@ -21,7 +22,7 @@ def eval_run(
     cfg: PathType | Params | EvalConfig,
     opts: Params | list[str] | tuple[str, ...] | None = None,
     output_json: str | None = None,
-) -> dict[str, Any]:
+) -> EvaluationResult:
     """Run evaluation with the given configuration."""
     # Temporary: until benchmark execution is implemented, `eval` delegates
     # to the quality-only path.
@@ -32,7 +33,7 @@ def quality_run(
     cfg: PathType | Params | EvalConfig,
     opts: Params | list[str] | tuple[str, ...] | None = None,
     output_json: str | None = None,
-) -> dict[str, Any]:
+) -> EvaluationResult:
     """Run the configured quality evaluators."""
     evaluator = LuxonisEval(cfg, opts)
     evaluator.setup()

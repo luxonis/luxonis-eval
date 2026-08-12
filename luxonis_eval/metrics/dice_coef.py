@@ -1,18 +1,11 @@
 from typing import Any, Literal
 
-import depthai as dai
 import numpy as np
-import torch
 from torchmetrics.segmentation import DiceScore
 
 from luxonis_eval.metrics.base_metric import BaseMetric
-from luxonis_eval.metrics.metrics_utils import (
-    mask_ignore_pixels,
-    normalize_prediction_segmentation_mask,
-    remap_prediction_mask,
-    target_segmentation_to_index_mask,
-)
-from luxonis_eval.utils.utils import extract_segmentation_mask
+from luxonis_eval.metrics.utils import prepare_segmentation_metric_inputs
+from luxonis_eval.parsers.predictions import Prediction
 
 
 class DiceCoefficient(BaseMetric):
@@ -69,7 +62,7 @@ class DiceCoefficient(BaseMetric):
 
     def update(
         self,
-        predictions: dai.SegmentationMask,
+        predictions: Prediction,
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
@@ -77,8 +70,8 @@ class DiceCoefficient(BaseMetric):
 
         Parameters
         ----------
-        predictions : SegmentationMask
-            Model predictions (logits or probabilities).
+        predictions : Prediction
+            Structured segmentation predictions.
         target : dict[str, np.ndarray]
             Ground-truth labels.
         **kwargs : Any
@@ -86,33 +79,15 @@ class DiceCoefficient(BaseMetric):
         """
         if self.target_class_map is None:
             self.target_class_map = kwargs.get("target_class_map", {})
-        target_bg = kwargs.get("target_bg")
-        class_index_map = kwargs.get("class_index_map")
-
-        target_mask, binary_target = target_segmentation_to_index_mask(
-            target[self.required_target_keys()[0]]
+        prepared = prepare_segmentation_metric_inputs(
+            predictions,
+            target,
+            include_background=self.include_background,
+            target_key=self.required_target_keys()[0],
+            target_bg=kwargs.get("target_bg"),
+            class_index_map=kwargs.get("class_index_map"),
         )
-        pred_mask = normalize_prediction_segmentation_mask(
-            extract_segmentation_mask(predictions),
-            binary_target=binary_target,
-        )
-
-        if class_index_map is not None and not binary_target:
-            pred_mask = remap_prediction_mask(pred_mask, class_index_map)
-
-        if (
-            not binary_target
-            and not self.include_background
-            and target_bg is not None
-        ):
-            pred_mask, target_mask = mask_ignore_pixels(
-                pred_mask, target_mask, ignore_index=target_bg
-            )
-
-        self.metric.update(
-            torch.from_numpy(pred_mask.astype(np.int64)),
-            torch.from_numpy(target_mask.astype(np.int64)),
-        )
+        self.metric.update(prepared.pred_tensor, prepared.target_tensor)
 
     def compute(self) -> dict[str, float]:
         """Compute final Dice coefficient metrics.
