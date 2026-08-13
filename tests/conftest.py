@@ -17,7 +17,10 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--device-ip",
         action="store",
         default=None,
-        help="RVC4 device IP or MXID. If omitted, uses RVC4_IP or USB.",
+        help=(
+            "RVC4 device IP or MXID. If omitted, uses RVC4_IP or "
+            "testbed resolution when configured."
+        ),
     )
     parser.addoption(
         "--testbed-name",
@@ -66,6 +69,17 @@ def rvc4_device_ip(request: pytest.FixtureRequest) -> str | None:
         return None
 
     return _resolve_rvc4_device_ip_from_testbed(testbed_name)
+
+
+@pytest.fixture(scope="session")
+def required_rvc4_device_ip(rvc4_device_ip: str | None) -> str:
+    if rvc4_device_ip is not None:
+        return rvc4_device_ip
+
+    pytest.skip(
+        "No RVC4 device configured. Re-run with --device-ip <ip-or-mxid>, "
+        "set RVC4_IP, or provide --testbed-name / HIL_TESTBED."
+    )
 
 
 def _resolve_rvc4_device_ip_from_testbed(testbed_name: str) -> str:

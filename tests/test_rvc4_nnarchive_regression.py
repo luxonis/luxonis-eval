@@ -21,7 +21,7 @@ def test_rvc4_nnarchive_regression(
     case: RegressionCase,
     monkeypatch: pytest.MonkeyPatch,
     nnarchive_testdata_root: Path,
-    rvc4_device_ip: str | None,
+    required_rvc4_device_ip: str,
     tmp_path: Path,
 ) -> None:
     monkeypatch.setenv("LUXONISML_BASE_PATH", str(tmp_path / "luxonis_ml"))
@@ -38,7 +38,7 @@ def test_rvc4_nnarchive_regression(
             "pipeline.engine.model_path": str(
                 resolved_case_dir / "rvc4_model.rvc4.tar.xz"
             ),
-            "pipeline.engine.params.device_ip": rvc4_device_ip or "",
+            "pipeline.engine.params.device_ip": required_rvc4_device_ip,
             "runtime.logging.level": "WARNING",
             "runtime.logging.use_rich": False,
         },
