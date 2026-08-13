@@ -3,15 +3,27 @@ from pathlib import Path
 import pytest
 
 from luxonis_eval.__main__ import quality_run
-from tests.nnarchive_regression_common import (
-    CASES,
-    RegressionCase,
-    assert_within_relative_tolerance,
-    case_dir,
-    flatten_metrics,
-    load_expected_metrics,
-    parse_dataset,
-)
+
+try:
+    from tests.nnarchive_regression_common import (
+        CASES,
+        RegressionCase,
+        assert_within_relative_tolerance,
+        case_dir,
+        flatten_metrics,
+        load_expected_metrics,
+        parse_dataset,
+    )
+except ModuleNotFoundError:
+    from nnarchive_regression_common import (
+        CASES,
+        RegressionCase,
+        assert_within_relative_tolerance,
+        case_dir,
+        flatten_metrics,
+        load_expected_metrics,
+        parse_dataset,
+    )
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case.name)
