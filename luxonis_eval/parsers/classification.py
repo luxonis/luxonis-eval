@@ -10,7 +10,7 @@ from depthai_nodes.node.parsers.classification import (
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
 from luxonis_eval.parsers.base_parser import BaseParser
-from luxonis_eval.utils.depthai_nodes import ordered_class_names
+from luxonis_eval.utils.utils import ordered_class_names
 
 
 class ClassificationParser(BaseParser):
@@ -49,11 +49,28 @@ class ClassificationParser(BaseParser):
         """
         del model_spec, kwargs
         classes = ordered_class_names(class_map)
-        _, scores = output.first()
-        scores = np.asarray(scores).flatten()
-        scores = DepthAINodesClassificationParser.compute(
-            scores,
-            is_softmax=not apply_softmax,
-        )
+        _, scores = output.get_first()
+        scores = np.asarray(scores, dtype=np.float64).flatten()
+        if scores.size == 0:
+            raise ValueError("Classification output is empty.")
+
+        if not np.all(np.isfinite(scores)):
+            raise ValueError(
+                "Classification output contains non-finite values before "
+                "post-processing."
+            )
+
+        if apply_softmax:
+            # Subtract the largest value first so softmax stays numerically stable.
+            scores = scores - np.max(scores)
+            scores = DepthAINodesClassificationParser.compute(
+                scores,
+                is_softmax=False,
+            )
+        else:
+            scores = DepthAINodesClassificationParser.compute(
+                scores,
+                is_softmax=True,
+            )
 
         return create_classification_message(classes=classes, scores=scores)

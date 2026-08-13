@@ -81,12 +81,10 @@ class EngineOutput(ABC):
     def select(self, names: Sequence[str] | None) -> EngineOutput:
         """Return a filtered view over this output."""
 
-    def first(self) -> tuple[str, np.ndarray]:
-        """Convenience helper for single-output models."""
+    def get_first(self) -> tuple[str, np.ndarray]:
+        """Return the first output tensor in engine-defined order."""
         names = self.names()
-        if len(names) != 1:
-            raise ValueError(
-                f"Expected exactly one output tensor, got {list(names)}."
-            )
+        if not names:
+            raise ValueError("Engine output does not contain any tensors.")
         name = names[0]
         return name, self.get(name)

@@ -6,6 +6,7 @@ from luxonis_ml.typing import Params, PathType
 
 from luxonis_eval.config import EvalConfig
 from luxonis_eval.core import LuxonisEval
+from luxonis_eval.utils.json_utils import write_output_json
 
 app = App(
     help="Luxonis Eval CLI",
@@ -19,22 +20,27 @@ app["--version"].group = app.meta.group_parameters
 def eval_run(
     cfg: PathType | Params | EvalConfig,
     opts: Params | list[str] | tuple[str, ...] | None = None,
+    output_json: str | None = None,
 ) -> dict[str, Any]:
     """Run evaluation with the given configuration."""
     # Temporary: until benchmark execution is implemented, `eval` delegates
     # to the quality-only path.
-    return quality_run(cfg, opts)
+    return quality_run(cfg, opts, output_json=output_json)
 
 
 def quality_run(
     cfg: PathType | Params | EvalConfig,
     opts: Params | list[str] | tuple[str, ...] | None = None,
+    output_json: str | None = None,
 ) -> dict[str, Any]:
     """Run the configured quality evaluators."""
     evaluator = LuxonisEval(cfg, opts)
     evaluator.setup()
     try:
-        return evaluator.evaluate()
+        result = evaluator.evaluate()
+        if output_json is not None:
+            write_output_json(output_json, result)
+        return result
     finally:
         evaluator.close()
 
@@ -65,6 +71,7 @@ def eval(
     model_path: str | None = None,
     backend: Literal["depthai", "onnx"] | None = None,
     device_ip: str | None = None,
+    output_json: str | None = None,
 ) -> None:
     """Run evaluation on a dataset using a specified neural network.
 
@@ -80,6 +87,8 @@ def eval(
         Backend to use for inference.
     device_ip : str | None, optional
         IP address of the device to connect to. Only applicable for RVC4 devices.
+    output_json : str | None, optional
+        Path to write a JSON summary containing engine, model name, and metrics.
     """
     eval_run(
         config,
@@ -89,6 +98,7 @@ def eval(
             backend=backend,
             device_ip=device_ip,
         ),
+        output_json=output_json,
     )
 
 
@@ -99,6 +109,7 @@ def quality(
     model_path: str | None = None,
     backend: Literal["depthai", "onnx"] | None = None,
     device_ip: str | None = None,
+    output_json: str | None = None,
 ) -> None:
     """Run only the configured quality evaluators."""
     quality_run(
@@ -109,6 +120,7 @@ def quality(
             backend=backend,
             device_ip=device_ip,
         ),
+        output_json=output_json,
     )
 
 
