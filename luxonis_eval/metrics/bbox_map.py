@@ -46,7 +46,6 @@ class BboxMeanAveragePrecision(BaseMetric):
         self,
         predictions: Prediction,
         target: dict[str, np.ndarray],
-        **kwargs: Any,
     ) -> None:
         """Update internal metric state.
 
@@ -56,22 +55,17 @@ class BboxMeanAveragePrecision(BaseMetric):
             Structured detection predictions.
         target : dict[str, np.ndarray]
             Ground-truth data.
-        **kwargs : Any
-            Additional context.
         """
+        context = self.require_context()
         detections = predictions.require_detections()
         target_boxes = target[self.required_target_keys()[0]]
-        width = int(kwargs["width"])
-        height = int(kwargs["height"])
+        width = context.width
+        height = context.height
 
-        class_map: dict[int, str] = kwargs.get("class_map", {})
-        category_ids: Sequence[int] | None = kwargs.get("category_ids")
-        class_index_map = kwargs.get("class_index_map")
-        target_converter = kwargs.get("target_converter")
-        if target_converter is None:
-            raise ValueError(
-                "BboxMeanAveragePrecision requires target_converter in ctx."
-            )
+        class_map = context.class_map
+        category_ids: Sequence[int] = context.category_ids
+        class_index_map = context.class_index_map
+        target_converter = context.target_converter
 
         self._store.init_categories_once(
             class_map=class_map, category_ids=category_ids

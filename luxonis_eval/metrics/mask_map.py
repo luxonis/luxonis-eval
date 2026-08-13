@@ -56,7 +56,6 @@ class MaskMeanAveragePrecision(BaseMetric):
         self,
         predictions: Prediction,
         target: dict[str, np.ndarray],
-        **kwargs: Any,
     ) -> None:
         """Update internal metric state.
 
@@ -66,18 +65,17 @@ class MaskMeanAveragePrecision(BaseMetric):
             Structured instance-segmentation predictions.
         target : dict[str, np.ndarray]
             Ground-truth data.
-        **kwargs : Any
-            Additional context.
         """
+        context = self.require_context()
         target_boxes = target[self.required_target_keys()[0]]
         target_masks = target[self.required_target_keys()[1]]
 
-        width = int(kwargs["width"])
-        height = int(kwargs["height"])
+        width = context.width
+        height = context.height
 
-        category_ids: Sequence[int] | None = kwargs.get("category_ids")
-        class_index_map = kwargs.get("class_index_map")
-        target_converter = kwargs.get("target_converter")
+        category_ids: Sequence[int] = context.category_ids
+        class_index_map = context.class_index_map
+        target_converter = context.target_converter
 
         target_classes, target_boxes_xywh = target_converter(
             target_boxes, width, height

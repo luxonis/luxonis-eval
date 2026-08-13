@@ -7,7 +7,6 @@ from depthai_nodes.node.parsers.yolo import (
     YOLOExtendedParser as DepthAINodesYOLOExtendedParser,
 )
 
-from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
 
 from .base_parser import BaseParser
@@ -26,43 +25,42 @@ class YOLOExtendedParser(BaseParser):
     _SEG_MODE = 2
 
     def __init__(self, **kwargs: Any) -> None:
+        self.subtype: str = kwargs.pop("subtype")
+        self.n_classes: int | None = kwargs.pop("n_classes", None)
+        self.anchors: list[list[list[float]]] | None = kwargs.pop(
+            "anchors", None
+        )
+        self.strides: list[int] | None = kwargs.pop("strides", None)
+        self.conf_threshold: float = kwargs.pop("conf_threshold", 0.5)
+        self.iou_threshold: float = kwargs.pop("iou_threshold", 0.5)
+        self.n_keypoints: int | None = kwargs.pop("n_keypoints", None)
+        self.mask_conf: float = kwargs.pop("mask_conf", 0.5)
+        self.max_det: int = kwargs.pop("max_det", 300)
+        self.keypoint_label_names: list[str] | None = kwargs.pop(
+            "keypoint_label_names", None
+        )
+        self.keypoint_edges: list[tuple[int, int]] | None = kwargs.pop(
+            "keypoint_edges", None
+        )
         super().__init__(**kwargs)
 
-    def parse(
-        self,
-        output: EngineOutput,
-        model_spec: ModelSpec,
-        *,
-        class_map: dict[int, str],
-        subtype: str,
-        n_classes: int | None = None,
-        anchors: list[list[list[float]]] | None = None,
-        strides: list[int] | tuple[int, ...] | None = None,
-        conf_threshold: float = 0.5,
-        iou_threshold: float = 0.5,
-        n_keypoints: int | None = None,
-        mask_conf: float = 0.5,
-        max_det: int = 300,
-        keypoint_label_names: list[str] | None = None,
-        keypoint_edges: list[tuple[int, int]] | None = None,
-        **kwargs: Any,
-    ) -> Prediction:
-        del kwargs
+    def parse(self, output: EngineOutput) -> Prediction:
+        context = self.require_context()
         compute_inputs = build_yolo_compute_inputs(
             output,
-            model_spec=model_spec,
-            class_map=class_map,
-            subtype=subtype,
-            n_classes=n_classes,
-            anchors=anchors,
-            strides=list(strides) if strides is not None else None,
-            conf_threshold=conf_threshold,
-            iou_threshold=iou_threshold,
-            max_det=max_det,
-            n_keypoints=n_keypoints,
-            mask_conf=mask_conf,
-            keypoint_label_names=keypoint_label_names,
-            keypoint_edges=keypoint_edges,
+            model_spec=context.model_spec,
+            class_map=context.class_map,
+            subtype=self.subtype,
+            n_classes=self.n_classes,
+            anchors=self.anchors,
+            strides=list(self.strides) if self.strides is not None else None,
+            conf_threshold=self.conf_threshold,
+            iou_threshold=self.iou_threshold,
+            max_det=self.max_det,
+            n_keypoints=self.n_keypoints,
+            mask_conf=self.mask_conf,
+            keypoint_label_names=self.keypoint_label_names,
+            keypoint_edges=self.keypoint_edges,
         )
         raw_outputs_values = None
         if compute_inputs.masks_outputs_values is not None:
@@ -83,11 +81,11 @@ class YOLOExtendedParser(BaseParser):
                     keypoints_scores=payload["keypoints_scores"],
                     keypoint_label_names=payload.get(
                         "keypoint_label_names",
-                        keypoint_label_names,
+                        self.keypoint_label_names,
                     ),
                     keypoint_edges=payload.get(
                         "keypoint_edges",
-                        keypoint_edges,
+                        self.keypoint_edges,
                     ),
                 )
             )

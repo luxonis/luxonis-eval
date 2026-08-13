@@ -4,6 +4,7 @@ from typing import Any
 import numpy as np
 from luxonis_ml.utils.registry import AutoRegisterMeta
 
+from luxonis_eval.core.context import EvalContext
 from luxonis_eval.parsers.predictions import Prediction
 from luxonis_eval.registry import METRICS_REGISTRY
 
@@ -23,7 +24,22 @@ class BaseMetric(
         **kwargs : Any
             Metric basic configuration.
         """
+        del kwargs
+        self._context: EvalContext | None = None
         self.reset()
+
+    def attach_context(self, context: EvalContext) -> None:
+        """Attach evaluation runtime metadata after setup."""
+        self._context = context
+
+    def require_context(self) -> EvalContext:
+        """Return the attached evaluation context."""
+        if self._context is None:
+            raise RuntimeError(
+                f"{type(self).__name__} is missing evaluation context. "
+                "Call attach_context() during setup before update()."
+            )
+        return self._context
 
     @abstractmethod
     def required_target_keys(self) -> list[str]:
@@ -40,7 +56,6 @@ class BaseMetric(
         self,
         predictions: Prediction,
         target: dict[str, np.ndarray],
-        **kwargs: Any,
     ) -> None:
         """Update the metric with predictions and ground truths.
 
@@ -50,8 +65,6 @@ class BaseMetric(
             Structured model predictions.
         target : dict[str, np.ndarray]
             Ground-truth data.
-        **kwargs : Any
-            Additional context.
         """
         ...
 

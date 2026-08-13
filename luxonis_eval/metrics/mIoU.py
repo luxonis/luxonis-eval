@@ -64,7 +64,6 @@ class MIoU(BaseMetric):
         self,
         predictions: Prediction,
         target: dict[str, np.ndarray],
-        **kwargs: Any,
     ) -> None:
         """Update internal metric state.
 
@@ -74,19 +73,17 @@ class MIoU(BaseMetric):
             Structured segmentation predictions.
         target : dict[str, np.ndarray]
             Ground-truth labels.
-        **kwargs : Any
-            Additional context.
         """
-        # Retrieve additional metric-specific options
+        context = self.require_context()
         if self.target_class_map is None:
-            self.target_class_map = kwargs.get("target_class_map", {})
+            self.target_class_map = context.target_class_map
         prepared = prepare_segmentation_metric_inputs(
             predictions,
             target,
             include_background=self.include_background,
             target_key=self.required_target_keys()[0],
-            target_bg=kwargs.get("target_bg"),
-            class_index_map=kwargs.get("class_index_map"),
+            target_bg=context.target_background_index,
+            class_index_map=context.class_index_map,
         )
         self.metric.update(prepared.pred_tensor, prepared.target_tensor)
 

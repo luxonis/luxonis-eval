@@ -66,16 +66,16 @@ class KeypointMeanAveragePrecision(BaseMetric):
         self,
         predictions: Prediction,
         target: dict[str, np.ndarray],
-        **kwargs: Any,
     ) -> None:
+        context = self.require_context()
         detections = predictions.require_detections()
         target_boxes = target[self.required_target_keys()[0]]
         target_kpts = target[self.required_target_keys()[1]]
-        width = int(kwargs["width"])
-        height = int(kwargs["height"])
+        width = context.width
+        height = context.height
 
-        class_index_map = kwargs.get("class_index_map")
-        target_converter = kwargs.get("target_converter")
+        class_index_map = context.class_index_map
+        target_converter = context.target_converter
 
         pred_boxes_xyxy: list[list[float]] = []
         pred_scores: list[float] = []
