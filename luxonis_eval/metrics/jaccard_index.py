@@ -51,7 +51,6 @@ class JaccardIndex(BaseMetric):
             predictions,
             target,
             include_background=self.include_background,
-            target_key=self.required_target_keys()[0],
             target_bg=kwargs.get("target_bg"),
             class_index_map=kwargs.get("class_index_map"),
         )
