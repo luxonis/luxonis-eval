@@ -1,6 +1,7 @@
 from .core import LuxonisEval
 from .results import (
     EvaluationResult,
+    MetricResult,
     MetricsResult,
     MetricValues,
     ThroughputResult,
@@ -9,6 +10,7 @@ from .results import (
 __all__ = [
     "EvaluationResult",
     "LuxonisEval",
+    "MetricResult",
     "MetricsResult",
     "MetricValues",
     "ThroughputResult",

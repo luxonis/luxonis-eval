@@ -9,6 +9,7 @@ __semver__: Final[SemanticVersion] = SemanticVersion.parse(__version__)
 from .core import (
     EvaluationResult,
     LuxonisEval,
+    MetricResult,
     MetricsResult,
     MetricValues,
     ThroughputResult,

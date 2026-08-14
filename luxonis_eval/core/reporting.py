@@ -131,7 +131,7 @@ def format_evaluation_result(result: EvaluationResult) -> str:
     ]
 
     rows += section("QUALITY")
-    for metric_name, metric_values in result.metrics.items():
+    for metric_name, metric_values in result.metrics:
         rows += section(metric_name, line_char="-")
         for k, v in metric_values.items():
             val = f"{v * 100:.2f}%" if isinstance(v, float) else str(v)
