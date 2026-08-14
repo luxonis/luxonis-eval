@@ -2,7 +2,8 @@ from dataclasses import dataclass
 
 
 MetricValues = dict[str, float]
-MetricsResult = dict[str, MetricValues]
+MetricResult = tuple[str, MetricValues]
+MetricsResult = list[MetricResult]
 
 
 @dataclass(slots=True)

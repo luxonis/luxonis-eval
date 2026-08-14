@@ -162,18 +162,12 @@ class MaskMeanAveragePrecision(BaseMetric):
 
     @staticmethod
     def _resolve_prediction_instance_masks(
-        raw_masks: np.ndarray | None,
+        raw_masks: np.ndarray,
         *,
         n_detections: int,
         height: int,
         width: int,
     ) -> np.ndarray:
-        if raw_masks is None:
-            raise ValueError(
-                "MaskMeanAveragePrecision requires raw per-instance masks "
-                "for the prediction message."
-            )
-
         masks = np.asarray(raw_masks)
         if masks.size == 0:
             if n_detections != 0:

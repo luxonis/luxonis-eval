@@ -27,7 +27,7 @@ def to_jsonable(value: Any) -> Any:
 def build_output_json_payload(result: EvaluationResult) -> dict[str, Any]:
     metrics_payload = [
         {"name": metric_name, "values": to_jsonable(metric_values)}
-        for metric_name, metric_values in result.metrics.items()
+        for metric_name, metric_values in result.metrics
     ]
 
     return {
