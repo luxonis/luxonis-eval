@@ -84,13 +84,14 @@ def section(
     return [[centered, ""]]
 
 
-def format_evaluation_result(result: EvaluationResult) -> str:
-    def format_stage(name: str, tp: ThroughputResult) -> str:
-        ms = float(getattr(tp, f"{name}_ms_per_sample"))
-        total = float(tp.ms_per_sample)
-        pct = (ms / total * 100.0) if total else 0.0
-        return f"{ms:5.2f} ms | {pct:4.1f}%"
+def _format_stage_latency(name: str, throughput: ThroughputResult) -> str:
+    ms = float(getattr(throughput, f"{name}_ms_per_sample"))
+    total = float(throughput.ms_per_sample)
+    pct = (ms / total * 100.0) if total else 0.0
+    return f"{ms:5.2f} ms | {pct:4.1f}%"
 
+
+def format_evaluation_result(result: EvaluationResult) -> str:
     rows: list[list[str]] = []
 
     rows += section("SETTINGS")
@@ -113,11 +114,20 @@ def format_evaluation_result(result: EvaluationResult) -> str:
 
     rows += section("STAGE BREAKDOWN", line_char="-")
     rows += [
-        ["Inference", format_stage("inference", result.throughput)],
-        ["Parsing", format_stage("parsing", result.throughput)],
-        ["Metric Update", format_stage("metric_update", result.throughput)],
-        ["Metric Compute", format_stage("metric_compute", result.throughput)],
-        ["Pipeline Overhead", format_stage("overhead", result.throughput)],
+        ["Inference", _format_stage_latency("inference", result.throughput)],
+        ["Parsing", _format_stage_latency("parsing", result.throughput)],
+        [
+            "Metric Update",
+            _format_stage_latency("metric_update", result.throughput),
+        ],
+        [
+            "Metric Compute",
+            _format_stage_latency("metric_compute", result.throughput),
+        ],
+        [
+            "Pipeline Overhead",
+            _format_stage_latency("overhead", result.throughput),
+        ],
     ]
 
     rows += section("QUALITY")

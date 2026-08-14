@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Iterable, Mapping
 
 import depthai as dai
 import numpy as np
@@ -26,12 +26,9 @@ class PreparedSegmentationData:
 
 
 def extract_segmentation_mask(
-    predictions: Prediction | dai.SegmentationMask,
+    predictions: dai.SegmentationMask,
 ) -> np.ndarray:
     """Extract a semantic-segmentation mask from a prediction payload."""
-    if isinstance(predictions, Prediction):
-        predictions = predictions.require_segmentation_mask()
-
     if hasattr(predictions, "getCvMask"):
         mask = predictions.getCvMask()
     elif hasattr(predictions, "getCvSegmentationMask"):
@@ -54,16 +51,15 @@ def prepare_segmentation_metric_inputs(
     target: dict[str, np.ndarray],
     *,
     include_background: bool,
-    target_key: str = "/segmentation",
     target_bg: int | None = None,
     class_index_map: dict[int, int] | None = None,
 ) -> PreparedSegmentationData:
     """Normalize segmentation predictions and targets for metric updates."""
     target_mask, binary_target = target_segmentation_to_index_mask(
-        target[target_key]
+        target["/segmentation"]
     )
     pred_mask = normalize_prediction_segmentation_mask(
-        extract_segmentation_mask(predictions),
+        extract_segmentation_mask(predictions.require_segmentation_mask()),
         binary_target=binary_target,
     )
 
@@ -98,8 +94,26 @@ def infer_num_classes(
     if configured_num_classes is not None:
         return configured_num_classes
     if target_class_map:
-        return len(target_class_map)
-    return int(target_tensor.max().item()) + 1
+        return _infer_num_classes_from_ids(target_class_map)
+    return _infer_num_classes_from_ids(
+        int(class_id) for class_id in torch.unique(target_tensor).tolist()
+    )
+
+
+def _infer_num_classes_from_ids(class_ids: Iterable[int]) -> int:
+    ids = sorted({int(class_id) for class_id in class_ids})
+    if not ids:
+        raise ValueError(
+            "Cannot infer num_classes from an empty class-id set."
+        )
+
+    if ids != list(range(ids[0], ids[-1] + 1)):
+        raise ValueError(
+            "Cannot infer num_classes from sparse class ids. Configure "
+            "`num_classes` explicitly."
+        )
+
+    return ids[-1] + 1
 
 
 def format_torchmetric_result(

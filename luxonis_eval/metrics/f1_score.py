@@ -52,7 +52,6 @@ class F1Score(BaseMetric):
             predictions,
             target,
             include_background=self.include_background,
-            target_key=self.required_target_keys()[0],
             target_bg=context.target_background_index,
             class_index_map=context.class_index_map,
         )

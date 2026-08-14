@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any, cast
 
 import depthai as dai
 import numpy as np
@@ -14,33 +15,35 @@ class Prediction:
     detections: dai.ImgDetections | None = None
     instance_masks: np.ndarray | None = None
 
+    def _require_field(self, field_name: str, description: str) -> Any:
+        value = getattr(self, field_name)
+        if value is None:
+            raise TypeError(f"Prediction does not contain {description}.")
+        return value
+
     def require_classification(self) -> Classifications:
-        if self.classification is None:
-            raise TypeError(
-                "Prediction does not contain classification scores."
-            )
-        return self.classification
+        return cast(
+            Classifications,
+            self._require_field("classification", "classification scores"),
+        )
 
     def require_segmentation_mask(self) -> dai.SegmentationMask:
-        if self.segmentation_mask is None:
-            raise TypeError(
-                "Prediction does not contain a segmentation mask."
-            )
-        return self.segmentation_mask
+        return cast(
+            dai.SegmentationMask,
+            self._require_field("segmentation_mask", "a segmentation mask"),
+        )
 
     def require_detections(self) -> dai.ImgDetections:
-        if self.detections is None:
-            raise TypeError(
-                "Prediction does not contain detections."
-            )
-        return self.detections
+        return cast(
+            dai.ImgDetections,
+            self._require_field("detections", "detections"),
+        )
 
     def require_instance_masks(self) -> np.ndarray:
-        if self.instance_masks is None:
-            raise TypeError(
-                "Prediction does not contain per-instance masks."
-            )
-        return self.instance_masks
+        return cast(
+            np.ndarray,
+            self._require_field("instance_masks", "per-instance masks"),
+        )
 
     @property
     def classes(self) -> list[str]:
