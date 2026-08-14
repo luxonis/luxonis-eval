@@ -190,16 +190,7 @@ class LuxonisEval:
                     metric_update=metric_update_elapsed,
                 )
 
-                active_visualizer_cfgs = [
-                    visualizer_cfg
-                    for visualizer_cfg in self.evaluator_cfg.visualizers
-                    if visualizer_cfg.active
-                ]
-                for visualizer, _visualizer_cfg in zip(
-                    self.visualizers,
-                    active_visualizer_cfgs,
-                    strict=True,
-                ):
+                for visualizer in self.visualizers:
                     visualizer.visualize(predictions, self.engine.vis_frame())
                 progress.update(advance=1)
 

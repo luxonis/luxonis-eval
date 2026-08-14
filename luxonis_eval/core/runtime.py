@@ -1,6 +1,5 @@
 import json
 from importlib.resources import files
-from typing import Any
 
 import numpy as np
 from loguru import logger
@@ -8,7 +7,6 @@ from luxonis_ml.data.loaders import LuxonisLoader
 from luxonis_ml.data.utils import split_task
 from luxonis_ml.typing import Params
 
-from luxonis_eval.config import EvaluatorConfig
 from luxonis_eval.core.context import EvalContext
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
