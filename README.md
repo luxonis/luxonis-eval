@@ -498,7 +498,9 @@ The framework consumes the returned `ModelSpec` to configure loader preprocessin
 
 Subclass [`BaseParser`](luxonis_eval/parsers/base_parser.py) and implement the single abstract method:
 
-- **`parse(raw_output, **kwargs)`** - Convert raw engine output into a structured prediction format
+- **`parse(output)`** - Convert raw engine output into a structured prediction format
+
+Parser configuration belongs in the parser itself, and LuxonisEval provides the remaining runtime information during setup.
 
 The parser bridges the gap between model-specific tensor layouts and the standardized prediction fields that downstream metrics expect. The built-in parsers populate [`Prediction`](luxonis_eval/parsers/predictions.py) as follows:
 
@@ -515,7 +517,7 @@ Subclass [`BaseMetric`](luxonis_eval/metrics/base_metric.py) and implement the f
 
 - **`required_target_keys()`** - Declare which annotation keys the metric requires
 - **`reset()`** - Reset internal state such as counters or accumulators
-- **`update(predictions, target, **kwargs)`** - Update the metric state for one sample
+- **`update(predictions, target)`** - Update the metric state for one sample
 - **`compute()`** - Return the final metric values
 
 > [!IMPORTANT]
