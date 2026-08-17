@@ -359,22 +359,9 @@ Compatibility is driven by data shape, not by a separate task abstraction:
 
 ### 🎨 Visualizers
 
-Visualizers are evaluator-local and plural:
-
-```yaml
-pipeline:
-  evaluators:
-    - task_name: detection
-      parser: ...
-      metrics:
-        - name: BboxMeanAveragePrecision
-          params:
-            iou_type: bbox
-      visualizers:
-        - name: InstanceSegmentationVisualizer
-          active: true
-          params: {}
-```
+Visualizers are evaluator-local and plural. The repository currently ships
+only the `BaseVisualizer` interface, so visualizer entries are only useful
+when you provide and import a custom implementation.
 
 ### ⚡ Inference Engine
 
