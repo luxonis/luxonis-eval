@@ -1,11 +1,11 @@
 from typing import Any, Literal
 
+import depthai as dai
 import numpy as np
 from torchmetrics.segmentation import DiceScore
 
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.utils import prepare_segmentation_metric_inputs
-from luxonis_eval.parsers.predictions import Prediction
 
 
 class DiceCoefficient(BaseMetric):
@@ -62,7 +62,7 @@ class DiceCoefficient(BaseMetric):
 
     def update(
         self,
-        predictions: Prediction,
+        predictions: dai.SegmentationMask,
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
@@ -70,8 +70,8 @@ class DiceCoefficient(BaseMetric):
 
         Parameters
         ----------
-        predictions : Prediction
-            Structured segmentation predictions.
+        predictions : SegmentationMask
+            Model predictions (logits or probabilities).
         target : dict[str, np.ndarray]
             Ground-truth labels.
         **kwargs : Any

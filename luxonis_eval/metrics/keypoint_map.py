@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from typing import Any
 
+import depthai as dai
 import numpy as np
 import torch
 from faster_coco_eval.core import COCO, COCOeval_faster
@@ -12,7 +13,6 @@ from luxonis_eval.metrics.metrics_utils import (
     bbox_area_from_keypoints,
     detection_to_coco_xywh,
 )
-from luxonis_eval.parsers.predictions import Prediction
 
 
 class KeypointMeanAveragePrecision(BaseMetric):
@@ -64,11 +64,10 @@ class KeypointMeanAveragePrecision(BaseMetric):
 
     def update(
         self,
-        predictions: Prediction,
+        predictions: dai.ImgDetections,
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
-        detections = predictions.require_detections()
         target_boxes = target[self.required_target_keys()[0]]
         target_kpts = target[self.required_target_keys()[1]]
         width = int(kwargs["width"])
@@ -82,7 +81,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
         pred_classes: list[int] = []
         pred_keypoints: list[list[float]] = []
 
-        for det in detections.detections:
+        for det in predictions.detections:
             cls = int(det.label)
 
             keypoints_flat = [

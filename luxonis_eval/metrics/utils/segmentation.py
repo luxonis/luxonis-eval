@@ -11,7 +11,6 @@ from luxonis_eval.metrics.metrics_utils import (
     remap_prediction_mask,
     target_segmentation_to_index_mask,
 )
-from luxonis_eval.parsers.predictions import Prediction
 
 
 @dataclass(slots=True)
@@ -47,7 +46,7 @@ def extract_segmentation_mask(
 
 
 def prepare_segmentation_metric_inputs(
-    predictions: Prediction,
+    predictions: dai.SegmentationMask,
     target: dict[str, np.ndarray],
     *,
     include_background: bool,
@@ -59,7 +58,7 @@ def prepare_segmentation_metric_inputs(
         target["/segmentation"]
     )
     pred_mask = normalize_prediction_segmentation_mask(
-        extract_segmentation_mask(predictions.require_segmentation_mask()),
+        extract_segmentation_mask(predictions),
         binary_target=binary_target,
     )
 

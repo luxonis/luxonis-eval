@@ -124,7 +124,7 @@ class COCOStore:
         Parameters
         ----------
         res : dict[str, Any]
-            Prediction result in COCO format.
+            Prediction entry in COCO format.
         """
         self.pred_results.append(res)
 

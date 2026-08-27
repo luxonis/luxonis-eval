@@ -5,7 +5,6 @@ from luxonis_ml.utils.registry import AutoRegisterMeta
 
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
-from luxonis_eval.parsers.predictions import Prediction
 from luxonis_eval.registry import PARSERS_REGISTRY
 
 class BaseParser(
@@ -31,6 +30,6 @@ class BaseParser(
         output: EngineOutput,
         model_spec: ModelSpec,
         **kwargs: Any,
-    ) -> Prediction:
-        """Parse raw backend output into a structured prediction."""
+    ) -> Any:
+        """Parse raw backend output into predictions."""
         ...

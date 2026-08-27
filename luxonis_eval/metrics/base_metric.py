@@ -4,7 +4,6 @@ from typing import Any
 import numpy as np
 from luxonis_ml.utils.registry import AutoRegisterMeta
 
-from luxonis_eval.parsers.predictions import Prediction
 from luxonis_eval.registry import METRICS_REGISTRY
 
 class BaseMetric(
@@ -38,7 +37,7 @@ class BaseMetric(
     @abstractmethod
     def update(
         self,
-        predictions: Prediction,
+        predictions: Any,
         target: dict[str, np.ndarray],
         **kwargs: Any,
     ) -> None:
@@ -46,8 +45,8 @@ class BaseMetric(
 
         Parameters
         ----------
-        predictions : Prediction
-            Structured model predictions.
+        predictions : Any
+            Model predictions.
         target : dict[str, np.ndarray]
             Ground-truth data.
         **kwargs : Any

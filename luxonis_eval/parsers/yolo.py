@@ -11,7 +11,6 @@ from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
 
 from .base_parser import BaseParser
-from .predictions import Prediction
 from .utils.yolo import (
     build_yolo_compute_inputs,
     build_yolo_instance_masks,
@@ -46,7 +45,7 @@ class YOLOExtendedParser(BaseParser):
         keypoint_label_names: list[str] | None = None,
         keypoint_edges: list[tuple[int, int]] | None = None,
         **kwargs: Any,
-    ) -> Prediction:
+    ) -> dai.ImgDetections:
         del kwargs
         compute_inputs = build_yolo_compute_inputs(
             output,
@@ -73,23 +72,21 @@ class YOLOExtendedParser(BaseParser):
 
         mode = int(payload["mode"])
         if mode == self._KPTS_MODE:
-            return Prediction(
-                detections=create_detection_message(
-                    bboxes=payload["bboxes"],
-                    scores=payload["scores"],
-                    labels=payload["labels"],
-                    label_names=payload["label_names"],
-                    keypoints=payload["keypoints"],
-                    keypoints_scores=payload["keypoints_scores"],
-                    keypoint_label_names=payload.get(
-                        "keypoint_label_names",
-                        keypoint_label_names,
-                    ),
-                    keypoint_edges=payload.get(
-                        "keypoint_edges",
-                        keypoint_edges,
-                    ),
-                )
+            return create_detection_message(
+                bboxes=payload["bboxes"],
+                scores=payload["scores"],
+                labels=payload["labels"],
+                label_names=payload["label_names"],
+                keypoints=payload["keypoints"],
+                keypoints_scores=payload["keypoints_scores"],
+                keypoint_label_names=payload.get(
+                    "keypoint_label_names",
+                    keypoint_label_names,
+                ),
+                keypoint_edges=payload.get(
+                    "keypoint_edges",
+                    keypoint_edges,
+                ),
             )
 
         if mode == self._SEG_MODE:
@@ -110,16 +107,31 @@ class YOLOExtendedParser(BaseParser):
                     f"{len(message.detections)} detections but "
                     f"{instance_masks.shape[0]} rebuilt instance masks."
                 )
-            return Prediction(
-                detections=message,
-                instance_masks=instance_masks,
-            )
+            store_prediction_instance_masks(message, instance_masks)
+            return message
 
-        return Prediction(
-            detections=create_detection_message(
-                bboxes=payload["bboxes"],
-                scores=payload["scores"],
-                labels=payload["labels"],
-                label_names=payload["label_names"],
-            )
+        return create_detection_message(
+            bboxes=payload["bboxes"],
+            scores=payload["scores"],
+            labels=payload["labels"],
+            label_names=payload["label_names"],
         )
+
+
+prediction_instance_masks_by_id: dict[int, np.ndarray] = {}
+
+
+def store_prediction_instance_masks(
+    predictions: dai.ImgDetections, instance_masks: np.ndarray
+) -> None:
+    prediction_instance_masks_by_id[id(predictions)] = instance_masks
+
+
+def get_prediction_instance_masks(
+    predictions: dai.ImgDetections,
+) -> np.ndarray | None:
+    return prediction_instance_masks_by_id.get(id(predictions))
+
+
+def clear_prediction_metadata(predictions: Any) -> None:
+    prediction_instance_masks_by_id.pop(id(predictions), None)
