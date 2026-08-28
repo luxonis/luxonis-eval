@@ -7,6 +7,7 @@ pipeline:
     params:
       dataset_name: your_code128_dataset
       view: [test]
+      max_samples: 100
     preprocessing:
       # The Code128 training/export pipeline uses grayscale inputs.
       color_space: GRAY

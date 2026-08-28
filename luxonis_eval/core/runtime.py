@@ -15,12 +15,23 @@ from luxonis_eval.loaders.base_loader import BaseEvalLoader
 from luxonis_eval.metrics.metrics_utils import normalized_xywh_to_coco_xywh
 
 
+def unwrap_loader(loader: BaseEvalLoader | LuxonisLoader | Any) -> Any:
+    current = loader
+    while hasattr(current, "base_loader"):
+        current = current.base_loader
+    return current
+
+
 def normalize_target(
     target: dict[str, np.ndarray],
     loader: BaseEvalLoader | LuxonisLoader | None,
     loader_task_name: str | None,
 ) -> dict[str, np.ndarray]:
-    if isinstance(loader, LuxonisLoader) and loader_task_name is not None:
+    resolved_loader = unwrap_loader(loader)
+    if (
+        isinstance(resolved_loader, LuxonisLoader)
+        and loader_task_name is not None
+    ):
         return normalize_luxonis_task_labels(target, loader_task_name)
     return target
 
@@ -30,14 +41,15 @@ def resolve_class_mapping(
     loader_params: Params,
     loader_task_name: str | None,
 ) -> tuple[dict[int, str], dict[int, str], dict[int, int] | None]:
-    if isinstance(loader, LuxonisLoader):
+    resolved_loader = unwrap_loader(loader)
+    if isinstance(resolved_loader, LuxonisLoader):
         return resolve_luxonis_loader_class_mapping(
-            loader,
+            resolved_loader,
             loader_task_name=loader_task_name,
             class_mapping=loader_params.get("class_mapping", None),  # type: ignore
         )
 
-    return loader.get_class_mapping(**loader_params)
+    return resolved_loader.get_class_mapping(**loader_params)
 
 
 def build_metric_contexts(

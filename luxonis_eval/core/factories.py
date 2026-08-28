@@ -6,6 +6,7 @@ from luxonis_eval.config import EvalConfig, EvaluatorConfig
 from luxonis_eval.core.runtime import resolve_luxonis_task_name
 from luxonis_eval.engines.base_engine import BaseEngine, ModelSpec
 from luxonis_eval.loaders.base_loader import BaseEvalLoader
+from luxonis_eval.loaders.limited_loader import LimitedLoader
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.parsers.base_parser import BaseParser
 from luxonis_eval.registry import (
@@ -48,22 +49,35 @@ def create_loader(
     evaluator_cfg: EvaluatorConfig,
     model_spec: ModelSpec,
 ) -> tuple[BaseEvalLoader | LuxonisLoader, str | None]:
+    loader_params = dict(cfg.pipeline.loader.params)
+    max_samples = loader_params.pop("max_samples", None)
+
     try:
         if cfg.pipeline.loader.name == "LuxonisLoader":
-            return _create_luxonis_loader(cfg, evaluator_cfg, model_spec)
-
-        dataloader = from_registry(
-            DATALOADERS_REGISTRY,
-            cfg.pipeline.loader.name,
-            model_spec=model_spec,
-            nn_archive_cfg=cfg.nn_archive_cfg,
-            **cfg.pipeline.loader.params,
-        )
-        if not isinstance(dataloader, BaseEvalLoader):
-            raise TypeError(
-                f"{cfg.pipeline.loader.name} custom dataloader must be an instance of BaseEvalLoader."
+            dataloader, loader_task_name = _create_luxonis_loader(
+                cfg,
+                evaluator_cfg,
+                model_spec,
+                loader_params=loader_params,
             )
-        loader_task_name = None
+        else:
+            dataloader = from_registry(
+                DATALOADERS_REGISTRY,
+                cfg.pipeline.loader.name,
+                model_spec=model_spec,
+                nn_archive_cfg=cfg.nn_archive_cfg,
+                **loader_params,
+            )
+            if not isinstance(dataloader, BaseEvalLoader):
+                raise TypeError(
+                    f"{cfg.pipeline.loader.name} custom dataloader must be an instance of BaseEvalLoader."
+                )
+            loader_task_name = None
+
+        if max_samples is not None:
+            if not isinstance(max_samples, int):
+                raise TypeError("loader.params.max_samples must be an integer.")
+            dataloader = LimitedLoader(dataloader, max_samples=max_samples)
     except KeyError as e:
         raise ValueError(
             f"Unknown loader: {cfg.pipeline.loader.name}. "
@@ -164,8 +178,14 @@ def _create_luxonis_loader(
     cfg: EvalConfig,
     evaluator_cfg: EvaluatorConfig,
     model_spec: ModelSpec,
+    *,
+    loader_params: dict | None = None,
 ) -> tuple[LuxonisLoader, str]:
-    loader_params = dict(cfg.pipeline.loader.params)
+    loader_params = (
+        dict(cfg.pipeline.loader.params)
+        if loader_params is None
+        else dict(loader_params)
+    )
     loader_params.pop("filter_task_names", None)
     loader_params.pop("class_mapping", None)
     dataset_name: str = loader_params.pop("dataset_name")  # type: ignore
