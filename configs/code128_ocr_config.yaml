@@ -1,0 +1,42 @@
+runtime:
+  nn_archive_params_override: true
+
+pipeline:
+  loader:
+    name: LuxonisLoader
+    params:
+      dataset_name: your_code128_dataset
+      view: [test]
+    preprocessing:
+      # The Code128 training/export pipeline uses grayscale inputs.
+      color_space: GRAY
+
+  engine:
+    name: depthai
+    model_path: path/to/code128_ctc_x256_neck4_exp1.rvc4.tar.xz
+    params:
+      device_ip: 10.12.143.173
+
+  # engine:
+  #   name: onnx
+  #   model_path: path/to/code128_ctc_x256_neck4_exp1.onnx.tar.xz
+  #   params:
+  #     providers: [CPUExecutionProvider]
+
+  evaluators:
+    - task_name: barcode_ocr
+      parser:
+        # Resolved from the NNArchive head when nn_archive_params_override is true.
+        name: ClassificationSequenceParser
+        params:
+          # Optional host-side overrides. The archive already provides
+          # classes, n_classes, ignored_indexes, remove_duplicates, and target_mode.
+          beam_width: 10
+          top_k: 5
+          prefer_valid_checksum: true
+      metrics:
+        - name: Code128TextAccuracy
+          params:
+            target_key: /metadata/code128_codewords
+            top_k: 5
+      visualizers: []
