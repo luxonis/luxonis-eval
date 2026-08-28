@@ -1,5 +1,5 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping
 
 import depthai as dai
 import numpy as np
@@ -28,16 +28,7 @@ def extract_segmentation_mask(
     predictions: dai.SegmentationMask,
 ) -> np.ndarray:
     """Extract a semantic-segmentation mask from a prediction payload."""
-    if hasattr(predictions, "getCvMask"):
-        mask = predictions.getCvMask()
-    elif hasattr(predictions, "getCvSegmentationMask"):
-        mask = predictions.getCvSegmentationMask()
-    else:
-        raise TypeError(
-            "Unsupported segmentation prediction type "
-            f"{type(predictions)!r}: expected a DepthAI SegmentationMask "
-            "message."
-        )
+    mask = predictions.getCvMask()
 
     if mask is None:
         raise ValueError("Segmentation prediction does not contain a mask.")

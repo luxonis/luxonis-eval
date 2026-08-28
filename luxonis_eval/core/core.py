@@ -222,9 +222,14 @@ class LuxonisEval:
         throughput = self.throughput_metric.compute(
             metric_compute=metric_compute_elapsed
         )
+        evaluator_name = (
+            self.evaluator_cfg.name
+            or self.evaluator_cfg.task_name
+            or "task_0"
+        )
 
         result = EvaluationResult(
-            evaluator_name=self.evaluator_cfg.name,
+            evaluator_name=evaluator_name,
             engine=engine_name,
             model_name=model_name,
             metrics=results,
