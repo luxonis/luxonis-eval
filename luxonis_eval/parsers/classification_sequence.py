@@ -21,6 +21,42 @@ from luxonis_eval.parsers.base_parser import BaseParser
 from luxonis_eval.utils.utils import ordered_class_names
 
 
+def _resolve_output_layout(
+    model_spec: ModelSpec,
+    output_name: str,
+) -> str | None:
+    for output_spec in model_spec.outputs:
+        if output_spec.name == output_name:
+            layout = output_spec.layout
+            return layout.upper() if isinstance(layout, str) else None
+    return None
+
+
+def _normalize_sequence_scores_shape(
+    scores: np.ndarray,
+    *,
+    n_classes: int | None,
+    output_layout: str | None,
+) -> np.ndarray:
+    normalized = np.asarray(scores)
+
+    if output_layout == "NCD" and normalized.ndim == 3:
+        normalized = np.transpose(normalized, (0, 2, 1))
+    elif output_layout == "CD" and normalized.ndim == 2:
+        normalized = normalized.T
+
+    if n_classes is None or normalized.ndim not in (2, 3):
+        return normalized
+
+    if normalized.shape[-1] == n_classes:
+        return normalized
+
+    if normalized.shape[-2] == n_classes:
+        return np.swapaxes(normalized, -1, -2)
+
+    return normalized
+
+
 class ClassificationSequenceParser(BaseParser):
     """Parser for sequence-style classification outputs."""
 
@@ -46,9 +82,9 @@ class ClassificationSequenceParser(BaseParser):
         prefer_valid_checksum: bool = True,
         **kwargs: Any,
     ) -> Classifications:
-        del model_spec, kwargs
+        del kwargs
 
-        _, scores = output.get_first()
+        output_name, scores = output.get_first()
         scores = np.asarray(scores, dtype=np.float64)
         if scores.size == 0:
             raise ValueError("Classification sequence output is empty.")
@@ -58,6 +94,14 @@ class ClassificationSequenceParser(BaseParser):
                 "Classification sequence output contains non-finite values "
                 "before post-processing."
             )
+
+        resolved_classes = classes or ordered_class_names(class_map)
+        resolved_n_classes = len(resolved_classes) if resolved_classes else None
+        scores = _normalize_sequence_scores_shape(
+            scores,
+            n_classes=resolved_n_classes,
+            output_layout=_resolve_output_layout(model_spec, output_name),
+        )
 
         output_is_softmax = (
             is_softmax if apply_softmax is None else not apply_softmax
@@ -92,7 +136,6 @@ class ClassificationSequenceParser(BaseParser):
                 token_prune=token_prune,
             )
 
-        resolved_classes = classes or ordered_class_names(class_map)
         return create_classification_sequence_message(
             classes=resolved_classes,
             scores=scores,
