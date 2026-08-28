@@ -204,15 +204,10 @@ class DepthAIEngine(BaseEngine, register_name="depthai"):
                 f"Unsupported image shape for DepthAI inference: {img.shape}."
             )
 
-        platform_name = self._resolve_platform_name()
-
         if channel_count == 1:
-            # NeuralNetwork main ImgFrame input expects BGR on-device even when the
-            # archive preprocessing eventually converts the image to grayscale.
-            img = np.repeat(img[:, :, None], 3, axis=2)
-            channel_count = 3
-
-        if platform_name == "RVC2":
+            img_frame_type = dai.ImgFrame.Type.GRAY8
+            img_for_device = img
+        elif self._resolve_platform_name() == "RVC2":
             img_frame_type = dai.ImgFrame.Type.BGR888p
             img_for_device = np.transpose(img, (2, 0, 1))
         else:

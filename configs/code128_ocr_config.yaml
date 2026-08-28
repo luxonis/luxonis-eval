@@ -9,8 +9,7 @@ pipeline:
       view: [test]
       max_samples: 100
     preprocessing:
-      # The Code128 training/export pipeline uses grayscale inputs.
-      color_space: GRAY
+      color_space: BGR
 
   engine:
     name: depthai
