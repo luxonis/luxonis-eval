@@ -5,7 +5,10 @@ import depthai as dai
 import numpy as np
 
 from luxonis_eval.metrics.base_metric import BaseMetric
-from luxonis_eval.metrics.metrics_utils import detection_to_coco_xywh
+from luxonis_eval.metrics.metrics_utils import (
+    detection_to_coco_xywh,
+    normalized_xywh_to_coco_xywh,
+)
 from luxonis_eval.utils.coco_utils import COCOStore
 
 
@@ -46,7 +49,6 @@ class BboxMeanAveragePrecision(BaseMetric):
         self,
         predictions: dai.ImgDetections,
         target: dict[str, np.ndarray],
-        **kwargs: Any,
     ) -> None:
         """Update internal metric state.
 
@@ -56,21 +58,14 @@ class BboxMeanAveragePrecision(BaseMetric):
             Model predictions.
         target : dict[str, np.ndarray]
             Ground-truth data.
-        **kwargs : Any
-            Additional context.
         """
-        target_boxes = target[self.required_target_keys()[0]]
-        width = int(kwargs["width"])
-        height = int(kwargs["height"])
+        context = self.context
+        width = context.width
+        height = context.height
 
-        class_map: dict[int, str] = kwargs.get("class_map", {})
-        category_ids: Sequence[int] | None = kwargs.get("category_ids")
-        class_index_map = kwargs.get("class_index_map")
-        target_converter = kwargs.get("target_converter")
-        if target_converter is None:
-            raise ValueError(
-                "BboxMeanAveragePrecision requires target_converter in ctx."
-            )
+        class_map = context.class_map
+        category_ids: Sequence[int] = context.category_ids
+        class_index_map = context.class_index_map
 
         self._store.init_categories_once(
             class_map=class_map, category_ids=category_ids
@@ -78,8 +73,8 @@ class BboxMeanAveragePrecision(BaseMetric):
         img_id = self._store.new_image(width=width, height=height)
 
         # --- GT ---
-        target_classes, target_boxes_xywh = target_converter(
-            target_boxes, width, height
+        target_classes, target_boxes_xywh = normalized_xywh_to_coco_xywh(
+            target[self.required_target_keys()[0]], width, height
         )
         for box_xywh, cls in zip(
             target_boxes_xywh, target_classes, strict=True

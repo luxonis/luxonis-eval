@@ -42,7 +42,6 @@ class TopKAccuracy(BaseMetric):
         self,
         predictions: Classifications,
         target: dict[str, np.ndarray],
-        **kwargs: Any,
     ) -> None:
         """Update internal metric state.
 
@@ -52,15 +51,11 @@ class TopKAccuracy(BaseMetric):
             Model predictions (logits or probabilities).
         target : dict[str, np.ndarray]
             Ground-truth labels.
-        **kwargs : Any
-            Additional context.
         """
         cls_target = target[self.required_target_keys()[0]]
-        class_index_map = kwargs.get("class_index_map")
-        class_map = kwargs.get("class_map", {})
-        class_map = {v: k for k, v in class_map.items()}
-
-        topk = tuple(kwargs.get("topk", self.topk))
+        context = self.context
+        class_index_map = context.class_index_map
+        class_map = {v: k for k, v in context.class_map.items()}
 
         pred_classes = predictions.classes
         tgt = np.asarray(cls_target)
@@ -71,10 +66,10 @@ class TopKAccuracy(BaseMetric):
         if class_index_map is not None:
             target_idx = int(class_index_map[target_idx])
 
-        max_k = max(topk)
+        max_k = max(self.topk)
         top_idx = [class_map[pred_classes[i]] for i in range(max_k)]  # type: ignore
 
-        for k in topk:
+        for k in self.topk:
             if k not in self.correct_at_k:
                 self.correct_at_k[k] = 0
             if target_idx in top_idx[:k]:

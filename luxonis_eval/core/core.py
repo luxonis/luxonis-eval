@@ -1,6 +1,5 @@
 import time
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 from loguru import logger
@@ -8,6 +7,7 @@ from luxonis_ml.data.loaders import LuxonisLoader
 from luxonis_ml.typing import Params, PathType
 
 from luxonis_eval.config import EvalConfig, EvaluatorConfig
+from luxonis_eval.core.context import EvalContext
 from luxonis_eval.core.factories import (
     create_engine,
     create_loader,
@@ -23,7 +23,7 @@ from luxonis_eval.core.reporting import (
 )
 from luxonis_eval.core.results import EvaluationResult
 from luxonis_eval.core.runtime import (
-    build_metric_contexts,
+    build_eval_context,
     normalize_target,
     resolve_class_mapping,
     select_evaluator_outputs,
@@ -104,13 +104,13 @@ class LuxonisEval:
                 loader_params=self.cfg.pipeline.loader.params,
                 loader_task_name=self.loader_task_name,
             )
-            self.metric_contexts = build_metric_contexts(
-                self.evaluator_cfg,
+            self.eval_context = build_eval_context(
                 model_spec=self.model_spec,
                 ldf_class_map=self.ldf_class_map,
                 class_map=self.class_map,
                 class_index_map=self.class_index_map,
             )
+            self._attach_eval_context()
             self._sanity_check_pipeline()
         except Exception:
             try:
@@ -148,7 +148,6 @@ class LuxonisEval:
         assert self.parser is not None
         assert self.throughput_metric is not None
         assert self.evaluator_cfg is not None
-        assert self.model_spec is not None
 
         with self._progress(
             f"Running {engine_name.upper()} inference ({model_name})...",
@@ -171,22 +170,16 @@ class LuxonisEval:
                     select_evaluator_outputs(
                         raw_output,
                         self.evaluator_cfg.outputs,
-                    ),
-                    model_spec=self.model_spec,
-                    class_map=self.class_map,
-                    **self.evaluator_cfg.parser.params,
+                    )
                 )
                 parsing_elapsed = time.perf_counter() - parsing_t0
 
                 try:
                     metric_update_t0 = time.perf_counter()
-                    for metric, metric_ctx in zip(
-                        self.metrics, self.metric_contexts, strict=True
-                    ):
+                    for metric in self.metrics:
                         metric.update(
                             predictions=predictions,
                             target=target,
-                            **metric_ctx,
                         )
                     metric_update_elapsed = (
                         time.perf_counter() - metric_update_t0
@@ -198,20 +191,10 @@ class LuxonisEval:
                         metric_update=metric_update_elapsed,
                     )
 
-                    active_visualizer_cfgs = [
-                        visualizer_cfg
-                        for visualizer_cfg in self.evaluator_cfg.visualizers
-                        if visualizer_cfg.active
-                    ]
-                    for visualizer, visualizer_cfg in zip(
-                        self.visualizers,
-                        active_visualizer_cfgs,
-                        strict=True,
-                    ):
+                    for visualizer in self.visualizers:
                         visualizer.visualize(
                             predictions,
                             self.engine.vis_frame(),
-                            **visualizer_cfg.params,
                         )
                 finally:
                     clear_prediction_metadata(predictions)
@@ -265,7 +248,6 @@ class LuxonisEval:
         assert self.engine is not None
         assert self.parser is not None
         assert self.evaluator_cfg is not None
-        assert self.model_spec is not None
 
         if len(self.loader) == 0:
             raise ValueError(
@@ -283,16 +265,11 @@ class LuxonisEval:
         )
         raw_output = self.engine.infer_once(img)
         predictions = self.parser.parse(
-            select_evaluator_outputs(raw_output, self.evaluator_cfg.outputs),
-            model_spec=self.model_spec,
-            class_map=self.class_map,
-            **self.evaluator_cfg.parser.params,
+            select_evaluator_outputs(raw_output, self.evaluator_cfg.outputs)
         )
 
         try:
-            for metric, metric_ctx in zip(
-                self.metrics, self.metric_contexts, strict=True
-            ):
+            for metric in self.metrics:
                 missing = set(metric.required_target_keys()) - set(target)
                 if missing:
                     raise ValueError(
@@ -304,7 +281,6 @@ class LuxonisEval:
                 metric.update(
                     predictions=predictions,
                     target=target,
-                    **metric_ctx,
                 )
                 metric.compute()
                 metric.reset()
@@ -320,13 +296,27 @@ class LuxonisEval:
         self.visualizers: list[BaseVisualizer] = []
         self.evaluator_cfg: EvaluatorConfig | None = None
 
+        self.eval_context: EvalContext | None = None
         self.model_spec: ModelSpec | None = None
         self.loader_task_name: str | None = None
 
         self.ldf_class_map: dict[int, str] = {}
         self.class_map: dict[int, str] = {}
         self.class_index_map: dict[int, int] | None = None
-        self.metric_contexts: list[dict[str, Any]] = []
+
+    def _attach_eval_context(self) -> None:
+        if self.eval_context is None:
+            raise RuntimeError(
+                "Evaluation context is unavailable before setup."
+            )
+        if self.parser is None:
+            raise RuntimeError("Parser is unavailable before setup.")
+
+        self.parser.attach_context(self.eval_context)
+        for metric in self.metrics:
+            metric.attach_context(self.eval_context)
+        for visualizer in self.visualizers:
+            visualizer.attach_context(self.eval_context)
 
     def _require_setup(self) -> None:
         if not self._is_setup:
