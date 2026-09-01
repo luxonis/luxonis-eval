@@ -9,6 +9,7 @@ from torchmetrics.detection import MeanAveragePrecision
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import (
     detection_to_coco_xywh,
+    normalized_xywh_to_coco_xywh,
 )
 from luxonis_eval.utils import get_instance_masks
 
@@ -57,7 +58,6 @@ class MaskMeanAveragePrecision(BaseMetric):
         self,
         predictions: dai.ImgDetections,
         target: dict[str, np.ndarray],
-        **kwargs: Any,
     ) -> None:
         """Update internal metric state.
 
@@ -67,21 +67,18 @@ class MaskMeanAveragePrecision(BaseMetric):
             Model predictions.
         target : dict[str, np.ndarray]
             Ground-truth data.
-        **kwargs : Any
-            Additional context.
         """
-        target_boxes = target[self.required_target_keys()[0]]
+        context = self.context
         target_masks = target[self.required_target_keys()[1]]
 
-        width = int(kwargs["width"])
-        height = int(kwargs["height"])
+        width = context.width
+        height = context.height
 
-        category_ids: Sequence[int] | None = kwargs.get("category_ids")
-        class_index_map = kwargs.get("class_index_map")
-        target_converter = kwargs.get("target_converter")
+        category_ids: Sequence[int] = context.category_ids
+        class_index_map = context.class_index_map
 
-        target_classes, target_boxes_xywh = target_converter(
-            target_boxes, width, height
+        target_classes, target_boxes_xywh = normalized_xywh_to_coco_xywh(
+            target[self.required_target_keys()[0]], width, height
         )
         if class_index_map is not None:
             target_classes = np.array(

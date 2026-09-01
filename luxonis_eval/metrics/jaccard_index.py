@@ -43,16 +43,16 @@ class JaccardIndex(BaseMetric):
         self,
         predictions: dai.SegmentationMask,
         target: dict[str, np.ndarray],
-        **kwargs: Any,
     ) -> None:
+        context = self.context
         if self.target_class_map is None:
-            self.target_class_map = kwargs.get("target_class_map", {})
+            self.target_class_map = context.target_class_map
         prepared = prepare_segmentation_metric_inputs(
             predictions,
             target,
             include_background=self.include_background,
-            target_bg=kwargs.get("target_bg"),
-            class_index_map=kwargs.get("class_index_map"),
+            target_bg=context.target_background_index,
+            class_index_map=context.class_index_map,
         )
 
         if self.metric is None:

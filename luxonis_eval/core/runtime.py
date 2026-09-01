@@ -1,6 +1,5 @@
 import json
 from importlib.resources import files
-from typing import Any
 
 import numpy as np
 from loguru import logger
@@ -8,11 +7,10 @@ from luxonis_ml.data.loaders import LuxonisLoader
 from luxonis_ml.data.utils import split_task
 from luxonis_ml.typing import Params
 
-from luxonis_eval.config import EvaluatorConfig
+from luxonis_eval.core.context import EvalContext
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
 from luxonis_eval.loaders.base_loader import BaseEvalLoader
-from luxonis_eval.metrics.metrics_utils import normalized_xywh_to_coco_xywh
 
 
 def normalize_target(
@@ -40,46 +38,21 @@ def resolve_class_mapping(
     return loader.get_class_mapping(**loader_params)
 
 
-def build_metric_contexts(
-    evaluator_cfg: EvaluatorConfig,
+def build_eval_context(
     model_spec: ModelSpec,
     ldf_class_map: dict[int, str],
     class_map: dict[int, str],
     class_index_map: dict[int, int] | None,
-) -> list[dict[str, Any]]:
-    return [
-        get_metric_ctx(
-            base_ctx=metric_cfg.params,
-            width=model_spec.width,
-            height=model_spec.height,
-            ldf_class_map=ldf_class_map,
-            class_map=class_map,
-            class_index_map=class_index_map,
-        )
-        for metric_cfg in evaluator_cfg.metrics
-    ]
-
-
-def get_metric_ctx(base_ctx: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
-    class_index_map = kwargs.get("class_index_map")
-    class_map = kwargs.get("class_map") or {}
-    ldf_class_map = kwargs.get("ldf_class_map") or {}
-    width = kwargs.get("width", -1)
-    height = kwargs.get("height", -1)
-
+) -> EvalContext:
     ldf_name_to_idx = {v: k for k, v in ldf_class_map.items()}
-
-    return {
-        **base_ctx,
-        "class_map": class_map,
-        "class_index_map": class_index_map,
-        "width": width,
-        "height": height,
-        "category_ids": sorted(class_map.keys()),
-        "target_converter": normalized_xywh_to_coco_xywh,
-        "target_bg": ldf_name_to_idx.get("background"),
-        "target_class_map": ldf_class_map,
-    }
+    return EvalContext(
+        model_spec=model_spec,
+        class_map=class_map,
+        target_class_map=ldf_class_map,
+        class_index_map=class_index_map,
+        category_ids=tuple(sorted(class_map.keys())),
+        target_background_index=ldf_name_to_idx.get("background"),
+    )
 
 
 def select_evaluator_outputs(
