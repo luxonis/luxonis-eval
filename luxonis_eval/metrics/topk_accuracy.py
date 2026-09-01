@@ -53,7 +53,7 @@ class TopKAccuracy(BaseMetric):
             Ground-truth labels.
         """
         cls_target = target[self.required_target_keys()[0]]
-        context = self.require_context()
+        context = self.context
         class_index_map = context.class_index_map
         class_map = {v: k for k, v in context.class_map.items()}
 

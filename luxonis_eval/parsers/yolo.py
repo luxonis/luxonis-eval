@@ -23,28 +23,36 @@ class YOLOExtendedParser(BaseParser):
     _KPTS_MODE = 1
     _SEG_MODE = 2
 
-    def __init__(self, **kwargs: Any) -> None:
-        self.subtype: str = kwargs.pop("subtype")
-        self.n_classes: int | None = kwargs.pop("n_classes", None)
-        self.anchors: list[list[list[float]]] | None = kwargs.pop(
-            "anchors", None
-        )
-        self.strides: list[int] | None = kwargs.pop("strides", None)
-        self.conf_threshold: float = kwargs.pop("conf_threshold", 0.5)
-        self.iou_threshold: float = kwargs.pop("iou_threshold", 0.5)
-        self.n_keypoints: int | None = kwargs.pop("n_keypoints", None)
-        self.mask_conf: float = kwargs.pop("mask_conf", 0.5)
-        self.max_det: int = kwargs.pop("max_det", 300)
-        self.keypoint_label_names: list[str] | None = kwargs.pop(
-            "keypoint_label_names", None
-        )
-        self.keypoint_edges: list[tuple[int, int]] | None = kwargs.pop(
-            "keypoint_edges", None
-        )
+    def __init__(
+        self,
+        subtype: str,
+        n_classes: int | None = None,
+        anchors: list[list[list[float]]] | None = None,
+        strides: list[int] | None = None,
+        conf_threshold: float = 0.5,
+        iou_threshold: float = 0.5,
+        n_keypoints: int | None = None,
+        mask_conf: float = 0.5,
+        max_det: int = 300,
+        keypoint_label_names: list[str] | None = None,
+        keypoint_edges: list[tuple[int, int]] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        self.subtype = subtype
+        self.n_classes = n_classes
+        self.anchors = anchors
+        self.strides = strides
+        self.conf_threshold = conf_threshold
+        self.iou_threshold = iou_threshold
+        self.n_keypoints = n_keypoints
+        self.mask_conf = mask_conf
+        self.max_det = max_det
+        self.keypoint_label_names = keypoint_label_names
+        self.keypoint_edges = keypoint_edges
         super().__init__(**kwargs)
 
     def parse(self, output: EngineOutput) -> dai.ImgDetections:
-        context = self.require_context()
+        context = self.context
         compute_inputs = build_yolo_compute_inputs(
             output,
             model_spec=context.model_spec,

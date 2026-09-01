@@ -68,7 +68,7 @@ class MaskMeanAveragePrecision(BaseMetric):
         target : dict[str, np.ndarray]
             Ground-truth data.
         """
-        context = self.require_context()
+        context = self.context
         target_masks = target[self.required_target_keys()[1]]
 
         width = context.width

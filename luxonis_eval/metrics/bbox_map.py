@@ -57,7 +57,7 @@ class BboxMeanAveragePrecision(BaseMetric):
         target : dict[str, np.ndarray]
             Ground-truth data.
         """
-        context = self.require_context()
+        context = self.context
         width = context.width
         height = context.height
 

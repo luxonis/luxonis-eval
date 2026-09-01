@@ -68,7 +68,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
         predictions: dai.ImgDetections,
         target: dict[str, np.ndarray],
     ) -> None:
-        context = self.require_context()
+        context = self.context
         target_kpts = target[self.required_target_keys()[1]]
         width = context.width
         height = context.height

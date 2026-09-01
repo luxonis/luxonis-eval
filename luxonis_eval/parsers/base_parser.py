@@ -30,7 +30,8 @@ class BaseParser(
         """Attach evaluation runtime metadata after setup."""
         self._context = context
 
-    def require_context(self) -> EvalContext:
+    @property
+    def context(self) -> EvalContext:
         """Return the attached evaluation context."""
         if self._context is None:
             raise RuntimeError(

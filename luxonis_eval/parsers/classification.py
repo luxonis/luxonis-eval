@@ -32,7 +32,7 @@ class ClassificationParser(BaseParser):
         Classifications
             Classification scores.
         """
-        classes = ordered_class_names(self.require_context().class_map)
+        classes = ordered_class_names(self.context.class_map)
         _, scores = output.get_first()
         scores = np.asarray(scores, dtype=np.float64).flatten()
         if scores.size == 0:

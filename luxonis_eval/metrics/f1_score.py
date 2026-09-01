@@ -45,7 +45,7 @@ class F1Score(BaseMetric):
         predictions: dai.SegmentationMask,
         target: dict[str, np.ndarray],
     ) -> None:
-        context = self.require_context()
+        context = self.context
         if self.target_class_map is None:
             self.target_class_map = context.target_class_map
         prepared = prepare_segmentation_metric_inputs(
