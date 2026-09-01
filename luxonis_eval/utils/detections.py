@@ -61,6 +61,15 @@ def get_instance_masks(
             f"Expected ({height}, {width}), got {mask.shape}."
         )
 
+    invalid_instance_ids = (mask != INSTANCE_MASK_BACKGROUND) & (
+        mask >= n_detections
+    )
+    if invalid_instance_ids.any():
+        raise ValueError(
+            "ImgDetections segmentation mask contains an instance ID without "
+            "a corresponding detection."
+        )
+
     if n_detections == 0:
         return np.zeros((0, *mask.shape), dtype=bool)
 
