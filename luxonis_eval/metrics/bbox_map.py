@@ -4,6 +4,7 @@ from typing import Any
 import depthai as dai
 import numpy as np
 
+from luxonis_eval.core.targets import require_prepared_bboxes
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import detection_to_coco_xywh
 from luxonis_eval.utils.coco_utils import COCOStore
@@ -57,14 +58,12 @@ class BboxMeanAveragePrecision(BaseMetric):
             Ground-truth data.
         """
         context = self.require_context()
-        target_boxes = target[self.required_target_keys()[0]]
         width = context.width
         height = context.height
 
         class_map = context.class_map
         category_ids: Sequence[int] = context.category_ids
         class_index_map = context.class_index_map
-        target_converter = context.target_converter
 
         self._store.init_categories_once(
             class_map=class_map, category_ids=category_ids
@@ -72,9 +71,7 @@ class BboxMeanAveragePrecision(BaseMetric):
         img_id = self._store.new_image(width=width, height=height)
 
         # --- GT ---
-        target_classes, target_boxes_xywh = target_converter(
-            target_boxes, width, height
-        )
+        target_classes, target_boxes_xywh = require_prepared_bboxes(target)
         for box_xywh, cls in zip(
             target_boxes_xywh, target_classes, strict=True
         ):

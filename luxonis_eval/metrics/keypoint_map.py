@@ -8,6 +8,7 @@ from faster_coco_eval.core import COCO, COCOeval_faster
 from torch import Tensor
 from torchvision.ops import box_convert
 
+from luxonis_eval.core.targets import require_prepared_bboxes
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import (
     bbox_area_from_keypoints,
@@ -68,13 +69,12 @@ class KeypointMeanAveragePrecision(BaseMetric):
         target: dict[str, np.ndarray],
     ) -> None:
         context = self.require_context()
-        target_boxes = target[self.required_target_keys()[0]]
         target_kpts = target[self.required_target_keys()[1]]
         width = context.width
         height = context.height
 
         class_index_map = context.class_index_map
-        target_converter = context.target_converter
+        target_classes, target_boxes_xywh = require_prepared_bboxes(target)
 
         pred_boxes_xyxy: list[list[float]] = []
         pred_scores: list[float] = []
@@ -144,11 +144,8 @@ class KeypointMeanAveragePrecision(BaseMetric):
         self.pred_classes.append(pred_classes_tensor[keep_mask])
         self.pred_keypoints.append(pred_keypoints_tensor[keep_mask])
 
-        target_classes_tensor = self._get_target_classes(
-            target_boxes=target_boxes,
-            width=width,
-            height=height,
-            target_converter=target_converter,
+        target_classes_tensor = torch.tensor(
+            target_classes, dtype=torch.int64
         )
         if class_index_map is not None and len(target_classes_tensor) > 0:
             target_classes_tensor = torch.tensor(
@@ -177,9 +174,6 @@ class KeypointMeanAveragePrecision(BaseMetric):
                 self._compute_bbox_area_from_keypoints(target_kpts_tensor)
             )
         else:
-            _, target_boxes_xywh = target_converter(
-                target_boxes, width, height
-            )
             target_boxes_xywh_tensor = self._as_2d_tensor(target_boxes_xywh, 4)
             target_areas_tensor = self._compute_area_from_bboxes(
                 target_boxes_xywh_tensor
@@ -386,24 +380,6 @@ class KeypointMeanAveragePrecision(BaseMetric):
             torch.tensor(bboxes, dtype=torch.float32),
             torch.tensor(areas, dtype=torch.float32),
         )
-
-    @staticmethod
-    def _get_target_classes(
-        *,
-        target_boxes: np.ndarray,
-        width: int,
-        height: int,
-        target_converter: Any,
-    ) -> Tensor:
-        if target_converter is not None:
-            target_classes, _ = target_converter(target_boxes, width, height)
-            return torch.tensor(target_classes, dtype=torch.int64)
-
-        target_boxes = np.asarray(target_boxes, dtype=np.float32)
-        if target_boxes.size == 0:
-            return torch.zeros((0,), dtype=torch.int64)
-        target_boxes = target_boxes.reshape(-1, target_boxes.shape[-1])
-        return torch.tensor(target_boxes[:, 0], dtype=torch.int64)
 
     @staticmethod
     def _add_f1_metrics(metrics: dict[str, float]) -> dict[str, float]:

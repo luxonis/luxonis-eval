@@ -8,20 +8,32 @@ from luxonis_ml.data.utils import split_task
 from luxonis_ml.typing import Params
 
 from luxonis_eval.core.context import EvalContext
+from luxonis_eval.core.targets import prepare_target
 from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
 from luxonis_eval.loaders.base_loader import BaseEvalLoader
-from luxonis_eval.metrics.metrics_utils import normalized_xywh_to_coco_xywh
 
 
 def normalize_target(
     target: dict[str, np.ndarray],
     loader: BaseEvalLoader | LuxonisLoader | None,
     loader_task_name: str | None,
+    model_spec: ModelSpec | None = None,
 ) -> dict[str, np.ndarray]:
+    normalized_target = target
     if isinstance(loader, LuxonisLoader) and loader_task_name is not None:
-        return normalize_luxonis_task_labels(target, loader_task_name)
-    return target
+        normalized_target = normalize_luxonis_task_labels(
+            target, loader_task_name
+        )
+
+    if model_spec is None:
+        return normalized_target
+
+    return prepare_target(
+        normalized_target,
+        width=model_spec.width,
+        height=model_spec.height,
+    )
 
 
 def resolve_class_mapping(
@@ -53,7 +65,6 @@ def build_eval_context(
         class_index_map=class_index_map,
         category_ids=tuple(sorted(class_map.keys())),
         target_background_index=ldf_name_to_idx.get("background"),
-        target_converter=normalized_xywh_to_coco_xywh,
     )
 
 
