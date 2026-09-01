@@ -6,7 +6,6 @@ from luxonis_ml.utils.registry import AutoRegisterMeta
 
 from luxonis_eval.registry import METRICS_REGISTRY
 
-
 class BaseMetric(
     ABC,
     metaclass=AutoRegisterMeta,
@@ -37,7 +36,10 @@ class BaseMetric(
 
     @abstractmethod
     def update(
-        self, predictions: Any, target: dict[str, np.ndarray], **kwargs: Any
+        self,
+        predictions: Any,
+        target: dict[str, np.ndarray],
+        **kwargs: Any,
     ) -> None:
         """Update the metric with predictions and ground truths.
 

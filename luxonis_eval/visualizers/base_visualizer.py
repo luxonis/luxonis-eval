@@ -6,7 +6,6 @@ from luxonis_ml.utils.registry import AutoRegisterMeta
 
 from luxonis_eval.registry import VISUALIZERS_REGISTRY
 
-
 class BaseVisualizer(
     ABC,
     metaclass=AutoRegisterMeta,

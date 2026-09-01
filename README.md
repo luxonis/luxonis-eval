@@ -6,32 +6,20 @@
 
 ## 🌟 Overview
 
-`LuxonisEval` is a modular evaluation framework for benchmarking neural network models across multiple inference backends. It supports inference on Luxonis devices (`RVC2` and `RVC4`) through `DepthAI`, as well as host-side inference through `ONNX Runtime`, while reporting both quality metrics and throughput or latency performance.
+`LuxonisEval` is a modular evaluation framework for benchmarking neural network models across multiple inference engines. It supports on-device inference on Luxonis devices (`RVC2` and `RVC4`) through `DepthAI`, as well as host-side inference through `ONNX Runtime`, while reporting both quality metrics and throughput or latency performance.
 
 The framework follows a registry-based architecture: each pluggable component (engines, dataloaders, parsers, metrics, and visualizers) registers itself automatically. This lets you swap, extend, or add parts of the evaluation pipeline without modifying the core evaluation loop. In practice, adding a new component usually means subclassing the appropriate base class and referencing it by name in the configuration.
 
 ### ✨ Key Features
 
-- **Multiple Inference Backends**
+- **Multiple Inference Engines**
   - [**DepthAI Engine**](luxonis_eval/engines/depthai_engine.py) - Run models exported as [NNArchive](https://docs.luxonis.com/software-v3/ai-inference/nn-archive) files on Luxonis devices via [DepthAI](https://docs.luxonis.com/software-v3/depthai/)
   - [**ONNX Engine**](luxonis_eval/engines/onnx_engine.py) - Run models on CPU or GPU using `ONNX Runtime`
 - **Dataset Loading**
   - [**LuxonisLoader**](https://github.com/luxonis/luxonis-ml/tree/main/luxonis_ml/data/loaders#luxonisml-loader) - Load datasets stored in Luxonis Data Format (`LDF`)
   - [**BaseEvalLoader**](luxonis_eval/loaders/base_loader.py) - Base class for custom dataloaders
-- **Supported Tasks**
-  - `Classification` - Image classification
-  - `Detection` - Bounding box detection
-  - `SemanticSegmentation` - Per-pixel class labeling
-  - `InstanceSegmentation` - Per-instance masks with detection
-  - `KeypointDetection` - Body or object keypoint localization
-- **Built-In Metrics**
-  - [`TopKAccuracy`](luxonis_eval/metrics/topk_accuracy.py) - Top-1 and Top-5 accuracy for classification
-  - [`BboxMeanAveragePrecision`](luxonis_eval/metrics/bbox_map.py) - COCO-style mAP for bounding box detection
-  - [`MaskMeanAveragePrecision`](luxonis_eval/metrics/mask_map.py) - COCO-style mAP for instance segmentation
-  - [`KeypointMeanAveragePrecision`](luxonis_eval/metrics/keypoint_map.py) - OKS-based mAP for keypoint detection
-  - [`MIoU`](luxonis_eval/metrics/mIoU.py) - Mean Intersection over Union for semantic segmentation
-  - [`DiceCoefficient`](luxonis_eval/metrics/dice_coef.py) - Dice score for semantic segmentation
-  - [`ThroughputMetric`](luxonis_eval/metrics/throughput.py) - End-to-end throughput and latency reporting
+- **Current Evaluation Coverage** - The built-in parsers and metrics currently cover classification, bounding box detection, semantic segmentation, instance segmentation, and keypoint evaluation
+- **NNArchive-Aware Configuration** - Parser metadata and preprocessing hints can be resolved from NNArchive models, including archive-driven overrides when desired
 - **Extensible Architecture** - Registry-based design powered by [`AutoRegisterMeta`](luxonis_eval/registry.py), making it straightforward to add custom engines, parsers, metrics, loaders, and visualizers
 
 <a name="quick-start"></a>
@@ -80,6 +68,7 @@ This quickstart runs instance segmentation evaluation with `ONNX Runtime` on CPU
   - [🎨 Visualizers](#visualizers)
   - [⚡ Inference Engine](#inference-engine)
   - [📄 Full Example](#full-example)
+  - [📏 Metrics](#metrics)
   - [🏃 Commands](#commands)
 - [🧱 Extending the Framework](#extending-the-framework)
   - [📥 Adding a Custom DataLoader](#adding-a-custom-dataloader)
@@ -138,7 +127,7 @@ luxonis_eval eval \
     --model-path path/to/model.tar.xz \
     --backend depthai
 
-# Use the ONNX backend
+# Use the ONNX engine
 luxonis_eval eval \
     --config path/to/config.yaml \
     --dataset-name coco \
@@ -189,7 +178,7 @@ The repository is organized around a small set of core component types:
 luxonis_eval/
 ├── config/           # Configuration schema and exports
 ├── core/             # Evaluation lifecycle orchestration
-├── engines/          # Inference backends
+├── engines/          # Inference engines
 ├── loaders/          # Dataset loaders
 ├── metrics/          # Evaluation metrics
 ├── parsers/          # Model output parsers
@@ -212,7 +201,7 @@ All base classes use the [AutoRegisterMeta](https://github.com/luxonis/luxonis-m
 
 ### 🔄 Evaluation Pipeline
 
-The evaluation loop in `LuxonisEval.evaluate()` is structured around abstract component interfaces rather than concrete implementations. That design keeps the pipeline modular and makes backend or task-specific components easy to replace.
+The evaluation loop in `LuxonisEval.evaluate()` is structured around abstract component interfaces rather than concrete implementations. That design keeps the pipeline modular and makes engine-specific or model-specific components easy to replace.
 
 ```bash
 ┌────────────┐     ┌─────────────┐     ┌─────────────┐     ┌───────────┐
@@ -230,8 +219,8 @@ The evaluation loop in `LuxonisEval.evaluate()` is structured around abstract co
 The pipeline works as follows:
 
 1. **DataLoader** provides images together with ground-truth annotations.
-2. **Engine** runs inference and returns raw backend outputs.
-3. **Parser** converts raw outputs into a structured prediction format.
+2. **Engine** runs inference and returns raw engine outputs.
+3. **Parser** converts raw engine outputs into a structured prediction format.
 4. **Metrics** accumulate per-sample results and compute final scores.
 5. **Visualizer** optionally renders predictions for inspection.
 
@@ -300,15 +289,41 @@ pipeline:
       keep_aspect_ratio: true     # Preserve aspect ratio during resize
 ```
 
-> [!NOTE]
-> When using the `depthai` backend, normalization is usually handled by the model's own preprocessing pipeline. The engine will warn you if normalization is enabled together with `DepthAI`. `DepthAI` also expects `BGR` color space, so a warning is emitted if `RGB` is selected.
+`preprocessing` is resolved before evaluation starts. For ordinary configs, the loader values come directly from YAML. When the model path points to an NNArchive, LuxonisEval can also derive preprocessing hints from the archive metadata.
+
+```yaml
+runtime:
+  nn_archive_params_override: true
+pipeline:
+  loader:
+    preprocessing:
+      keep_aspect_ratio: true
+      normalize:
+        active: false
+      color_space: RGB
+```
+
+When `runtime.nn_archive_params_override` is `true`, NNArchive metadata takes precedence for:
+
+- `loader.preprocessing.normalize`
+- `loader.preprocessing.color_space`
+- evaluator parser selection and parser params
+- evaluator `outputs`
+
+When it is `false`, explicit YAML values stay primary and archive metadata is only used as a fallback.
 
 > [!IMPORTANT]
-> `LuxonisLoader` evaluation is currently single-task only. Task selection is done by collecting tasks defined at `pipeline.evaluators[*].task_name`. For datasets that use the default empty Luxonis task, set `task_name: ""`.
+> `keep_aspect_ratio` is not inferred from NNArchive metadata. Set it explicitly when your preprocessing depends on preserving aspect ratio or letterboxing.
+
+> [!NOTE]
+> For the `depthai` engine, host-side normalization is skipped because preprocessing is expected to run on-device through the NNArchive pipeline. For the `onnx` engine, resolved normalization stays on the host side.
+
+> [!IMPORTANT]
+> `LuxonisLoader` evaluation is currently single-evaluator and single-dataset-task only. `pipeline.evaluators[*].task_name` selects the Luxonis dataset task namespace to evaluate. It is not a framework-level task enum or abstraction. For datasets that use the default empty Luxonis task, set `task_name: ""`.
 
 ### 🧠 Evaluators
 
-Each pipeline evaluator binds together the dataset task, parser, metrics, and optional visualizers for one quality-evaluation unit.
+Each pipeline evaluator binds together one dataset task selection, one parser, a set of metrics, and optional visualizers for one quality-evaluation unit.
 
 ```yaml
 pipeline:
@@ -332,33 +347,25 @@ pipeline:
       visualizers: []
 ```
 
-- `task_name` selects the Luxonis dataset task evaluated by this entry. If not set we try to automatically infer it.
+- `task_name` selects the Luxonis dataset task evaluated by this entry. If not set we try to infer it from the dataset metadata.
 - `name` is optional and defaults to `task_name` or a stable fallback when `task_name` is empty.
 - `outputs` is optional in the current single-evaluator implementation; when omitted, the evaluator consumes all engine outputs.
 - Only zero or one evaluator is currently supported at runtime. Multiple evaluators are rejected with a clear not-yet-implemented error.
 
+Compatibility is driven by data shape, not by a separate task abstraction:
+
+- the loader must expose the annotation keys required by the configured metrics
+- the parser must produce outputs that the configured metrics can consume
+
 ### 🎨 Visualizers
 
-Visualizers are evaluator-local and plural:
-
-```yaml
-pipeline:
-  evaluators:
-    - task_name: detection
-      parser: ...
-      metrics:
-        - name: BboxMeanAveragePrecision
-          params:
-            iou_type: bbox
-      visualizers:
-        - name: InstanceSegmentationVisualizer
-          active: true
-          params: {}
-```
+Visualizers are evaluator-local and plural. The repository currently ships
+only the `BaseVisualizer` interface, so visualizer entries are only useful
+when you provide and import a custom implementation.
 
 ### ⚡ Inference Engine
 
-The engine section selects the backend and points to the model file. Configuration validation ensures that the model format matches the backend (`.tar.xz` for `depthai`, `.onnx` for `onnx`).
+The engine section selects the inference engine and points to the model file. Configuration validation ensures that the model format matches the selected engine (`.tar.xz` NNArchive for `depthai` or `onnx`, `.onnx` for `onnx`).
 
 ```yaml
 pipeline:
@@ -368,9 +375,15 @@ pipeline:
     params: {}                    # Engine-specific parameters, for example device_ip for RVC4
 ```
 
+> [!NOTE]
+> The CLI override flag is named `--backend` for convenience, but it simply overrides `pipeline.engine.name`.
+
 ### 📄 Full Example
 
 ```yaml
+runtime:
+  nn_archive_params_override: false
+
 pipeline:
   loader:
     name: LuxonisLoader
@@ -412,11 +425,30 @@ pipeline:
       visualizers: []
 ```
 
+### 📏 Metrics
+
+Quality metrics are configured per evaluator under `pipeline.evaluators[*].metrics`.
+
+| Metric | Typical use | Required target keys |
+| --- | --- | --- |
+| [`TopKAccuracy`](luxonis_eval/metrics/topk_accuracy.py) | Classification | `["/classification"]` |
+| [`BboxMeanAveragePrecision`](luxonis_eval/metrics/bbox_map.py) | Bounding box detection | `["/boundingbox"]` |
+| [`MaskMeanAveragePrecision`](luxonis_eval/metrics/mask_map.py) | Instance segmentation | `["/boundingbox", "/instance_segmentation"]` |
+| [`KeypointMeanAveragePrecision`](luxonis_eval/metrics/keypoint_map.py) | Keypoint evaluation | `["/boundingbox", "/keypoints"]` |
+| [`MIoU`](luxonis_eval/metrics/mIoU.py) | Semantic segmentation | `["/segmentation"]` |
+| [`DiceCoefficient`](luxonis_eval/metrics/dice_coef.py) | Semantic segmentation | `["/segmentation"]` |
+| [`F1Score`](luxonis_eval/metrics/f1_score.py) | Semantic segmentation | `["/segmentation"]` |
+| [`JaccardIndex`](luxonis_eval/metrics/jaccard_index.py) | Semantic segmentation | `["/segmentation"]` |
+
+Metrics consume parser outputs directly. Each metric validates that the parser returned the message type it expects, for example classifications, segmentation masks, detections, or detections with attached instance-mask metadata.
+
+`ThroughputMetric` is not configured manually in the evaluator list. It is always collected internally and reported alongside the quality metrics in the final `EvaluationResult`.
+
 ### 🏃 Commands
 
-`luxonis-eval eval --config ...` runs the configured quality pipeline in this phase.
+`luxonis_eval eval --config ...` runs the configured quality pipeline in this phase.
 
-`luxonis-eval quality --config ...` is a quality-only alias with the same override flags as `eval`.
+`luxonis_eval quality --config ...` is a quality-only alias with the same override flags as `eval`.
 
 Benchmark configuration can be present in the YAML for future compatibility, but benchmark execution is intentionally not implemented yet.
 
@@ -455,10 +487,10 @@ For `LuxonisLoader`-backed datasets, the LDF and native class maps may differ wh
 
 Subclass [`BaseEngine`](luxonis_eval/engines/base_engine.py) and implement the four abstract methods:
 
-- **`setup()`** - Initialize backend resources such as runtimes, sessions, or device connections, then return a `ModelSpec(width, height)` for the loaded model. Keep this idempotent so repeated calls are safe.
-- **`infer_once(img)`** - Run inference on a single preprocessed image and return the raw backend output
+- **`setup()`** - Initialize engine resources such as runtimes, sessions, or device connections, then return a `ModelSpec(width, height)` for the loaded model. Keep this idempotent so repeated calls are safe.
+- **`infer_once(img)`** - Run inference on a single preprocessed image and return the raw engine output
 - **`vis_frame()`** - Return a copy of the input image suitable for visualization overlays
-- **`close()`** - Release backend resources after evaluation finishes
+- **`close()`** - Release engine resources after evaluation finishes
 
 The framework consumes the returned `ModelSpec` to configure loader preprocessing and metric contexts.
 
@@ -466,13 +498,13 @@ The framework consumes the returned `ModelSpec` to configure loader preprocessin
 
 Subclass [`BaseParser`](luxonis_eval/parsers/base_parser.py) and implement the single abstract method:
 
-- **`parse(raw_output, **kwargs)`** - Convert raw backend output into a structured prediction format
+- **`parse(raw_output, **kwargs)`** - Convert raw engine output into a structured prediction format
 
 The parser bridges the gap between model-specific tensor layouts and the standardized message types that downstream metrics expect. The built-in parsers produce the following output types:
 
 - [**ClassificationParser**](luxonis_eval/parsers/classification.py) -> [depthai_nodes.Classifications](https://github.com/luxonis/depthai-nodes/tree/main/depthai_nodes/message#classifications)
 - [**YOLOExtendedParser**](luxonis_eval/parsers/yolo.py) -> [dai.ImgDetections](https://docs.luxonis.com/software-v3/depthai/api/cpp/#classdai_1_1ImgDetections)
-- [**SegmentationParser**](luxonis_eval/parsers/segmentation.py) -> [depthai_nodes.SegmentationMask](https://github.com/luxonis/depthai-nodes/tree/main/depthai_nodes/message#segmentationmask)
+- [**SegmentationParser**](luxonis_eval/parsers/segmentation.py) -> [dai.SegmentationMask](https://github.com/luxonis/depthai-nodes/tree/main/depthai_nodes/message#segmentationmask)
 
 > [!IMPORTANT]
 > The parser must produce outputs that the configured metrics can consume. For example, if a metric expects `dai.ImgDetections`, the parser must return that message type.

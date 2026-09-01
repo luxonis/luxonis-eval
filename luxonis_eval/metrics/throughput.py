@@ -1,5 +1,7 @@
 import time
 
+from luxonis_eval.core.results import ThroughputResult
+
 
 class ThroughputMetric:
     """Throughput evaluation metric."""
@@ -38,7 +40,7 @@ class ThroughputMetric:
 
     def compute(
         self, *, metric_compute: float = 0.0
-    ) -> dict[str, float | int]:
+    ) -> ThroughputResult:
         """Compute final throughput metrics.
 
         Parameters
@@ -48,7 +50,7 @@ class ThroughputMetric:
 
         Returns
         -------
-        dict[str, float | int]
+        ThroughputResult
             Computed throughput results.
         """
         self._stage_elapsed["metric_compute"] = metric_compute
@@ -62,23 +64,38 @@ class ThroughputMetric:
         tracked_elapsed = sum(self._stage_elapsed.values())
         overhead_elapsed = max(elapsed - tracked_elapsed, 0.0)
 
-        results: dict[str, float | int] = {
-            "elapsed_s": float(elapsed),
-            "samples": int(self._num_updates),
-            "samples_per_s": float(sps),
-            "ms_per_sample": float(msp),
-            "overhead_ms_per_sample": float(
+        return ThroughputResult(
+            elapsed_s=float(elapsed),
+            samples=int(self._num_updates),
+            samples_per_s=float(sps),
+            ms_per_sample=float(msp),
+            overhead_ms_per_sample=float(
                 (overhead_elapsed / self._num_updates) * 1000.0
                 if self._num_updates
                 else 0.0
             ),
-        }
-
-        for stage, stage_elapsed in self._stage_elapsed.items():
-            results[f"{stage}_ms_per_sample"] = float(
-                (stage_elapsed / self._num_updates) * 1000.0
+            inference_ms_per_sample=float(
+                (self._stage_elapsed["inference"] / self._num_updates)
+                * 1000.0
                 if self._num_updates
                 else 0.0
-            )
-
-        return results
+            ),
+            parsing_ms_per_sample=float(
+                (self._stage_elapsed["parsing"] / self._num_updates)
+                * 1000.0
+                if self._num_updates
+                else 0.0
+            ),
+            metric_update_ms_per_sample=float(
+                (self._stage_elapsed["metric_update"] / self._num_updates)
+                * 1000.0
+                if self._num_updates
+                else 0.0
+            ),
+            metric_compute_ms_per_sample=float(
+                (self._stage_elapsed["metric_compute"] / self._num_updates)
+                * 1000.0
+                if self._num_updates
+                else 0.0
+            ),
+        )

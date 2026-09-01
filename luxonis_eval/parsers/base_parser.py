@@ -7,7 +7,6 @@ from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
 from luxonis_eval.registry import PARSERS_REGISTRY
 
-
 class BaseParser(
     ABC,
     metaclass=AutoRegisterMeta,

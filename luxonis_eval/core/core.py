@@ -18,9 +18,10 @@ from luxonis_eval.core.factories import (
 from luxonis_eval.core.reporting import (
     RichProgressAdapter,
     TQDMProgressAdapter,
+    format_evaluation_result,
     get_model_name,
-    make_report_table,
 )
+from luxonis_eval.core.results import EvaluationResult
 from luxonis_eval.core.runtime import (
     build_metric_contexts,
     normalize_target,
@@ -123,20 +124,20 @@ class LuxonisEval:
         self._is_setup = True
         self._is_closed = False
 
-    def evaluate(self) -> dict[str, Any]:
+    def evaluate(self) -> EvaluationResult:
         """Run the evaluation loop and return structured results."""
         self._require_setup()
         self._reset_runtime_metrics()
         return self._run_pipeline()
 
-    def _run_pipeline(self) -> dict[str, Any]:
+    def _run_pipeline(self) -> EvaluationResult:
         if self.cfg.pipeline.benchmark is not None:
             logger.warning(
                 "pipeline.benchmark is configured, but benchmark execution is not implemented yet. Running quality evaluators only."
             )
         return self._run_evaluators()
 
-    def _run_evaluators(self) -> dict[str, Any]:
+    def _run_evaluators(self) -> EvaluationResult:
         """Run the configured quality evaluator."""
         self._require_setup()
         engine_name = self.cfg.pipeline.engine.name
@@ -225,27 +226,23 @@ class LuxonisEval:
         throughput = self.throughput_metric.compute(
             metric_compute=metric_compute_elapsed
         )
-
-        report = make_report_table(
-            engine_name=engine_name,
-            model_name=model_name,
-            tp=throughput,
-            results=results,
+        evaluator_name = (
+            self.evaluator_cfg.name or self.evaluator_cfg.task_name or "task_0"
         )
 
+        result = EvaluationResult(
+            evaluator_name=evaluator_name,
+            engine=engine_name,
+            model_name=model_name,
+            metrics=results,
+            throughput=throughput,
+        )
         logger.warning(
             "Throughput values are end-to-end pipeline measurements and not isolated model-only benchmarks. Lower numbers than modelconverter benchmark results are expected."
         )
-        logger.info(f"\n{report}")
+        logger.info(f"\n{format_evaluation_result(result)}")
 
-        return {
-            "evaluator_name": self.evaluator_cfg.name,
-            "engine": engine_name,
-            "model_name": model_name,
-            "metrics": results,
-            "throughput": throughput,
-            "report": report,
-        }
+        return result
 
     def close(self) -> None:
         """Release owned runtime resources."""
