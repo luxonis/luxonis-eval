@@ -1,7 +1,6 @@
 from typing import Any
 
 import depthai as dai
-import numpy as np
 from depthai_nodes.message.creators import create_detection_message
 from depthai_nodes.node.parsers.yolo import (
     YOLOExtendedParser as DepthAINodesYOLOExtendedParser,
@@ -11,14 +10,12 @@ from luxonis_eval.engines.base_engine import ModelSpec
 from luxonis_eval.engines.io import EngineOutput
 
 from .base_parser import BaseParser
-from .utils.yolo import (
-    build_yolo_compute_inputs,
-    build_yolo_instance_masks,
-)
+from .utils.yolo import build_yolo_compute_inputs
 
 
 class YOLOExtendedParser(BaseParser):
-    """Parser for YOLO-based detection, segmentation, and pose outputs."""
+    """Parser for YOLO-based detection, segmentation, and pose
+    outputs."""
 
     _DET_MODE = 0
     _KPTS_MODE = 1
@@ -63,11 +60,6 @@ class YOLOExtendedParser(BaseParser):
             keypoint_label_names=keypoint_label_names,
             keypoint_edges=keypoint_edges,
         )
-        raw_outputs_values = None
-        if compute_inputs.masks_outputs_values is not None:
-            raw_outputs_values = [
-                value.copy() for value in compute_inputs.outputs_values
-            ]
         payload = DepthAINodesYOLOExtendedParser.compute(compute_inputs)
 
         mode = int(payload["mode"])
@@ -90,25 +82,13 @@ class YOLOExtendedParser(BaseParser):
             )
 
         if mode == self._SEG_MODE:
-            message = create_detection_message(
+            return create_detection_message(
                 bboxes=payload["bboxes"],
                 scores=payload["scores"],
                 labels=payload["labels"],
                 label_names=payload["label_names"],
                 masks=payload["masks"],
             )
-            instance_masks = build_yolo_instance_masks(
-                compute_inputs,
-                outputs_values=raw_outputs_values,
-            )
-            if instance_masks.shape[0] != len(message.detections):
-                raise ValueError(
-                    "YOLOExtendedParser received mismatched segmentation outputs: "
-                    f"{len(message.detections)} detections but "
-                    f"{instance_masks.shape[0]} rebuilt instance masks."
-                )
-            store_prediction_instance_masks(message, instance_masks)
-            return message
 
         return create_detection_message(
             bboxes=payload["bboxes"],
@@ -116,22 +96,3 @@ class YOLOExtendedParser(BaseParser):
             labels=payload["labels"],
             label_names=payload["label_names"],
         )
-
-
-prediction_instance_masks_by_id: dict[int, np.ndarray] = {}
-
-
-def store_prediction_instance_masks(
-    predictions: dai.ImgDetections, instance_masks: np.ndarray
-) -> None:
-    prediction_instance_masks_by_id[id(predictions)] = instance_masks
-
-
-def get_prediction_instance_masks(
-    predictions: dai.ImgDetections,
-) -> np.ndarray | None:
-    return prediction_instance_masks_by_id.get(id(predictions))
-
-
-def clear_prediction_metadata(predictions: Any) -> None:
-    prediction_instance_masks_by_id.pop(id(predictions), None)

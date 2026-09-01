@@ -10,7 +10,7 @@ from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import (
     detection_to_coco_xywh,
 )
-from luxonis_eval.parsers.yolo import get_prediction_instance_masks
+from luxonis_eval.utils import get_instance_masks
 
 
 class MaskMeanAveragePrecision(BaseMetric):
@@ -95,9 +95,8 @@ class MaskMeanAveragePrecision(BaseMetric):
         )
 
         detections = predictions.detections
-        masks = self._resolve_prediction_instance_masks(
-            get_prediction_instance_masks(predictions),
-            n_detections=len(detections),
+        masks = get_instance_masks(
+            predictions,
             height=height,
             width=width,
         )
@@ -162,43 +161,6 @@ class MaskMeanAveragePrecision(BaseMetric):
             "AP": float(metrics["segm_map"]),
             "AP50": float(metrics["segm_map_50"]),
         }
-
-    @staticmethod
-    def _resolve_prediction_instance_masks(
-        raw_masks: np.ndarray | None,
-        *,
-        n_detections: int,
-        height: int,
-        width: int,
-    ) -> np.ndarray:
-        if raw_masks is None:
-            raise ValueError(
-                "MaskMeanAveragePrecision requires raw per-instance masks "
-                "for the prediction message."
-            )
-
-        masks = np.asarray(raw_masks)
-        if masks.size == 0:
-            if n_detections != 0:
-                raise ValueError(
-                    "MaskMeanAveragePrecision received no raw instance masks "
-                    f"for {n_detections} detections."
-                )
-            return np.zeros((0, height, width), dtype=np.uint8)
-
-        if masks.ndim != 3:
-            raise ValueError(
-                f"Unsupported raw instance mask rank {masks.ndim}. "
-                "Expected shape (N, H, W)."
-            )
-
-        if masks.shape != (n_detections, height, width):
-            raise ValueError(
-                "Raw instance masks do not align with detections. Expected "
-                f"({n_detections}, {height}, {width}), got {masks.shape}."
-            )
-
-        return masks.astype(np.uint8, copy=False)
 
     @staticmethod
     def _xywh_to_xyxy(boxes_xywh: np.ndarray) -> np.ndarray:
