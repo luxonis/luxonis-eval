@@ -7,6 +7,7 @@ from luxonis_ml.utils.registry import AutoRegisterMeta
 from luxonis_eval.core.context import EvalContext
 from luxonis_eval.registry import METRICS_REGISTRY
 
+
 class BaseMetric(
     ABC,
     metaclass=AutoRegisterMeta,

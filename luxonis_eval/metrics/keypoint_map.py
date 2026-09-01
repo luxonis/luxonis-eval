@@ -8,11 +8,11 @@ from faster_coco_eval.core import COCO, COCOeval_faster
 from torch import Tensor
 from torchvision.ops import box_convert
 
-from luxonis_eval.core.targets import require_prepared_bboxes
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import (
     bbox_area_from_keypoints,
     detection_to_coco_xywh,
+    normalized_xywh_to_coco_xywh,
 )
 
 
@@ -74,7 +74,9 @@ class KeypointMeanAveragePrecision(BaseMetric):
         height = context.height
 
         class_index_map = context.class_index_map
-        target_classes, target_boxes_xywh = require_prepared_bboxes(target)
+        target_classes, target_boxes_xywh = normalized_xywh_to_coco_xywh(
+            target[self.required_target_keys()[0]], width, height
+        )
 
         pred_boxes_xyxy: list[list[float]] = []
         pred_scores: list[float] = []
@@ -144,9 +146,7 @@ class KeypointMeanAveragePrecision(BaseMetric):
         self.pred_classes.append(pred_classes_tensor[keep_mask])
         self.pred_keypoints.append(pred_keypoints_tensor[keep_mask])
 
-        target_classes_tensor = torch.tensor(
-            target_classes, dtype=torch.int64
-        )
+        target_classes_tensor = torch.tensor(target_classes, dtype=torch.int64)
         if class_index_map is not None and len(target_classes_tensor) > 0:
             target_classes_tensor = torch.tensor(
                 [class_index_map[int(cls)] for cls in target_classes_tensor],

@@ -1,6 +1,5 @@
 import time
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 from loguru import logger
@@ -160,7 +159,6 @@ class LuxonisEval:
                     sample[1],
                     loader=self.loader,
                     loader_task_name=self.loader_task_name,
-                    model_spec=self.model_spec,
                 )
 
                 inference_t0 = time.perf_counter()
@@ -264,7 +262,6 @@ class LuxonisEval:
             target,
             loader=self.loader,
             loader_task_name=self.loader_task_name,
-            model_spec=self.model_spec,
         )
         raw_output = self.engine.infer_once(img)
         predictions = self.parser.parse(

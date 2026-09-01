@@ -6,10 +6,10 @@ import numpy as np
 import torch
 from torchmetrics.detection import MeanAveragePrecision
 
-from luxonis_eval.core.targets import require_prepared_bboxes
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import (
     detection_to_coco_xywh,
+    normalized_xywh_to_coco_xywh,
 )
 from luxonis_eval.parsers.yolo import get_prediction_instance_masks
 
@@ -77,7 +77,9 @@ class MaskMeanAveragePrecision(BaseMetric):
         category_ids: Sequence[int] = context.category_ids
         class_index_map = context.class_index_map
 
-        target_classes, target_boxes_xywh = require_prepared_bboxes(target)
+        target_classes, target_boxes_xywh = normalized_xywh_to_coco_xywh(
+            target[self.required_target_keys()[0]], width, height
+        )
         if class_index_map is not None:
             target_classes = np.array(
                 [class_index_map[int(cls)] for cls in target_classes],
