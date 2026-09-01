@@ -22,6 +22,7 @@ from luxonis_eval.core.reporting import (
     format_evaluation_result,
     get_model_name,
 )
+from luxonis_eval.core.results import EvaluationResult
 from luxonis_eval.core.runtime import (
     build_eval_context,
     normalize_target,
@@ -37,7 +38,7 @@ from luxonis_eval.loaders.base_loader import BaseEvalLoader
 from luxonis_eval.metrics import ThroughputMetric
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.parsers.base_parser import BaseParser
-from luxonis_eval.core.results import EvaluationResult
+from luxonis_eval.parsers.yolo import clear_prediction_metadata
 from luxonis_eval.visualizers.base_visualizer import BaseVisualizer
 
 
@@ -174,24 +175,30 @@ class LuxonisEval:
                 )
                 parsing_elapsed = time.perf_counter() - parsing_t0
 
-                metric_update_t0 = time.perf_counter()
-                for metric in self.metrics:
-                    metric.update(
-                        predictions=predictions,
-                        target=target,
+                try:
+                    metric_update_t0 = time.perf_counter()
+                    for metric in self.metrics:
+                        metric.update(
+                            predictions=predictions,
+                            target=target,
+                        )
+                    metric_update_elapsed = (
+                        time.perf_counter() - metric_update_t0
                     )
-                metric_update_elapsed = (
-                    time.perf_counter() - metric_update_t0
-                )
 
-                self.throughput_metric.update(
-                    inference=inference_elapsed,
-                    parsing=parsing_elapsed,
-                    metric_update=metric_update_elapsed,
-                )
+                    self.throughput_metric.update(
+                        inference=inference_elapsed,
+                        parsing=parsing_elapsed,
+                        metric_update=metric_update_elapsed,
+                    )
 
-                for visualizer in self.visualizers:
-                    visualizer.visualize(predictions, self.engine.vis_frame())
+                    for visualizer in self.visualizers:
+                        visualizer.visualize(
+                            predictions,
+                            self.engine.vis_frame(),
+                        )
+                finally:
+                    clear_prediction_metadata(predictions)
                 progress.update(advance=1)
 
         metric_compute_t0 = time.perf_counter()
@@ -203,9 +210,12 @@ class LuxonisEval:
         throughput = self.throughput_metric.compute(
             metric_compute=metric_compute_elapsed
         )
+        evaluator_name = (
+            self.evaluator_cfg.name or self.evaluator_cfg.task_name or "task_0"
+        )
 
         result = EvaluationResult(
-            evaluator_name=self.evaluator_cfg.name,
+            evaluator_name=evaluator_name,
             engine=engine_name,
             model_name=model_name,
             metrics=results,
@@ -259,21 +269,24 @@ class LuxonisEval:
             select_evaluator_outputs(raw_output, self.evaluator_cfg.outputs)
         )
 
-        for metric in self.metrics:
-            missing = set(metric.required_target_keys()) - set(target)
-            if missing:
-                raise ValueError(
-                    "Target is missing required keys for "
-                    f"{metric.__class__.__name__}: {sorted(missing)}. "
-                    f"Got keys: {sorted(target.keys())}."
-                )
+        try:
+            for metric in self.metrics:
+                missing = set(metric.required_target_keys()) - set(target)
+                if missing:
+                    raise ValueError(
+                        "Target is missing required keys for "
+                        f"{metric.__class__.__name__}: {sorted(missing)}. "
+                        f"Got keys: {sorted(target.keys())}."
+                    )
 
-            metric.update(
-                predictions=predictions,
-                target=target,
-            )
-            metric.compute()
-            metric.reset()
+                metric.update(
+                    predictions=predictions,
+                    target=target,
+                )
+                metric.compute()
+                metric.reset()
+        finally:
+            clear_prediction_metadata(predictions)
 
     def _clear_runtime_fields(self) -> None:
         self.engine: BaseEngine | None = None

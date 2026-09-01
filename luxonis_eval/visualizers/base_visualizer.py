@@ -5,7 +5,6 @@ import numpy as np
 from luxonis_ml.utils.registry import AutoRegisterMeta
 
 from luxonis_eval.core.context import EvalContext
-from luxonis_eval.parsers.predictions import Prediction
 from luxonis_eval.registry import VISUALIZERS_REGISTRY
 
 class BaseVisualizer(
@@ -43,7 +42,7 @@ class BaseVisualizer(
     @abstractmethod
     def visualize(
         self,
-        predictions: Prediction,
+        predictions: Any,
         vis_frame: np.ndarray,
     ) -> None:
         """Visualize the evaluation results."""

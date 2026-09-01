@@ -2,9 +2,9 @@ from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
+from depthai_nodes import Classifications
 
 from luxonis_eval.metrics.base_metric import BaseMetric
-from luxonis_eval.parsers.predictions import Prediction
 
 
 class TopKAccuracy(BaseMetric):
@@ -40,15 +40,15 @@ class TopKAccuracy(BaseMetric):
 
     def update(
         self,
-        predictions: Prediction,
+        predictions: Classifications,
         target: dict[str, np.ndarray],
     ) -> None:
         """Update internal metric state.
 
         Parameters
         ----------
-        predictions : Prediction
-            Structured classification predictions.
+        predictions : Classifications
+            Model predictions (logits or probabilities).
         target : dict[str, np.ndarray]
             Ground-truth labels.
         """
@@ -57,7 +57,7 @@ class TopKAccuracy(BaseMetric):
         class_index_map = context.class_index_map
         class_map = {v: k for k, v in context.class_map.items()}
 
-        pred_classes = predictions.require_classification().classes
+        pred_classes = predictions.classes
         tgt = np.asarray(cls_target)
 
         target_idx = (

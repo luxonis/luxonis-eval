@@ -1,5 +1,6 @@
 from typing import Any, Literal
 
+import depthai as dai
 import numpy as np
 import torch
 import torchmetrics
@@ -10,7 +11,6 @@ from luxonis_eval.metrics.utils import (
     infer_num_classes,
     prepare_segmentation_metric_inputs,
 )
-from luxonis_eval.parsers.predictions import Prediction
 
 
 class F1Score(BaseMetric):
@@ -42,7 +42,7 @@ class F1Score(BaseMetric):
 
     def update(
         self,
-        predictions: Prediction,
+        predictions: dai.SegmentationMask,
         target: dict[str, np.ndarray],
     ) -> None:
         context = self.require_context()

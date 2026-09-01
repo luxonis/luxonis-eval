@@ -1,5 +1,5 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping
 
 import depthai as dai
 import numpy as np
@@ -11,7 +11,6 @@ from luxonis_eval.metrics.metrics_utils import (
     remap_prediction_mask,
     target_segmentation_to_index_mask,
 )
-from luxonis_eval.parsers.predictions import Prediction
 
 
 @dataclass(slots=True)
@@ -29,16 +28,7 @@ def extract_segmentation_mask(
     predictions: dai.SegmentationMask,
 ) -> np.ndarray:
     """Extract a semantic-segmentation mask from a prediction payload."""
-    if hasattr(predictions, "getCvMask"):
-        mask = predictions.getCvMask()
-    elif hasattr(predictions, "getCvSegmentationMask"):
-        mask = predictions.getCvSegmentationMask()
-    else:
-        raise TypeError(
-            "Unsupported segmentation prediction type "
-            f"{type(predictions)!r}: expected a DepthAI SegmentationMask "
-            "message."
-        )
+    mask = predictions.getCvMask()
 
     if mask is None:
         raise ValueError("Segmentation prediction does not contain a mask.")
@@ -47,7 +37,7 @@ def extract_segmentation_mask(
 
 
 def prepare_segmentation_metric_inputs(
-    predictions: Prediction,
+    predictions: dai.SegmentationMask,
     target: dict[str, np.ndarray],
     *,
     include_background: bool,
@@ -59,7 +49,7 @@ def prepare_segmentation_metric_inputs(
         target["/segmentation"]
     )
     pred_mask = normalize_prediction_segmentation_mask(
-        extract_segmentation_mask(predictions.require_segmentation_mask()),
+        extract_segmentation_mask(predictions),
         binary_target=binary_target,
     )
 

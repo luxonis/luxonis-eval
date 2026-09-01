@@ -8,7 +8,6 @@ from depthai_nodes.node.parsers.segmentation import (
 )
 
 from luxonis_eval.engines.io import EngineOutput
-from luxonis_eval.parsers.predictions import Prediction
 
 from .base_parser import BaseParser
 
@@ -23,7 +22,7 @@ class SegmentationParser(BaseParser):
         super().__init__(**kwargs)
         self.classes_in_one_layer = classes_in_one_layer
 
-    def parse(self, output: EngineOutput) -> Prediction:
+    def parse(self, output: EngineOutput) -> dai.SegmentationMask:
         """Parse backend output into segmentation predictions."""
         _, segmentation_mask = output.get_first()
         class_map = DepthAINodesSegmentationParser.compute(
@@ -31,6 +30,4 @@ class SegmentationParser(BaseParser):
             classes_in_one_layer=self.classes_in_one_layer,
         )
 
-        return Prediction(
-            segmentation_mask=create_segmentation_message(class_map)
-        )
+        return create_segmentation_message(class_map)

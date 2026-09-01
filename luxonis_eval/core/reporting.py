@@ -85,7 +85,14 @@ def section(
 
 
 def _format_stage_latency(name: str, throughput: ThroughputResult) -> str:
-    ms = float(getattr(throughput, f"{name}_ms_per_sample"))
+    stage_latency_ms = {
+        "inference": throughput.inference_ms_per_sample,
+        "parsing": throughput.parsing_ms_per_sample,
+        "metric_update": throughput.metric_update_ms_per_sample,
+        "metric_compute": throughput.metric_compute_ms_per_sample,
+        "overhead": throughput.overhead_ms_per_sample,
+    }
+    ms = float(stage_latency_ms[name])
     total = float(throughput.ms_per_sample)
     pct = (ms / total * 100.0) if total else 0.0
     return f"{ms:5.2f} ms | {pct:4.1f}%"

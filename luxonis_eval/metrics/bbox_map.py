@@ -1,11 +1,11 @@
 from collections.abc import Sequence
 from typing import Any
 
+import depthai as dai
 import numpy as np
 
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import detection_to_coco_xywh
-from luxonis_eval.parsers.predictions import Prediction
 from luxonis_eval.utils.coco_utils import COCOStore
 
 
@@ -44,20 +44,19 @@ class BboxMeanAveragePrecision(BaseMetric):
 
     def update(
         self,
-        predictions: Prediction,
+        predictions: dai.ImgDetections,
         target: dict[str, np.ndarray],
     ) -> None:
         """Update internal metric state.
 
         Parameters
         ----------
-        predictions : Prediction
-            Structured detection predictions.
+        predictions : dai.ImgDetections
+            Model predictions.
         target : dict[str, np.ndarray]
             Ground-truth data.
         """
         context = self.require_context()
-        detections = predictions.require_detections()
         target_boxes = target[self.required_target_keys()[0]]
         width = context.width
         height = context.height
@@ -99,7 +98,7 @@ class BboxMeanAveragePrecision(BaseMetric):
             )
 
         # --- Predictions ---
-        for pred in detections.detections:
+        for pred in predictions.detections:
             cls = int(pred.label)
             if (
                 self._store.category_ids_set is not None

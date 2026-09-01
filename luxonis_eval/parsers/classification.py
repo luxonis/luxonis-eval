@@ -1,6 +1,7 @@
 from typing import Any
 
 import numpy as np
+from depthai_nodes import Classifications
 from depthai_nodes.message.creators import create_classification_message
 from depthai_nodes.node.parsers.classification import (
     ClassificationParser as DepthAINodesClassificationParser,
@@ -8,7 +9,6 @@ from depthai_nodes.node.parsers.classification import (
 
 from luxonis_eval.engines.io import EngineOutput
 from luxonis_eval.parsers.base_parser import BaseParser
-from luxonis_eval.parsers.predictions import Prediction
 from luxonis_eval.utils.utils import ordered_class_names
 
 
@@ -20,7 +20,7 @@ class ClassificationParser(BaseParser):
         super().__init__(**kwargs)
         self.apply_softmax = apply_softmax
 
-    def parse(self, output: EngineOutput) -> Prediction:
+    def parse(self, output: EngineOutput) -> Classifications:
         """Parse backend output into class scores.
 
         Parameters
@@ -29,8 +29,8 @@ class ClassificationParser(BaseParser):
             Engine-normalized inference output.
         Returns
         -------
-        Prediction
-            Structured classification scores.
+        Classifications
+            Classification scores.
         """
         classes = ordered_class_names(self.require_context().class_map)
         _, scores = output.get_first()
@@ -57,9 +57,4 @@ class ClassificationParser(BaseParser):
                 is_softmax=True,
             )
 
-        return Prediction(
-            classification=create_classification_message(
-                classes=classes,
-                scores=scores,
-            )
-        )
+        return create_classification_message(classes=classes, scores=scores)
