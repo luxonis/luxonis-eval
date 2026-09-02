@@ -1,6 +1,5 @@
 import time
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 from loguru import logger
@@ -8,6 +7,7 @@ from luxonis_ml.data.loaders import LuxonisLoader
 from luxonis_ml.typing import Params, PathType
 
 from luxonis_eval.config import EvalConfig, EvaluatorConfig
+from luxonis_eval.core.context import EvalContext
 from luxonis_eval.core.factories import (
     create_engine,
     create_loader,
@@ -18,11 +18,12 @@ from luxonis_eval.core.factories import (
 from luxonis_eval.core.reporting import (
     RichProgressAdapter,
     TQDMProgressAdapter,
+    format_evaluation_result,
     get_model_name,
-    make_report_table,
 )
+from luxonis_eval.core.results import EvaluationResult
 from luxonis_eval.core.runtime import (
-    build_metric_contexts,
+    build_eval_context,
     normalize_target,
     resolve_class_mapping,
     select_evaluator_outputs,
@@ -36,7 +37,6 @@ from luxonis_eval.loaders.base_loader import BaseEvalLoader
 from luxonis_eval.metrics import ThroughputMetric
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.parsers.base_parser import BaseParser
-from luxonis_eval.parsers.yolo import clear_prediction_metadata
 from luxonis_eval.visualizers.base_visualizer import BaseVisualizer
 
 
@@ -103,13 +103,13 @@ class LuxonisEval:
                 loader_params=self.cfg.pipeline.loader.params,
                 loader_task_name=self.loader_task_name,
             )
-            self.metric_contexts = build_metric_contexts(
-                self.evaluator_cfg,
+            self.eval_context = build_eval_context(
                 model_spec=self.model_spec,
                 ldf_class_map=self.ldf_class_map,
                 class_map=self.class_map,
                 class_index_map=self.class_index_map,
             )
+            self._attach_eval_context()
             self._sanity_check_pipeline()
         except Exception:
             try:
@@ -123,20 +123,20 @@ class LuxonisEval:
         self._is_setup = True
         self._is_closed = False
 
-    def evaluate(self) -> dict[str, Any]:
+    def evaluate(self) -> EvaluationResult:
         """Run the evaluation loop and return structured results."""
         self._require_setup()
         self._reset_runtime_metrics()
         return self._run_pipeline()
 
-    def _run_pipeline(self) -> dict[str, Any]:
+    def _run_pipeline(self) -> EvaluationResult:
         if self.cfg.pipeline.benchmark is not None:
             logger.warning(
                 "pipeline.benchmark is configured, but benchmark execution is not implemented yet. Running quality evaluators only."
             )
         return self._run_evaluators()
 
-    def _run_evaluators(self) -> dict[str, Any]:
+    def _run_evaluators(self) -> EvaluationResult:
         """Run the configured quality evaluator."""
         self._require_setup()
         engine_name = self.cfg.pipeline.engine.name
@@ -147,7 +147,6 @@ class LuxonisEval:
         assert self.parser is not None
         assert self.throughput_metric is not None
         assert self.evaluator_cfg is not None
-        assert self.model_spec is not None
 
         with self._progress(
             f"Running {engine_name.upper()} inference ({model_name})...",
@@ -170,50 +169,29 @@ class LuxonisEval:
                     select_evaluator_outputs(
                         raw_output,
                         self.evaluator_cfg.outputs,
-                    ),
-                    model_spec=self.model_spec,
-                    class_map=self.class_map,
-                    **self.evaluator_cfg.parser.params,
+                    )
                 )
                 parsing_elapsed = time.perf_counter() - parsing_t0
 
-                try:
-                    metric_update_t0 = time.perf_counter()
-                    for metric, metric_ctx in zip(
-                        self.metrics, self.metric_contexts, strict=True
-                    ):
-                        metric.update(
-                            predictions=predictions,
-                            target=target,
-                            **metric_ctx,
-                        )
-                    metric_update_elapsed = (
-                        time.perf_counter() - metric_update_t0
+                metric_update_t0 = time.perf_counter()
+                for metric in self.metrics:
+                    metric.update(
+                        predictions=predictions,
+                        target=target,
                     )
+                metric_update_elapsed = time.perf_counter() - metric_update_t0
 
-                    self.throughput_metric.update(
-                        inference=inference_elapsed,
-                        parsing=parsing_elapsed,
-                        metric_update=metric_update_elapsed,
+                self.throughput_metric.update(
+                    inference=inference_elapsed,
+                    parsing=parsing_elapsed,
+                    metric_update=metric_update_elapsed,
+                )
+
+                for visualizer in self.visualizers:
+                    visualizer.visualize(
+                        predictions,
+                        self.engine.vis_frame(),
                     )
-
-                    active_visualizer_cfgs = [
-                        visualizer_cfg
-                        for visualizer_cfg in self.evaluator_cfg.visualizers
-                        if visualizer_cfg.active
-                    ]
-                    for visualizer, visualizer_cfg in zip(
-                        self.visualizers,
-                        active_visualizer_cfgs,
-                        strict=True,
-                    ):
-                        visualizer.visualize(
-                            predictions,
-                            self.engine.vis_frame(),
-                            **visualizer_cfg.params,
-                        )
-                finally:
-                    clear_prediction_metadata(predictions)
                 progress.update(advance=1)
 
         metric_compute_t0 = time.perf_counter()
@@ -225,27 +203,23 @@ class LuxonisEval:
         throughput = self.throughput_metric.compute(
             metric_compute=metric_compute_elapsed
         )
-
-        report = make_report_table(
-            engine_name=engine_name,
-            model_name=model_name,
-            tp=throughput,
-            results=results,
+        evaluator_name = (
+            self.evaluator_cfg.name or self.evaluator_cfg.task_name or "task_0"
         )
 
+        result = EvaluationResult(
+            evaluator_name=evaluator_name,
+            engine=engine_name,
+            model_name=model_name,
+            metrics=results,
+            throughput=throughput,
+        )
         logger.warning(
             "Throughput values are end-to-end pipeline measurements and not isolated model-only benchmarks. Lower numbers than modelconverter benchmark results are expected."
         )
-        logger.info(f"\n{report}")
+        logger.info(f"\n{format_evaluation_result(result)}")
 
-        return {
-            "evaluator_name": self.evaluator_cfg.name,
-            "engine": engine_name,
-            "model_name": model_name,
-            "metrics": results,
-            "throughput": throughput,
-            "report": report,
-        }
+        return result
 
     def close(self) -> None:
         """Release owned runtime resources."""
@@ -268,7 +242,6 @@ class LuxonisEval:
         assert self.engine is not None
         assert self.parser is not None
         assert self.evaluator_cfg is not None
-        assert self.model_spec is not None
 
         if len(self.loader) == 0:
             raise ValueError(
@@ -286,33 +259,24 @@ class LuxonisEval:
         )
         raw_output = self.engine.infer_once(img)
         predictions = self.parser.parse(
-            select_evaluator_outputs(raw_output, self.evaluator_cfg.outputs),
-            model_spec=self.model_spec,
-            class_map=self.class_map,
-            **self.evaluator_cfg.parser.params,
+            select_evaluator_outputs(raw_output, self.evaluator_cfg.outputs)
         )
 
-        try:
-            for metric, metric_ctx in zip(
-                self.metrics, self.metric_contexts, strict=True
-            ):
-                missing = set(metric.required_target_keys()) - set(target)
-                if missing:
-                    raise ValueError(
-                        "Target is missing required keys for "
-                        f"{metric.__class__.__name__}: {sorted(missing)}. "
-                        f"Got keys: {sorted(target.keys())}."
-                    )
-
-                metric.update(
-                    predictions=predictions,
-                    target=target,
-                    **metric_ctx,
+        for metric in self.metrics:
+            missing = set(metric.required_target_keys()) - set(target)
+            if missing:
+                raise ValueError(
+                    "Target is missing required keys for "
+                    f"{metric.__class__.__name__}: {sorted(missing)}. "
+                    f"Got keys: {sorted(target.keys())}."
                 )
-                metric.compute()
-                metric.reset()
-        finally:
-            clear_prediction_metadata(predictions)
+
+            metric.update(
+                predictions=predictions,
+                target=target,
+            )
+            metric.compute()
+            metric.reset()
 
     def _clear_runtime_fields(self) -> None:
         self.engine: BaseEngine | None = None
@@ -323,13 +287,27 @@ class LuxonisEval:
         self.visualizers: list[BaseVisualizer] = []
         self.evaluator_cfg: EvaluatorConfig | None = None
 
+        self.eval_context: EvalContext | None = None
         self.model_spec: ModelSpec | None = None
         self.loader_task_name: str | None = None
 
         self.ldf_class_map: dict[int, str] = {}
         self.class_map: dict[int, str] = {}
         self.class_index_map: dict[int, int] | None = None
-        self.metric_contexts: list[dict[str, Any]] = []
+
+    def _attach_eval_context(self) -> None:
+        if self.eval_context is None:
+            raise RuntimeError(
+                "Evaluation context is unavailable before setup."
+            )
+        if self.parser is None:
+            raise RuntimeError("Parser is unavailable before setup.")
+
+        self.parser.attach_context(self.eval_context)
+        for metric in self.metrics:
+            metric.attach_context(self.eval_context)
+        for visualizer in self.visualizers:
+            visualizer.attach_context(self.eval_context)
 
     def _require_setup(self) -> None:
         if not self._is_setup:

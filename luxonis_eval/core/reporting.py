@@ -14,6 +14,11 @@ from rich.progress import (
 from tabulate import tabulate
 from tqdm.auto import tqdm
 
+from luxonis_eval.core.results import (
+    EvaluationResult,
+    ThroughputResult,
+)
+
 
 class TQDMProgressAdapter(AbstractContextManager["TQDMProgressAdapter"]):
     def __init__(self, description: str, total: int) -> None:
@@ -79,45 +84,63 @@ def section(
     return [[centered, ""]]
 
 
-def make_report_table(
-    engine_name: str,
-    model_name: str,
-    tp: dict[str, float | int],
-    results: list[tuple[str, dict[str, Any]]],
-) -> str:
-    def format_stage(name: str) -> str:
-        ms = float(tp[f"{name}_ms_per_sample"])
-        total = float(tp["ms_per_sample"])
-        pct = (ms / total * 100.0) if total else 0.0
-        return f"{ms:5.2f} ms | {pct:4.1f}%"
+def _format_stage_latency(name: str, throughput: ThroughputResult) -> str:
+    stage_latency_ms = {
+        "inference": throughput.inference_ms_per_sample,
+        "parsing": throughput.parsing_ms_per_sample,
+        "metric_update": throughput.metric_update_ms_per_sample,
+        "metric_compute": throughput.metric_compute_ms_per_sample,
+        "overhead": throughput.overhead_ms_per_sample,
+    }
+    ms = float(stage_latency_ms[name])
+    total = float(throughput.ms_per_sample)
+    pct = (ms / total * 100.0) if total else 0.0
+    return f"{ms:5.2f} ms | {pct:4.1f}%"
 
+
+def format_evaluation_result(result: EvaluationResult) -> str:
     rows: list[list[str]] = []
 
     rows += section("SETTINGS")
     rows += [
-        ["Model", model_name],
-        ["Engine", str(engine_name).upper()],
+        ["Model", result.model_name],
+        ["Engine", str(result.engine).upper()],
     ]
 
     rows += section("PERFORMANCE")
     rows += [
-        ["Throughput", f"{tp['samples_per_s']:.2f} samples/s"],
-        ["End-to-end Latency", f"{tp['ms_per_sample']:.2f} ms/sample"],
+        [
+            "Throughput",
+            f"{result.throughput.samples_per_s:.2f} samples/s",
+        ],
+        [
+            "End-to-end Latency",
+            f"{result.throughput.ms_per_sample:.2f} ms/sample",
+        ],
     ]
 
     rows += section("STAGE BREAKDOWN", line_char="-")
     rows += [
-        ["Inference", format_stage("inference")],
-        ["Parsing", format_stage("parsing")],
-        ["Metric Update", format_stage("metric_update")],
-        ["Metric Compute", format_stage("metric_compute")],
-        ["Pipeline Overhead", format_stage("overhead")],
+        ["Inference", _format_stage_latency("inference", result.throughput)],
+        ["Parsing", _format_stage_latency("parsing", result.throughput)],
+        [
+            "Metric Update",
+            _format_stage_latency("metric_update", result.throughput),
+        ],
+        [
+            "Metric Compute",
+            _format_stage_latency("metric_compute", result.throughput),
+        ],
+        [
+            "Pipeline Overhead",
+            _format_stage_latency("overhead", result.throughput),
+        ],
     ]
 
     rows += section("QUALITY")
-    for metric_name, result in results:
+    for metric_name, metric_values in result.metrics:
         rows += section(metric_name, line_char="-")
-        for k, v in result.items():
+        for k, v in metric_values.items():
             val = f"{v * 100:.2f}%" if isinstance(v, float) else str(v)
             rows.append([str(k), val])
 

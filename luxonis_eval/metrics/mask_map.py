@@ -9,8 +9,9 @@ from torchmetrics.detection import MeanAveragePrecision
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.metrics.metrics_utils import (
     detection_to_coco_xywh,
+    normalized_xywh_to_coco_xywh,
 )
-from luxonis_eval.parsers.yolo import get_prediction_instance_masks
+from luxonis_eval.utils import get_instance_masks
 
 
 class MaskMeanAveragePrecision(BaseMetric):
@@ -57,7 +58,6 @@ class MaskMeanAveragePrecision(BaseMetric):
         self,
         predictions: dai.ImgDetections,
         target: dict[str, np.ndarray],
-        **kwargs: Any,
     ) -> None:
         """Update internal metric state.
 
@@ -67,21 +67,18 @@ class MaskMeanAveragePrecision(BaseMetric):
             Model predictions.
         target : dict[str, np.ndarray]
             Ground-truth data.
-        **kwargs : Any
-            Additional context.
         """
-        target_boxes = target[self.required_target_keys()[0]]
+        context = self.context
         target_masks = target[self.required_target_keys()[1]]
 
-        width = int(kwargs["width"])
-        height = int(kwargs["height"])
+        width = context.width
+        height = context.height
 
-        category_ids: Sequence[int] | None = kwargs.get("category_ids")
-        class_index_map = kwargs.get("class_index_map")
-        target_converter = kwargs.get("target_converter")
+        category_ids: Sequence[int] = context.category_ids
+        class_index_map = context.class_index_map
 
-        target_classes, target_boxes_xywh = target_converter(
-            target_boxes, width, height
+        target_classes, target_boxes_xywh = normalized_xywh_to_coco_xywh(
+            target[self.required_target_keys()[0]], width, height
         )
         if class_index_map is not None:
             target_classes = np.array(
@@ -95,9 +92,8 @@ class MaskMeanAveragePrecision(BaseMetric):
         )
 
         detections = predictions.detections
-        masks = self._resolve_prediction_instance_masks(
-            get_prediction_instance_masks(predictions),
-            n_detections=len(detections),
+        masks = get_instance_masks(
+            predictions,
             height=height,
             width=width,
         )
@@ -162,43 +158,6 @@ class MaskMeanAveragePrecision(BaseMetric):
             "AP": float(metrics["segm_map"]),
             "AP50": float(metrics["segm_map_50"]),
         }
-
-    @staticmethod
-    def _resolve_prediction_instance_masks(
-        raw_masks: np.ndarray | None,
-        *,
-        n_detections: int,
-        height: int,
-        width: int,
-    ) -> np.ndarray:
-        if raw_masks is None:
-            raise ValueError(
-                "MaskMeanAveragePrecision requires raw per-instance masks "
-                "for the prediction message."
-            )
-
-        masks = np.asarray(raw_masks)
-        if masks.size == 0:
-            if n_detections != 0:
-                raise ValueError(
-                    "MaskMeanAveragePrecision received no raw instance masks "
-                    f"for {n_detections} detections."
-                )
-            return np.zeros((0, height, width), dtype=np.uint8)
-
-        if masks.ndim != 3:
-            raise ValueError(
-                f"Unsupported raw instance mask rank {masks.ndim}. "
-                "Expected shape (N, H, W)."
-            )
-
-        if masks.shape != (n_detections, height, width):
-            raise ValueError(
-                "Raw instance masks do not align with detections. Expected "
-                f"({n_detections}, {height}, {width}), got {masks.shape}."
-            )
-
-        return masks.astype(np.uint8, copy=False)
 
     @staticmethod
     def _xywh_to_xyxy(boxes_xywh: np.ndarray) -> np.ndarray:
