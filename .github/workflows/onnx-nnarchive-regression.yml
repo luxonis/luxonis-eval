@@ -1,0 +1,52 @@
+name: ONNX NNArchive Regression
+
+on:
+  push:
+    branches:
+      - main
+      - "develop*"
+      - "develop/*"
+      - "develop/**"
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  onnx-nnarchive-regression:
+    if: |
+      (github.event_name == 'push' &&
+        (github.ref_name == 'main' || startsWith(github.ref_name, 'develop'))) ||
+      (github.event_name == 'pull_request' &&
+        (github.head_ref == 'main' || startsWith(github.head_ref, 'develop')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install gcsfs
+          python -m pip install -e ".[dev]"
+
+      - name: Run ONNX NNArchive regression tests
+        env:
+          LUXONIS_TELEMETRY_ENABLED: "false"
+        run: |
+          pytest tests/test_onnx_nnarchive_regression.py -q

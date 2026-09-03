@@ -127,22 +127,23 @@ def resolve_luxonis_loader_class_mapping(
     ldf_class_map = {
         v: k for k, v in dataset_classes[loader_task_name].items()
     }
+    dataset_identifier = _get_dataset_identifier(dataloader)
 
-    if "imagenet" in dataloader.dataset.dataset_name:
+    if "imagenet" in dataset_identifier:
         native_class_map = get_dataset_class_mapping("imagenet")
-    elif "coco" in dataloader.dataset.dataset_name:
+    elif "coco" in dataset_identifier:
         native_class_map = get_dataset_class_mapping("coco")
     else:
         native_class_map = class_mapping
         if native_class_map:
             logger.info(
-                f"Dataset '{dataloader.dataset.dataset_name}' does not match "
+                f"Dataset '{dataset_identifier}' does not match "
                 "known datasets for automatic class mapping. Using the "
                 "provided 'loader.params.class_mapping' argument."
             )
         else:
             logger.warning(
-                f"Dataset '{dataloader.dataset.dataset_name}' does not match "
+                f"Dataset '{dataset_identifier}' does not match "
                 "known datasets for automatic class mapping and no "
                 "'loader.params.class_mapping' was provided. Falling back to "
                 "the dataset's LDF class order as the native class mapping."
@@ -188,3 +189,23 @@ def get_class_index_mapping(
             raise ValueError(f"Label {v} not found in native class map.")
 
     return ldf_to_native_index_map
+
+
+def _get_dataset_identifier(dataloader: LuxonisLoader) -> str:
+    dataset = dataloader.dataset
+    identifier = getattr(dataset, "identifier", None)
+    if isinstance(identifier, str) and identifier:
+        return identifier
+
+    dataset_name = getattr(dataset, "dataset_name", None)
+    if isinstance(dataset_name, str) and dataset_name:
+        return dataset_name
+
+    private_name = getattr(dataset, "_dataset_name", None)
+    if isinstance(private_name, str) and private_name:
+        return private_name
+
+    raise AttributeError(
+        "Unable to resolve a dataset identifier from the LuxonisLoader "
+        "dataset instance."
+    )
