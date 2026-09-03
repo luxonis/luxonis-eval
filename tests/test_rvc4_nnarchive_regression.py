@@ -55,7 +55,7 @@ def test_rvc4_nnarchive_regression(
             "runtime.logging.use_rich": False,
         },
     )
-    actual_metrics = flatten_metrics(result["metrics"])
+    actual_metrics = flatten_metrics(result.metrics)
 
     missing_metrics = sorted(set(expected_metrics) - set(actual_metrics))
     assert not missing_metrics, (
