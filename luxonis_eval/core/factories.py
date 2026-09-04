@@ -141,6 +141,8 @@ def create_visualizers(
             visualizer = from_registry(
                 VISUALIZERS_REGISTRY,
                 visualizer_cfg.name,
+                mode=visualizer_cfg.mode,
+                save_dir=visualizer_cfg.save_dir,
                 **visualizer_cfg.params,
             )
         except KeyError as e:

@@ -39,6 +39,7 @@ from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.parsers.base_parser import BaseParser
 from luxonis_eval.parsers.yolo import clear_prediction_metadata
 from luxonis_eval.visualizers.base_visualizer import BaseVisualizer
+from luxonis_eval.visualizers.utils import prepare_visualization_frame
 
 
 class LuxonisEval:
@@ -87,13 +88,14 @@ class LuxonisEval:
             )
             self.parser = create_parser(self.evaluator_cfg)
             self.metrics = create_metrics(self.evaluator_cfg)
-            if not self.metrics:
+            self.visualizers = create_visualizers(self.evaluator_cfg)
+            if not self.metrics and not self.visualizers:
                 raise ValueError(
-                    "At least one metric must be specified in the configuration."
+                    "At least one metric or one active visualizer must be "
+                    "specified in the configuration."
                 )
             self.throughput_metric = ThroughputMetric()
             logger.info("Throughput metric initialized.")
-            self.visualizers = create_visualizers(self.evaluator_cfg)
 
             (
                 self.ldf_class_map,
@@ -191,11 +193,22 @@ class LuxonisEval:
                         metric_update=metric_update_elapsed,
                     )
 
-                    for visualizer in self.visualizers:
-                        visualizer.visualize(
-                            predictions,
-                            self.engine.vis_frame(),
+                    if self.visualizers:
+                        normalize_cfg = (
+                            self.cfg.pipeline.loader.preprocessing.normalize
                         )
+                        normalization_params = (
+                            normalize_cfg.params
+                            if normalize_cfg.active and engine_name != "depthai"
+                            else {}
+                        )
+                        vis_frame = prepare_visualization_frame(
+                            self.engine.vis_frame(),
+                            mean=normalization_params.get("mean"),  # type: ignore[arg-type]
+                            std=normalization_params.get("std"),  # type: ignore[arg-type]
+                        )
+                        for visualizer in self.visualizers:
+                            visualizer.run(predictions, target, vis_frame)
                 finally:
                     clear_prediction_metadata(predictions)
                 progress.update(advance=1)
@@ -224,6 +237,7 @@ class LuxonisEval:
             "Throughput values are end-to-end pipeline measurements and not isolated model-only benchmarks. Lower numbers than modelconverter benchmark results are expected."
         )
         logger.info(f"\n{format_evaluation_result(result)}")
+        self._log_saved_visualizations(self.visualizers)
 
         return result
 
@@ -263,7 +277,7 @@ class LuxonisEval:
             loader=self.loader,
             loader_task_name=self.loader_task_name,
         )
-        raw_output = self.engine.infer_once(img)
+        raw_output = self.engine.infer_once(img)  # type: ignore[arg-type]
         predictions = self.parser.parse(
             select_evaluator_outputs(raw_output, self.evaluator_cfg.outputs)
         )
@@ -284,6 +298,14 @@ class LuxonisEval:
                 )
                 metric.compute()
                 metric.reset()
+            for visualizer in self.visualizers:
+                missing = set(visualizer.required_target_keys()) - set(target)
+                if missing:
+                    raise ValueError(
+                        "Target is missing required keys for "
+                        f"{visualizer.__class__.__name__}: {sorted(missing)}. "
+                        f"Got keys: {sorted(target.keys())}."
+                    )
         finally:
             clear_prediction_metadata(predictions)
 
@@ -333,6 +355,22 @@ class LuxonisEval:
                 "Throughput metric is unavailable before setup."
             )
         self.throughput_metric.reset()
+
+    @staticmethod
+    def _log_saved_visualizations(
+        visualizers: list[BaseVisualizer],
+    ) -> None:
+        save_dirs = list(
+            dict.fromkeys(
+                visualizer.save_dir.resolve()
+                for visualizer in visualizers
+                if visualizer.mode == "save"
+            )
+        )
+        if not save_dirs:
+            return
+        destinations = ", ".join(f"'{directory}'" for directory in save_dirs)
+        logger.info(f"Visualizations saved to {destinations}.")
 
     def _progress(
         self, description: str, total: int

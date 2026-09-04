@@ -323,7 +323,9 @@ When it is `false`, explicit YAML values stay primary and archive metadata is on
 
 ### 🧠 Evaluators
 
-Each pipeline evaluator binds together one dataset task selection, one parser, a set of metrics, and optional visualizers for one quality-evaluation unit.
+Each pipeline evaluator binds together one dataset task selection, one parser,
+and its configured metrics and visualizers. At least one metric or one active
+visualizer is required, so metrics may be omitted for visualization-only runs.
 
 ```yaml
 pipeline:

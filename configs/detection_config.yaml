@@ -31,4 +31,10 @@ pipeline:
         - name: BboxMeanAveragePrecision
           params:
             iou_type: bbox
-      visualizers: []
+      visualizers:
+        - name: BBoxVisualizer
+          active: true
+          mode: save
+          save_dir: visualizations
+          params:
+            font_size: 30

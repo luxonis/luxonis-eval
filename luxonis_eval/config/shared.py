@@ -55,6 +55,8 @@ class MetricConfig(ConfigItem):
 
 class VisualizerConfig(ConfigItem):
     active: bool = True
+    mode: Literal["save", "display"] = "save"
+    save_dir: Path = Path("visualizations")
 
     @field_validator("name", mode="after")
     @classmethod
