@@ -37,5 +37,3 @@ pipeline:
           display: true
           save: false
           save_dir: visualizations
-          params:
-            font_size: 30

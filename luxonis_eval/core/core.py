@@ -309,6 +309,7 @@ class LuxonisEval:
                         f"{visualizer.__class__.__name__}: {sorted(missing)}. "
                         f"Got keys: {sorted(target.keys())}."
                     )
+                visualizer.convert(predictions, target)
         finally:
             clear_prediction_metadata(predictions)
 

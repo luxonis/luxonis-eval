@@ -377,7 +377,6 @@ visualizers:
     params:
       draw_labels: true
       draw_scores: true
-      font_size: 18
       alpha: 0.6
 ```
 
