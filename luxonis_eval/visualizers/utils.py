@@ -1,5 +1,6 @@
 import colorsys
 from collections.abc import Mapping, Sequence
+from typing import Literal
 
 import depthai as dai
 import numpy as np
@@ -33,13 +34,16 @@ def get_color(seed: int) -> Color:
 def prepare_visualization_frame(
     frame: np.ndarray,
     *,
+    color_space: Literal["RGB", "BGR", "GRAY"] = "RGB",
     mean: Sequence[float] | None = None,
     std: Sequence[float] | None = None,
 ) -> np.ndarray:
-    """Convert an engine visualization frame to an RGB-like uint8 image.
+    """Convert an engine visualization frame to an RGB uint8 image.
 
     ``mean`` and ``std`` undo host-side normalization. DepthAI frames do not
     need these values because NNArchive preprocessing happens on-device.
+    ``color_space`` describes the frame produced by the loader; BGR frames are
+    converted to RGB after denormalization.
     """
     image = np.asarray(frame)
     if image.ndim == 2:
@@ -67,6 +71,9 @@ def prepare_visualization_frame(
             float(image.min()) >= 0.0 and float(image.max()) <= 1.0
         ):
             image *= 255.0
+
+    if color_space == "BGR" and image.shape[2] == 3:
+        image = image[:, :, ::-1]
 
     return np.ascontiguousarray(np.clip(image, 0, 255).astype(np.uint8))
 

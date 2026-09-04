@@ -199,6 +199,9 @@ class LuxonisEval:
                         )
                         vis_frame = prepare_visualization_frame(
                             self.engine.vis_frame(),
+                            color_space=(
+                                self.cfg.pipeline.loader.preprocessing.color_space
+                            ),
                             mean=normalization_params.get("mean"),  # type: ignore[arg-type]
                             std=normalization_params.get("std"),  # type: ignore[arg-type]
                         )
@@ -275,6 +278,9 @@ class LuxonisEval:
             loader_task_name=self.loader_task_name,
         )
         raw_output = self.engine.infer_once(img)  # type: ignore[arg-type]
+        if self.visualizers:
+            # Keep queued backend passthrough frames aligned with inference.
+            self.engine.vis_frame()
         predictions = self.parser.parse(
             select_evaluator_outputs(raw_output, self.evaluator_cfg.outputs)
         )
