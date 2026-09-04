@@ -41,4 +41,9 @@ pipeline:
         - name: MaskMeanAveragePrecision
           params:
             iou_type: segm
-      visualizers: []
+      visualizers:
+        - name: InstanceSegmentationVisualizer
+          active: true
+          display: false
+          save: true
+          save_dir: visualizations

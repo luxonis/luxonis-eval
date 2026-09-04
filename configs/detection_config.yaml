@@ -31,4 +31,9 @@ pipeline:
         - name: BboxMeanAveragePrecision
           params:
             iou_type: bbox
-      visualizers: []
+      visualizers:
+        - name: BBoxVisualizer
+          active: true
+          display: true
+          save: false
+          save_dir: visualizations

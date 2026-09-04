@@ -1,3 +1,6 @@
+import os
+import sys
+
 from loguru import logger
 from luxonis_ml.data import LuxonisDataset
 from luxonis_ml.data.loaders import LuxonisLoader
@@ -135,12 +138,30 @@ def create_visualizers(
         logger.info("Visualization is disabled.")
         return []
 
+    uses_display = any(
+        visualizer_cfg.display for visualizer_cfg in active_visualizers
+    )
+    has_graphical_display = (
+        sys.platform in {"win32", "darwin"}
+        or bool(os.environ.get("DISPLAY"))
+        or bool(os.environ.get("WAYLAND_DISPLAY"))
+    )
+    if uses_display and not has_graphical_display:
+        logger.warning(
+            "No graphical display was detected. Visualizers configured with "
+            "display=true may not open a window. Use save=true in "
+            "headless environments."
+        )
+
     visualizers: list[BaseVisualizer] = []
     for visualizer_cfg in active_visualizers:
         try:
             visualizer = from_registry(
                 VISUALIZERS_REGISTRY,
                 visualizer_cfg.name,
+                display=visualizer_cfg.display,
+                save=visualizer_cfg.save,
+                save_dir=visualizer_cfg.save_dir,
                 **visualizer_cfg.params,
             )
         except KeyError as e:

@@ -58,15 +58,11 @@ class SourceEvaluatorConfig(BaseModelExtraForbid):
     task_name: str | None = None
     outputs: list[str] | None = None
     parser: ParserConfig | None = None
-    metrics: list[MetricConfig]
+    metrics: list[MetricConfig] = Field(default_factory=list)
     visualizers: list[VisualizerConfig] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_and_resolve(self) -> "SourceEvaluatorConfig":
-        if not self.metrics:
-            raise ValueError(
-                "pipeline.evaluators[*].metrics must contain at least one metric."
-            )
+    def resolve_name(self) -> "SourceEvaluatorConfig":
         if self.name is None:
             self.name = self.task_name or "task_0"
         return self
