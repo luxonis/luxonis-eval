@@ -1,14 +1,16 @@
 from abc import ABC, abstractmethod
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
+import cv2
 import numpy as np
 import torch
 from luxonis_ml.utils.registry import AutoRegisterMeta
 from torch import Tensor
 from torchvision.io import write_png
-from torchvision.transforms.functional import resize, to_pil_image
+from torchvision.transforms.functional import resize
 
 from luxonis_eval.core.context import EvalContext
 from luxonis_eval.registry import VISUALIZERS_REGISTRY
@@ -37,7 +39,8 @@ class BaseVisualizer(
 
     def __init__(
         self,
-        mode: Literal["save", "display"] = "save",
+        display: bool = False,
+        save: bool = True,
         save_dir: str | Path = "visualizations",
         **kwargs: Any,
     ) -> None:
@@ -49,12 +52,17 @@ class BaseVisualizer(
             Visualizer basic configuration.
         """
         del kwargs
-        if mode not in {"save", "display"}:
-            raise ValueError("mode must be either 'save' or 'display'.")
+        if not display and not save:
+            raise ValueError(
+                "At least one of 'display' or 'save' must be enabled."
+            )
 
-        self.mode = mode
+        self.display = display
+        self.save = save
         self.save_dir = Path(save_dir)
         self._output_index = 0
+        self._display_enabled = display
+        self._window_title: str | None = None
         self._context: EvalContext | None = None
 
     def attach_context(self, context: EvalContext) -> None:
@@ -83,6 +91,19 @@ class BaseVisualizer(
     def required_target_keys(self) -> list[str]:
         """Return ground-truth keys required by the visualizer."""
         return []
+
+    def reset(self) -> None:
+        """Reset output numbering for a new evaluation."""
+        self._output_index = 0
+        self._display_enabled = self.display
+
+    def close(self) -> None:
+        """Close the visualizer's display window, if one is open."""
+        if self._window_title is None:
+            return
+        with suppress(cv2.error):
+            cv2.destroyWindow(self._window_title)
+        self._window_title = None
 
     @staticmethod
     def scale_canvas(canvas: Tensor, scale: float = 1.0) -> Tensor:
@@ -125,20 +146,37 @@ class BaseVisualizer(
                 f"shape {tuple(image.shape)}."
             )
 
-        if self.mode == "display":
-            to_pil_image(image).show(title=window_title)
+        if self.save:
+            self.save_dir.mkdir(parents=True, exist_ok=True)
+            output_path = self._next_output_path(filename_prefix)
+            write_png(image, str(output_path))
+        if self.display:
+            self._display(image, window_title)
+
+    def _display(self, image: Tensor, window_title: str) -> None:
+        if not self._display_enabled:
             return
 
-        self.save_dir.mkdir(parents=True, exist_ok=True)
-        output_path = self._next_output_path(filename_prefix)
-        write_png(image, str(output_path))
+        display_image = image.permute(1, 2, 0).contiguous().numpy()
+        display_image = cv2.cvtColor(display_image, cv2.COLOR_RGB2BGR)
+
+        if self._window_title is None:
+            cv2.namedWindow(window_title, cv2.WINDOW_NORMAL)
+            self._window_title = window_title
+
+        cv2.resizeWindow(
+            window_title,
+            width=display_image.shape[1],
+            height=display_image.shape[0],
+        )
+        cv2.imshow(window_title, display_image)
+        if cv2.waitKey(0) & 0xFF in {27, ord("q")}:
+            self._display_enabled = False
+            self.close()
 
     def _next_output_path(self, filename_prefix: str) -> Path:
-        while True:
-            candidate = (
-                self.save_dir
-                / f"{filename_prefix}_{self._output_index:05d}.png"
-            )
-            self._output_index += 1
-            if not candidate.exists():
-                return candidate
+        output_path = (
+            self.save_dir / f"{filename_prefix}_{self._output_index:05d}.png"
+        )
+        self._output_index += 1
+        return output_path

@@ -55,8 +55,17 @@ class MetricConfig(ConfigItem):
 
 class VisualizerConfig(ConfigItem):
     active: bool = True
-    mode: Literal["save", "display"] = "save"
+    display: bool = False
+    save: bool = True
     save_dir: Path = Path("visualizations")
+
+    @model_validator(mode="after")
+    def validate_output(self) -> "VisualizerConfig":
+        if not self.display and not self.save:
+            raise ValueError(
+                "At least one of 'display' or 'save' must be enabled."
+            )
+        return self
 
     @field_validator("name", mode="after")
     @classmethod

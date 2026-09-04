@@ -20,7 +20,6 @@ from .utils import (
 
 
 class BBoxVisualizer(BaseVisualizer):
-    """Render object-detection ground truth and predictions side by side."""
 
     def __init__(
         self,

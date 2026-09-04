@@ -71,7 +71,8 @@ pipeline:
       visualizers:
         - name: KeypointVisualizer
           active: true
-          mode: save
+          display: false
+          save: true
           save_dir: visualizations
           params:
             visibility_threshold: 0.5

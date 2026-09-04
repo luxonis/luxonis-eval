@@ -40,7 +40,8 @@ pipeline:
       visualizers:
         - name: SegmentationVisualizer
           active: true
-          mode: save
+          display: false
+          save: true
           save_dir: visualizations
           params:
             alpha: 0.6

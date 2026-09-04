@@ -34,7 +34,8 @@ pipeline:
       visualizers:
         - name: BBoxVisualizer
           active: true
-          mode: save
+          display: true
+          save: false
           save_dir: visualizations
           params:
             font_size: 30

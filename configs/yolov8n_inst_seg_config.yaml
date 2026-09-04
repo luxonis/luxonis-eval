@@ -44,5 +44,6 @@ pipeline:
       visualizers:
         - name: InstanceSegmentationVisualizer
           active: true
-          mode: save
+          display: false
+          save: true
           save_dir: visualizations

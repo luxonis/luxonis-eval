@@ -230,11 +230,11 @@ def convert_visualization_data(
     predictions: object,
     target: dict[str, np.ndarray],
     context: EvalContext,
-    target_keys: Sequence[str],
+    requested_targets: Sequence[str],
 ) -> VisualizationData:
     """Convert supported runtime messages and targets to task-keyed tensors."""
-    requested_targets = set(target_keys)
-    missing_targets = requested_targets - set(target)
+    requested_target_set = set(requested_targets)
+    missing_targets = requested_target_set - set(target)
     if missing_targets:
         raise ValueError(
             f"Visualization targets are missing keys {sorted(missing_targets)}."
@@ -245,7 +245,7 @@ def convert_visualization_data(
 
     if isinstance(predictions, dai.ImgDetections):
         target_boxes: Tensor | None = None
-        if "/boundingbox" in requested_targets:
+        if "/boundingbox" in requested_target_set:
             converted_predictions["boundingbox"] = [
                 convert_detection_predictions(
                     predictions.detections, context
@@ -256,7 +256,7 @@ def convert_visualization_data(
             )
             converted_targets["boundingbox"] = target_boxes
 
-        if "/instance_segmentation" in requested_targets:
+        if "/instance_segmentation" in requested_target_set:
             if target_boxes is None:
                 raise ValueError(
                     "Instance segmentation conversion requires bounding-box "
@@ -272,7 +272,7 @@ def convert_visualization_data(
                 source="Target",
             )
 
-        if "/keypoints" in requested_targets:
+        if "/keypoints" in requested_target_set:
             if target_boxes is None:
                 raise ValueError(
                     "Keypoint conversion requires bounding-box targets."
@@ -292,7 +292,7 @@ def convert_visualization_data(
             converted_targets["keypoints"] = target_keypoints
 
     elif isinstance(predictions, dai.SegmentationMask):
-        if "/segmentation" not in requested_targets:
+        if "/segmentation" not in requested_target_set:
             raise ValueError(
                 "Semantic segmentation conversion requires a segmentation "
                 "target."

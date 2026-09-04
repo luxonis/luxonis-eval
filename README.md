@@ -357,13 +357,34 @@ pipeline:
 Compatibility is driven by data shape, not by a separate task abstraction:
 
 - the loader must expose the annotation keys required by the configured metrics
-- the parser must produce outputs that the configured metrics can consume
+  and visualizers
+- the parser must produce outputs that the configured metrics and visualizers
+  can consume
 
 ### 🎨 Visualizers
 
-Visualizers are evaluator-local and plural. The repository currently ships
-only the `BaseVisualizer` interface, so visualizer entries are only useful
-when you provide and import a custom implementation.
+Visualizers are configured per evaluator. `BBoxVisualizer`,
+`InstanceSegmentationVisualizer`, `SegmentationVisualizer`, and
+`KeypointVisualizer` render the ground truth and prediction side by side.
+
+```yaml
+visualizers:
+  - name: InstanceSegmentationVisualizer
+    active: true
+    display: false
+    save: true
+    save_dir: visualizations
+    params:
+      draw_labels: true
+      draw_scores: true
+      font_size: 18
+      alpha: 0.6
+```
+
+At least one of `display` or `save` must be `true`. When saving is enabled,
+existing files with the same generated filename are overwritten.
+For visualizer-specific `params`, refer to the
+[LuxonisTrain visualizer documentation](https://github.com/luxonis/luxonis-train/tree/main/luxonis_train/attached_modules/visualizers).
 
 ### ⚡ Inference Engine
 

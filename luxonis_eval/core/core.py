@@ -129,7 +129,7 @@ class LuxonisEval:
     def evaluate(self) -> EvaluationResult:
         """Run the evaluation loop and return structured results."""
         self._require_setup()
-        self._reset_runtime_metrics()
+        self._reset_runtime_state()
         return self._run_pipeline()
 
     def _run_pipeline(self) -> EvaluationResult:
@@ -253,6 +253,8 @@ class LuxonisEval:
             if self.engine is not None:
                 self.engine.close()
         finally:
+            for visualizer in self.visualizers:
+                visualizer.close()
             self._clear_runtime_fields()
             self._is_setup = False
             self._is_closed = True
@@ -346,9 +348,11 @@ class LuxonisEval:
                 "LuxonisEval.setup() must be called before evaluate()."
             )
 
-    def _reset_runtime_metrics(self) -> None:
+    def _reset_runtime_state(self) -> None:
         for metric in self.metrics:
             metric.reset()
+        for visualizer in self.visualizers:
+            visualizer.reset()
 
         if self.throughput_metric is None:
             raise RuntimeError(
@@ -364,7 +368,7 @@ class LuxonisEval:
             dict.fromkeys(
                 visualizer.save_dir.resolve()
                 for visualizer in visualizers
-                if visualizer.mode == "save"
+                if visualizer.save
             )
         )
         if not save_dirs:
