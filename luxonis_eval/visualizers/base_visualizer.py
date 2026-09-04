@@ -88,9 +88,11 @@ class BaseVisualizer(
         """Convert one evaluation result and render its visualization."""
         self.visualize(self.convert(predictions, target), vis_frame)
 
+    @property
+    @abstractmethod
     def required_target_keys(self) -> list[str]:
         """Return ground-truth keys required by the visualizer."""
-        return []
+        ...
 
     def reset(self) -> None:
         """Reset output numbering for a new evaluation."""

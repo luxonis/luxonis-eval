@@ -62,14 +62,7 @@ class SourceEvaluatorConfig(BaseModelExtraForbid):
     visualizers: list[VisualizerConfig] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_and_resolve(self) -> "SourceEvaluatorConfig":
-        if not self.metrics and not any(
-            visualizer.active for visualizer in self.visualizers
-        ):
-            raise ValueError(
-                "pipeline.evaluators[*] must contain at least one metric or "
-                "one active visualizer."
-            )
+    def resolve_name(self) -> "SourceEvaluatorConfig":
         if self.name is None:
             self.name = self.task_name or "task_0"
         return self

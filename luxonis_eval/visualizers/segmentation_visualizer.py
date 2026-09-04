@@ -59,6 +59,7 @@ class SegmentationVisualizer(BaseVisualizer):
         self._warn_colors = True
         super().__init__(**kwargs)
 
+    @property
     def required_target_keys(self) -> list[str]:
         return ["/segmentation"]
 
@@ -78,7 +79,7 @@ class SegmentationVisualizer(BaseVisualizer):
             predictions,
             target,
             self.context,
-            self.required_target_keys(),
+            self.required_target_keys,
         )
 
     def visualize(

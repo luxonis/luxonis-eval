@@ -48,6 +48,7 @@ class KeypointVisualizer(BBoxVisualizer):
         self._inferred_connectivity: list[tuple[int, int]] | None = None
         super().__init__(**kwargs)
 
+    @property
     def required_target_keys(self) -> list[str]:
         return ["/boundingbox", "/keypoints"]
 
@@ -67,7 +68,7 @@ class KeypointVisualizer(BBoxVisualizer):
             predictions,
             target,
             self.context,
-            self.required_target_keys(),
+            self.required_target_keys,
         )
         keypoints = data.predictions["keypoints"][0]
         connectivity = self._prediction_connectivity(predictions)

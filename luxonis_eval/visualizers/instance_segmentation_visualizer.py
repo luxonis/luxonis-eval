@@ -61,6 +61,7 @@ class InstanceSegmentationVisualizer(BaseVisualizer):
         self.scale = scale
         super().__init__(**kwargs)
 
+    @property
     def required_target_keys(self) -> list[str]:
         return ["/boundingbox", "/instance_segmentation"]
 
@@ -80,7 +81,7 @@ class InstanceSegmentationVisualizer(BaseVisualizer):
             predictions,
             target,
             self.context,
-            self.required_target_keys(),
+            self.required_target_keys,
         )
 
     def visualize(

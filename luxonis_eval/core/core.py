@@ -89,11 +89,6 @@ class LuxonisEval:
             self.parser = create_parser(self.evaluator_cfg)
             self.metrics = create_metrics(self.evaluator_cfg)
             self.visualizers = create_visualizers(self.evaluator_cfg)
-            if not self.metrics and not self.visualizers:
-                raise ValueError(
-                    "At least one metric or one active visualizer must be "
-                    "specified in the configuration."
-                )
             self.throughput_metric = ThroughputMetric()
             logger.info("Throughput metric initialized.")
 
@@ -301,7 +296,7 @@ class LuxonisEval:
                 metric.compute()
                 metric.reset()
             for visualizer in self.visualizers:
-                missing = set(visualizer.required_target_keys()) - set(target)
+                missing = set(visualizer.required_target_keys) - set(target)
                 if missing:
                     raise ValueError(
                         "Target is missing required keys for "
