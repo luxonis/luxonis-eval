@@ -7,6 +7,7 @@ from typing import Any
 import cv2
 import numpy as np
 import torch
+from loguru import logger
 from luxonis_ml.utils.registry import AutoRegisterMeta
 from torch import Tensor
 from torchvision.io import write_png
@@ -61,6 +62,7 @@ class BaseVisualizer(
         self.save = save
         self.save_dir = Path(save_dir)
         self._output_index = 0
+        self._display_available = True
         self._display_enabled = display
         self._window_title: str | None = None
         self._context: EvalContext | None = None
@@ -97,7 +99,7 @@ class BaseVisualizer(
     def reset(self) -> None:
         """Reset output numbering for a new evaluation."""
         self._output_index = 0
-        self._display_enabled = self.display
+        self._display_enabled = self.display and self._display_available
 
     def close(self) -> None:
         """Close the visualizer's display window, if one is open."""
@@ -163,7 +165,17 @@ class BaseVisualizer(
         display_image = cv2.cvtColor(display_image, cv2.COLOR_RGB2BGR)
 
         if self._window_title is None:
-            cv2.namedWindow(window_title, cv2.WINDOW_NORMAL)
+            try:
+                cv2.namedWindow(window_title, cv2.WINDOW_NORMAL)
+            except cv2.error as error:
+                self._display_available = False
+                self._display_enabled = False
+                logger.warning(
+                    "OpenCV could not initialize a display window. "
+                    "Display has been disabled for this visualizer: {}",
+                    error,
+                )
+                return
             self._window_title = window_title
 
         cv2.resizeWindow(
