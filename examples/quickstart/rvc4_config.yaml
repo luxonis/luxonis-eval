@@ -1,0 +1,21 @@
+pipeline:
+  loader:
+    name: LuxonisLoader
+    params:
+      dataset_name: coco-2017-quickstart
+      view: [val]
+
+  engine:
+    name: depthai
+    model_path: yolov6.rvc4.tar
+    # To select a network device, uncomment and set its address:
+    # params:
+    #   device_ip: 192.168.1.100
+
+  evaluators:
+    - task_name: ""
+      # The YOLOv6 parser and its parameters are read from the NNArchive.
+      metrics:
+        - name: BboxMeanAveragePrecision
+          params:
+            iou_type: bbox
