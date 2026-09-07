@@ -17,7 +17,7 @@ from torchvision.utils import (
 
 from luxonis_eval.core.context import EvalContext
 from luxonis_eval.metrics.metrics_utils import detection_to_coco_xywh
-from luxonis_eval.parsers.yolo import get_prediction_instance_masks
+from luxonis_eval.utils import get_instance_masks
 
 from .base_visualizer import VisualizationData
 
@@ -337,32 +337,11 @@ def _convert_instance_prediction_masks(
     context: EvalContext,
 ) -> Tensor:
     n_detections = len(predictions.detections)
-    raw_masks = get_prediction_instance_masks(predictions)
-    if raw_masks is None:
-        indexed_mask = predictions.getCvSegmentationMask()
-        if indexed_mask is None or indexed_mask.size == 0:
-            if n_detections == 0:
-                return torch.zeros(
-                    (0, context.height, context.width), dtype=torch.bool
-                )
-            raise ValueError(
-                "Instance segmentation predictions do not contain masks."
-            )
-        indexed_mask = np.asarray(indexed_mask)
-        if indexed_mask.shape != (context.height, context.width):
-            raise ValueError(
-                "Prediction mask shape must match the model input shape "
-                f"({context.height}, {context.width}), got "
-                f"{indexed_mask.shape}."
-            )
-        if n_detections == 0:
-            return torch.zeros(
-                (0, context.height, context.width), dtype=torch.bool
-            )
-        raw_masks = np.stack(
-            [indexed_mask == index for index in range(n_detections)],
-            axis=0,
-        )
+    raw_masks = get_instance_masks(
+        predictions,
+        height=context.height,
+        width=context.width,
+    )
 
     return _mask_tensor(
         raw_masks,
