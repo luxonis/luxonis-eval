@@ -16,12 +16,18 @@ if [[ -n "${DEPTHAI_VERSION:-}" ]]; then
   python -m pip install "depthai==${DEPTHAI_VERSION}"
 fi
 
-if [[ -n "${HIL_FRAMEWORK_TOKEN:-}" && -n "${HIL_TESTBED:-}" ]]; then
-  python -m pip install --upgrade \
-    --index-url "https://__token__:${HIL_FRAMEWORK_TOKEN}@gitlab.luxonis.com/api/v4/projects/213/packages/pypi/simple" \
-    hil-framework
+pytest_args=(tests/test_rvc4_nnarchive_regression.py -q)
+
+if [[ -n "${HIL_TESTBED:-}" ]]; then
+  if [[ -n "${HIL_FRAMEWORK_TOKEN:-}" ]]; then
+    python -m pip install --upgrade \
+      --index-url "https://__token__:${HIL_FRAMEWORK_TOKEN}@gitlab.luxonis.com/api/v4/projects/213/packages/pypi/simple" \
+      hil-framework
+  fi
+
+  pytest_args+=(--testbed-name "$HIL_TESTBED")
 fi
 
 export LUXONIS_TELEMETRY_ENABLED="${LUXONIS_TELEMETRY_ENABLED:-false}"
 
-pytest tests/test_rvc4_nnarchive_regression.py -q "$@"
+pytest "${pytest_args[@]}" "$@"

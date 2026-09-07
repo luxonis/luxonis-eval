@@ -117,7 +117,7 @@ jobs:
             bash ./tests/run_rvc4_nnarchive_hil_tests.sh"
 
           exec hil_runner \
-            --platforms rvc4 \
+            --models "oak4_pro or oak4_d or oak4_s" \
             $HOLD_RESERVATION_OPTION \
             $ADDITIONAL_OPTIONS_VALUE \
             --wait \
