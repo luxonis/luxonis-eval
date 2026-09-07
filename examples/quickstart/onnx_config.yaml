@@ -1,0 +1,18 @@
+pipeline:
+  loader:
+    name: LuxonisLoader
+    params:
+      dataset_name: coco-2017-quickstart
+      view: [val]
+
+  engine:
+    name: onnx
+    model_path: yolov6.onnx.tar
+
+  evaluators:
+    - task_name: ""
+      # The YOLOv6 parser and its parameters are read from the NNArchive.
+      metrics:
+        - name: BboxMeanAveragePrecision
+          params:
+            iou_type: bbox
