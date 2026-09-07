@@ -59,7 +59,7 @@ jobs:
         run: |
           mkdir -p .ci
           cat <<'EOF' > .ci/gcp-credentials.json
-          ${{ secrets.GCP_CREDENTIALS }}
+          ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
           EOF
 
       - name: Install HIL runner
