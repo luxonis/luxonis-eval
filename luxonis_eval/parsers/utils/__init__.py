@@ -1,6 +1,5 @@
-from .yolo import build_yolo_compute_inputs, build_yolo_instance_masks
+from .yolo import build_yolo_compute_inputs
 
 __all__ = [
     "build_yolo_compute_inputs",
-    "build_yolo_instance_masks",
 ]

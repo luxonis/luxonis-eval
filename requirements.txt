@@ -2,7 +2,8 @@ cyclopts
 depthai>=3.7.1,<4
 luxonis-ml[data,nn_archive,utils]>=0.8.2
 loguru
-depthai-nodes>=0.6.0
+# TODO: Switch to a released depthai-nodes version once the required changes are published.
+depthai-nodes @ git+https://github.com/luxonis/depthai-nodes.git@main
 tabulate
 onnx
 onnxruntime

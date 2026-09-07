@@ -429,18 +429,18 @@ pipeline:
 
 Quality metrics are configured per evaluator under `pipeline.evaluators[*].metrics`.
 
-| Metric | Typical use | Required target keys |
-| --- | --- | --- |
-| [`TopKAccuracy`](luxonis_eval/metrics/topk_accuracy.py) | Classification | `["/classification"]` |
-| [`BboxMeanAveragePrecision`](luxonis_eval/metrics/bbox_map.py) | Bounding box detection | `["/boundingbox"]` |
-| [`MaskMeanAveragePrecision`](luxonis_eval/metrics/mask_map.py) | Instance segmentation | `["/boundingbox", "/instance_segmentation"]` |
-| [`KeypointMeanAveragePrecision`](luxonis_eval/metrics/keypoint_map.py) | Keypoint evaluation | `["/boundingbox", "/keypoints"]` |
-| [`MIoU`](luxonis_eval/metrics/mIoU.py) | Semantic segmentation | `["/segmentation"]` |
-| [`DiceCoefficient`](luxonis_eval/metrics/dice_coef.py) | Semantic segmentation | `["/segmentation"]` |
-| [`F1Score`](luxonis_eval/metrics/f1_score.py) | Semantic segmentation | `["/segmentation"]` |
-| [`JaccardIndex`](luxonis_eval/metrics/jaccard_index.py) | Semantic segmentation | `["/segmentation"]` |
+| Metric                                                                 | Typical use            | Required target keys                         |
+| ---------------------------------------------------------------------- | ---------------------- | -------------------------------------------- |
+| [`TopKAccuracy`](luxonis_eval/metrics/topk_accuracy.py)                | Classification         | `["/classification"]`                        |
+| [`BboxMeanAveragePrecision`](luxonis_eval/metrics/bbox_map.py)         | Bounding box detection | `["/boundingbox"]`                           |
+| [`MaskMeanAveragePrecision`](luxonis_eval/metrics/mask_map.py)         | Instance segmentation  | `["/boundingbox", "/instance_segmentation"]` |
+| [`KeypointMeanAveragePrecision`](luxonis_eval/metrics/keypoint_map.py) | Keypoint evaluation    | `["/boundingbox", "/keypoints"]`             |
+| [`MIoU`](luxonis_eval/metrics/mIoU.py)                                 | Semantic segmentation  | `["/segmentation"]`                          |
+| [`DiceCoefficient`](luxonis_eval/metrics/dice_coef.py)                 | Semantic segmentation  | `["/segmentation"]`                          |
+| [`F1Score`](luxonis_eval/metrics/f1_score.py)                          | Semantic segmentation  | `["/segmentation"]`                          |
+| [`JaccardIndex`](luxonis_eval/metrics/jaccard_index.py)                | Semantic segmentation  | `["/segmentation"]`                          |
 
-Metrics consume parser outputs directly. Each metric validates that the parser returned the message type it expects, for example classifications, segmentation masks, detections, or detections with attached instance-mask metadata.
+Metrics consume parser outputs directly. Each metric validates that the parser returned the message type it expects, for example classifications, segmentation masks, or detections. Instance-segmentation consumers derive per-instance masks from the indexed segmentation mask stored in `dai.ImgDetections`. Because this representation assigns each pixel to at most one instance, overlapping instance masks are not supported. To preserve overlapping masks, implement a custom parser and matching metric that exchange a different prediction message type.
 
 `ThroughputMetric` is not configured manually in the evaluator list. It is always collected internally and reported alongside the quality metrics in the final `EvaluationResult`.
 
