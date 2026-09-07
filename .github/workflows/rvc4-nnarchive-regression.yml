@@ -31,16 +31,15 @@ on:
       - "develop/*"
       - "develop/**"
   pull_request:
+    branches:
+      - main
+      - "develop*"
+      - "develop/*"
+      - "develop/**"
     types: [opened, synchronize, reopened]
 
 jobs:
   rvc4-nnarchive-regression:
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' &&
-        (github.ref_name == 'main' || startsWith(github.ref_name, 'develop'))) ||
-      (github.event_name == 'pull_request' &&
-        (github.base_ref == 'main' || startsWith(github.base_ref, 'develop')))
     runs-on: ["self-hosted", "testbed-runner"]
     permissions:
       contents: read
