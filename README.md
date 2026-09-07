@@ -6,7 +6,7 @@
 
 ## 🌟 Overview
 
-`LuxonisEval` is a modular evaluation framework for benchmarking neural network models across multiple inference engines. It supports on-device inference on Luxonis devices (`RVC2` and `RVC4`) through `DepthAI`, as well as host-side inference through `ONNX Runtime`, while reporting both quality metrics and throughput or latency performance.
+`LuxonisEval` is a modular framework for evaluating neural network models across multiple inference engines. It supports on-device inference on Luxonis devices (`RVC2` and `RVC4`) through `DepthAI`, as well as host-side inference through `ONNX Runtime`, while reporting both quality metrics and throughput or latency performance.
 
 The framework follows a registry-based architecture: each pluggable component (engines, dataloaders, parsers, metrics, and visualizers) registers itself automatically. This lets you swap, extend, or add parts of the evaluation pipeline without modifying the core evaluation loop. In practice, adding a new component usually means subclassing the appropriate base class and referencing it by name in the configuration.
 
@@ -204,43 +204,45 @@ All base classes use the [AutoRegisterMeta](https://github.com/luxonis/luxonis-m
 The evaluation loop in `LuxonisEval.evaluate()` is structured around abstract component interfaces rather than concrete implementations. That design keeps the pipeline modular and makes engine-specific or model-specific components easy to replace.
 
 ```bash
-┌────────────┐     ┌─────────────┐     ┌─────────────┐     ┌───────────┐
-│ DataLoader │────▶│    Engine   │────▶│   Parser    │────▶│  Metrics  │
-│ (provides  │     │ (runs model │     │ (converts   │     │ (scores   │
-│  samples)  │     │  inference) │     │  raw output)│     │  results) │
-└────────────┘     └─────────────┘     └─────────────┘     └───────────┘
-                                                                   │
-                                              ┌────────────┐       │
-                                              │ Visualizer │◀──────┘
-                                              │ (optional) │
-                                              └────────────┘
+┌────────────┐     ┌─────────────┐     ┌─────────────┐
+│ DataLoader │────▶│    Engine   │────▶│   Parser    │
+│ (image and │     │ (inference  │     │ (structured│
+│  targets)  │     │  and frame) │     │ prediction)│
+└────────────┘     └─────────────┘     └──────┬──────┘
+                                             │
+                              ┌──────────────┴──────────────┐
+                              ▼                             ▼
+                       ┌───────────┐                 ┌────────────┐
+                       │  Metrics  │                 │ Visualizers│
+                       │ (scores)  │                 │ (optional) │
+                       └───────────┘                 └────────────┘
 ```
 
 The pipeline works as follows:
 
 1. **DataLoader** provides images together with ground-truth annotations.
-2. **Engine** runs inference and returns raw engine outputs.
-3. **Parser** converts raw engine outputs into a structured prediction format.
+2. **Engine** runs inference and returns an `EngineOutput`; it also retains the corresponding frame for visualization.
+3. **Parser** converts the selected engine outputs into a structured prediction format.
 4. **Metrics** accumulate per-sample results and compute final scores.
-5. **Visualizer** optionally renders predictions for inspection.
+5. **Visualizers** independently consume the same predictions and optionally render them with the targets for inspection.
 
 Because each component is resolved from a registry at runtime, you can mix and match implementations freely. For example, you can:
 
 - swap `depthai` for `onnx` in `engine` without changing the rest of the config
-- add another metric under `metrics.metrics`
+- add another metric under `pipeline.evaluators[*].metrics`
 - introduce a custom parser and reference it by name
 - replace `LuxonisLoader` with a dataset-specific custom loader
 
-The main constraint is compatibility: the parser must produce predictions in the format the configured metrics expect, and the dataloader must provide the annotation keys those metrics require. `LuxonisEval.setup()` runs a one-sample pipeline sanity check across loader, engine, parser, and metrics so incompatible configurations fail before evaluation starts.
+The main constraint is compatibility: the parser must produce predictions in the format the configured metrics and visualizers expect, and the dataloader must provide the annotation keys those consumers require. `LuxonisEval.setup()` runs a one-sample pipeline sanity check across the loader, engine, parser, metrics, and active visualizers so incompatible configurations fail before evaluation starts. The check runs inference on one real sample, exercises each metric, and validates each visualizer's required target keys and prediction conversion.
 
 <a name="throughput-metric-semantics"></a>
 
 ### 📊 Throughput Metric Semantics
 
-`ThroughputMetric` measures end-to-end pipeline timing rather than isolated model-only benchmarks. The reported rows mean:
+`ThroughputMetric` measures end-to-end pipeline timing rather than isolated model inference. The reported rows mean:
 
 > [!WARNING]
-> Throughput values are end-to-end pipeline measurements and not isolated model-only benchmarks. Lower numbers than `modelconverter` benchmark results are expected.
+> Throughput values cover the complete evaluation pipeline and do not represent isolated model inference performance.
 
 - **Throughput** - Samples processed per second across the full evaluation pipeline
 - **End-to-end Latency** - Average wall-clock time per sample for the whole run
@@ -307,10 +309,10 @@ When `runtime.nn_archive_params_override` is `true`, NNArchive metadata takes pr
 
 - `loader.preprocessing.normalize`
 - `loader.preprocessing.color_space`
-- evaluator parser selection and parser params
+- evaluator parser params
 - evaluator `outputs`
 
-When it is `false`, explicit YAML values stay primary and archive metadata is only used as a fallback.
+Parser selection is handled separately: an explicitly configured parser name always wins, and the NNArchive parser is used only when the evaluator omits `parser`. When `nn_archive_params_override` is `false`, explicit YAML values stay primary for the fields above and archive metadata is only used as a fallback.
 
 > [!IMPORTANT]
 > `keep_aspect_ratio` is not inferred from NNArchive metadata. Set it explicitly when your preprocessing depends on preserving aspect ratio or letterboxing.
@@ -352,7 +354,7 @@ pipeline:
 - `task_name` selects the Luxonis dataset task evaluated by this entry. If not set we try to infer it from the dataset metadata.
 - `name` is optional and defaults to `task_name` or a stable fallback when `task_name` is empty.
 - `outputs` is optional in the current single-evaluator implementation; when omitted, the evaluator consumes all engine outputs.
-- Only zero or one evaluator is currently supported at runtime. Multiple evaluators are rejected with a clear not-yet-implemented error.
+- Exactly one evaluator is currently required at runtime. Omitted or multiple evaluators are rejected with a clear not-yet-implemented error.
 
 Compatibility is driven by data shape, not by a separate task abstraction:
 
@@ -382,8 +384,29 @@ visualizers:
 
 At least one of `display` or `save` must be `true`. When saving is enabled,
 existing files with the same generated filename are overwritten.
-For visualizer-specific `params`, refer to the
-[LuxonisTrain visualizer documentation](https://github.com/luxonis/luxonis-train/tree/main/luxonis_train/attached_modules/visualizers).
+The configuration defaults are `active: true`, `display: false`, `save: true`,
+and `save_dir: visualizations`. In display mode, each image waits for a key
+press; pressing `q` or Escape closes the window and disables display for the
+rest of that evaluation. Saving continues if it is also enabled.
+
+Saved files use a task-specific prefix and a five-digit sequence number, such
+as `bbox_00000.png`. The sequence resets for every `evaluate()` call,
+so another evaluation using the same directory replaces files with matching
+names. Before drawing, the framework prepares an RGB visualization frame and
+reverses host-side normalization when applicable.
+
+The built-in visualizers accept the following `params`:
+
+| Visualizer | Required target keys | Prediction type | Main parameters |
+| --- | --- | --- | --- |
+| `BBoxVisualizer` | `[/boundingbox]` | `dai.ImgDetections` | `labels`, `draw_labels`, `draw_scores`, `colors`, `fill`, `width`, `font`, `font_size`, `scale` |
+| `InstanceSegmentationVisualizer` | `[/boundingbox, /instance_segmentation]` | `dai.ImgDetections` with instance-mask metadata | Bounding-box parameters plus `alpha` and `scale` |
+| `KeypointVisualizer` | `[/boundingbox, /keypoints]` | `dai.ImgDetections` with keypoints | Bounding-box parameters plus `visibility_threshold`, `connectivity`, `visible_color`, `nonvisible_color`, `radius`, `draw_indices` |
+| `SegmentationVisualizer` | `[/segmentation]` | `dai.SegmentationMask` | `colors`, `background_class`, `background_color`, `alpha`, `scale` |
+
+All four renderers validate their prediction types and required target data
+during the setup sanity check. Parameter details and defaults are defined by
+the local implementations in [`luxonis_eval/visualizers`](luxonis_eval/visualizers).
 
 ### ⚡ Inference Engine
 
@@ -472,8 +495,6 @@ Metrics consume parser outputs directly. Each metric validates that the parser r
 
 `luxonis_eval quality --config ...` is a quality-only alias with the same override flags as `eval`.
 
-Benchmark configuration can be present in the YAML for future compatibility, but benchmark execution is intentionally not implemented yet.
-
 <a name="extending-the-framework"></a>
 
 ## 🧱 Extending the Framework
@@ -499,39 +520,44 @@ For `LuxonisLoader`-backed datasets, the LDF and native class maps may differ wh
 >
 > - **`image`** (`np.ndarray`) is a single image, for example with shape `(H, W, 3)`.
 > - **`annotations_dict`** (`dict[str, np.ndarray]`) maps task-group annotation keys to arrays, such as `"/boundingbox"`, `"/classification"`, or `"/segmentation"`.
-> - **`model_spec`** (`ModelSpec`) is passed to every loader constructor by LuxonisEval, so custom loaders can use the engine-resolved `width` and `height` during initialization or preprocessing setup.
+> - **`model_spec`** (`ModelSpec`) and **`nn_archive_cfg`** are passed to custom `BaseEvalLoader` constructors by LuxonisEval. Custom loaders can use the engine-resolved input/output tensor metadata, including `model_spec.width` and `model_spec.height`, during initialization or preprocessing setup. The built-in `LuxonisLoader` instead receives the resolved `width` and `height` directly.
 >
 > Every subclass implementation of `__getitem__` is wrapped by `@validate_loader_output`, which calls `check_loader_output` at runtime and raises a descriptive `TypeError` if the output format is invalid.
 >
-> The loader must also provide a schema-stable `annotations_dict`: every sample must expose the same annotation keys. If a metric requires a key, that key must be present for every sample.
+> The loader must also provide a schema-stable `annotations_dict`: every sample must expose the same annotation keys. If a metric or active visualizer requires a key, that key must be present for every sample.
 
 ### 🔌 Adding a Custom Engine
 
-Subclass [`BaseEngine`](luxonis_eval/engines/base_engine.py) and implement the four abstract methods:
+Subclass [`BaseEngine`](luxonis_eval/engines/base_engine.py), declare an
+`output_type` that subclasses [`EngineOutput`](luxonis_eval/engines/io.py), and
+implement the four abstract methods:
 
-- **`setup()`** - Initialize engine resources such as runtimes, sessions, or device connections, then return a `ModelSpec(width, height)` for the loaded model. Keep this idempotent so repeated calls are safe.
-- **`infer_once(img)`** - Run inference on a single preprocessed image and return the raw engine output
-- **`vis_frame()`** - Return a copy of the input image suitable for visualization overlays
+- **`setup()`** - Initialize engine resources such as runtimes, sessions, or device connections, then return a `ModelSpec(input=TensorSpec(...), outputs=(...))` for the loaded model. Its input must have a static 4D shape with `NCHW` or `NHWC` layout, and it must describe at least one output. Keep setup idempotent so repeated calls are safe.
+- **`infer_once(img)`** - Run inference on a single preprocessed image and return the engine's declared `EngineOutput` type
+- **`vis_frame()`** - Return the image associated with the latest inference in a form suitable for visualization overlays
 - **`close()`** - Release engine resources after evaluation finishes
 
-The framework consumes the returned `ModelSpec` to configure loader preprocessing and metric contexts.
+The `EngineOutput` implementation exposes named tensors through `names()`,
+`get()`, and `select()`. The framework consumes the returned `ModelSpec` to
+configure loader preprocessing and builds an `EvalContext` that is attached to
+the parser, metrics, and visualizers.
 
 ### 🧠 Adding a Custom Parser
 
 Subclass [`BaseParser`](luxonis_eval/parsers/base_parser.py) and implement the single abstract method:
 
-- **`parse(output)`** - Convert raw engine output into a structured prediction format
+- **`parse(output)`** - Convert an `EngineOutput` abstraction, potentially filtered by the evaluator's `outputs` setting, into a structured prediction format
 
 Parser configuration belongs in the parser itself, and LuxonisEval provides the remaining runtime information during setup.
 
-The parser bridges the gap between model-specific tensor layouts and the standardized message types that downstream metrics expect. The built-in parsers produce the following output types:
+The parser bridges the gap between model-specific tensor layouts and the standardized message types that downstream metrics and visualizers expect. The built-in parsers produce the following output types:
 
 - [**ClassificationParser**](luxonis_eval/parsers/classification.py) -> [depthai_nodes.Classifications](https://github.com/luxonis/depthai-nodes/tree/main/depthai_nodes/message#classifications)
 - [**YOLOExtendedParser**](luxonis_eval/parsers/yolo.py) -> [dai.ImgDetections](https://docs.luxonis.com/software-v3/depthai/api/cpp/#classdai_1_1ImgDetections)
 - [**SegmentationParser**](luxonis_eval/parsers/segmentation.py) -> [dai.SegmentationMask](https://github.com/luxonis/depthai-nodes/tree/main/depthai_nodes/message#segmentationmask)
 
 > [!IMPORTANT]
-> The parser must produce outputs that the configured metrics can consume. For example, if a metric expects `dai.ImgDetections`, the parser must return that message type.
+> The parser must produce outputs that the configured metrics and visualizers can consume. For example, if a configured consumer expects `dai.ImgDetections`, the parser must return that message type.
 
 ### 📐 Adding a Custom Metric
 
