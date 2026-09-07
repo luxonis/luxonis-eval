@@ -40,7 +40,7 @@ jobs:
       (github.event_name == 'push' &&
         (github.ref_name == 'main' || startsWith(github.ref_name, 'develop'))) ||
       (github.event_name == 'pull_request' &&
-        (github.head_ref == 'main' || startsWith(github.head_ref, 'develop')))
+        (github.base_ref == 'main' || startsWith(github.base_ref, 'develop')))
     runs-on: ["self-hosted", "testbed-runner"]
     permissions:
       contents: read
