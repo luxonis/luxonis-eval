@@ -8,15 +8,15 @@ on:
       - "develop/*"
       - "develop/**"
   pull_request:
+    branches:
+      - main
+      - "develop*"
+      - "develop/*"
+      - "develop/**"
     types: [opened, synchronize, reopened]
 
 jobs:
   onnx-nnarchive-regression:
-    if: |
-      (github.event_name == 'push' &&
-        (github.ref_name == 'main' || startsWith(github.ref_name, 'develop'))) ||
-      (github.event_name == 'pull_request' &&
-        (github.head_ref == 'main' || startsWith(github.head_ref, 'develop')))
     runs-on: ubuntu-latest
     permissions:
       contents: read
