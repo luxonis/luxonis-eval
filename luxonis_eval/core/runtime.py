@@ -123,7 +123,7 @@ def resolve_luxonis_loader_class_mapping(
             "`BaseEvalLoader`."
         )
     loader_task_name = loader_task_name or ""
-    dataset_classes = dataloader.dataset.get_classes()
+    dataset_classes = dataloader._classes
     ldf_class_map = {
         v: k for k, v in dataset_classes[loader_task_name].items()
     }
