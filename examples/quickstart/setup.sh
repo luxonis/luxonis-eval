@@ -95,3 +95,7 @@ luxonis_ml data parse --delete "${COCO_ROOT}" \
 echo
 echo "Setup complete. Run ONNX evaluation from the repository root:"
 echo "  luxonis_eval eval --config examples/quickstart/onnx_config.yaml"
+
+echo "Run RVC4 evaluation from the repository root:"
+echo "  set pipeline.engine.params.device_ip in examples/quickstart/rvc4_config.yaml"
+echo "  luxonis_eval eval --config examples/quickstart/rvc4_config.yaml"
