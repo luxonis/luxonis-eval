@@ -37,7 +37,6 @@ from luxonis_eval.loaders.base_loader import BaseEvalLoader
 from luxonis_eval.metrics import ThroughputMetric
 from luxonis_eval.metrics.base_metric import BaseMetric
 from luxonis_eval.parsers.base_parser import BaseParser
-from luxonis_eval.parsers.yolo import clear_prediction_metadata
 from luxonis_eval.visualizers.base_visualizer import BaseVisualizer
 from luxonis_eval.visualizers.utils import prepare_visualization_frame
 
@@ -171,44 +170,39 @@ class LuxonisEval:
                 )
                 parsing_elapsed = time.perf_counter() - parsing_t0
 
-                try:
-                    metric_update_t0 = time.perf_counter()
-                    for metric in self.metrics:
-                        metric.update(
-                            predictions=predictions,
-                            target=target,
-                        )
-                    metric_update_elapsed = (
-                        time.perf_counter() - metric_update_t0
+                metric_update_t0 = time.perf_counter()
+                for metric in self.metrics:
+                    metric.update(
+                        predictions=predictions,
+                        target=target,
                     )
+                metric_update_elapsed = time.perf_counter() - metric_update_t0
 
-                    self.throughput_metric.update(
-                        inference=inference_elapsed,
-                        parsing=parsing_elapsed,
-                        metric_update=metric_update_elapsed,
+                self.throughput_metric.update(
+                    inference=inference_elapsed,
+                    parsing=parsing_elapsed,
+                    metric_update=metric_update_elapsed,
+                )
+
+                if self.visualizers:
+                    normalize_cfg = (
+                        self.cfg.pipeline.loader.preprocessing.normalize
                     )
-
-                    if self.visualizers:
-                        normalize_cfg = (
-                            self.cfg.pipeline.loader.preprocessing.normalize
-                        )
-                        normalization_params = (
-                            normalize_cfg.params
-                            if normalize_cfg.active and engine_name != "depthai"
-                            else {}
-                        )
-                        vis_frame = prepare_visualization_frame(
-                            self.engine.vis_frame(),
-                            color_space=(
-                                self.cfg.pipeline.loader.preprocessing.color_space
-                            ),
-                            mean=normalization_params.get("mean"),  # type: ignore[arg-type]
-                            std=normalization_params.get("std"),  # type: ignore[arg-type]
-                        )
-                        for visualizer in self.visualizers:
-                            visualizer.run(predictions, target, vis_frame)
-                finally:
-                    clear_prediction_metadata(predictions)
+                    normalization_params = (
+                        normalize_cfg.params
+                        if normalize_cfg.active and engine_name != "depthai"
+                        else {}
+                    )
+                    vis_frame = prepare_visualization_frame(
+                        self.engine.vis_frame(),
+                        color_space=(
+                            self.cfg.pipeline.loader.preprocessing.color_space
+                        ),
+                        mean=normalization_params.get("mean"),  # type: ignore[arg-type]
+                        std=normalization_params.get("std"),  # type: ignore[arg-type]
+                    )
+                    for visualizer in self.visualizers:
+                        visualizer.run(predictions, target, vis_frame)
                 progress.update(advance=1)
 
         metric_compute_t0 = time.perf_counter()
@@ -285,33 +279,31 @@ class LuxonisEval:
             select_evaluator_outputs(raw_output, self.evaluator_cfg.outputs)
         )
 
-        try:
-            for metric in self.metrics:
-                missing = set(metric.required_target_keys()) - set(target)
-                if missing:
-                    raise ValueError(
-                        "Target is missing required keys for "
-                        f"{metric.__class__.__name__}: {sorted(missing)}. "
-                        f"Got keys: {sorted(target.keys())}."
-                    )
-
-                metric.update(
-                    predictions=predictions,
-                    target=target,
+        for metric in self.metrics:
+            missing = set(metric.required_target_keys()) - set(target)
+            if missing:
+                raise ValueError(
+                    "Target is missing required keys for "
+                    f"{metric.__class__.__name__}: {sorted(missing)}. "
+                    f"Got keys: {sorted(target.keys())}."
                 )
-                metric.compute()
-                metric.reset()
-            for visualizer in self.visualizers:
-                missing = set(visualizer.required_target_keys) - set(target)
-                if missing:
-                    raise ValueError(
-                        "Target is missing required keys for "
-                        f"{visualizer.__class__.__name__}: {sorted(missing)}. "
-                        f"Got keys: {sorted(target.keys())}."
-                    )
-                visualizer.convert(predictions, target)
-        finally:
-            clear_prediction_metadata(predictions)
+
+            metric.update(
+                predictions=predictions,
+                target=target,
+            )
+            metric.compute()
+            metric.reset()
+
+        for visualizer in self.visualizers:
+            missing = set(visualizer.required_target_keys) - set(target)
+            if missing:
+                raise ValueError(
+                    "Target is missing required keys for "
+                    f"{visualizer.__class__.__name__}: {sorted(missing)}. "
+                    f"Got keys: {sorted(target.keys())}."
+                )
+            visualizer.convert(predictions, target)
 
     def _clear_runtime_fields(self) -> None:
         self.engine: BaseEngine | None = None

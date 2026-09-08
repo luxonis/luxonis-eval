@@ -7,6 +7,7 @@ from typing import Any
 import cv2
 import numpy as np
 import torch
+from loguru import logger
 from luxonis_ml.utils.registry import AutoRegisterMeta
 from torch import Tensor
 from torchvision.io import write_png
@@ -18,11 +19,13 @@ from luxonis_eval.registry import VISUALIZERS_REGISTRY
 
 @dataclass(frozen=True, slots=True)
 class VisualizationData:
-    """Task-keyed tensors shared by every visualizer.
+    """Predictions and ground-truth data prepared for drawing.
 
-    Prediction values are lists because postprocessed batches can contain a
-    variable number of predictions per image. Target tensors retain the batch
-    representation expected by the drawing functions.
+    Both dictionaries are keyed by task, such as ``"boundingbox"`` or
+    ``"segmentation"``. Predictions contain one tensor per image. Targets
+    contain the whole batch in one tensor: image-shaped targets use the first
+    axis for the image, while row-based targets such as bounding boxes store
+    the image index in the first column.
     """
 
     predictions: dict[str, list[Tensor]]
@@ -42,25 +45,34 @@ class BaseVisualizer(
         display: bool = False,
         save: bool = True,
         save_dir: str | Path = "visualizations",
-        **kwargs: Any,
+        scale: float = 1.0,
     ) -> None:
         """Initialize the visualizer.
 
         Parameters
         ----------
-        **kwargs : Any
-            Visualizer basic configuration.
+        display : bool
+            Whether to show each visualization in a window.
+        save : bool
+            Whether to save visualizations as PNG files.
+        save_dir : str | Path
+            Directory where visualizations are saved.
+        scale : float
+            Factor used to resize visualization canvases.
         """
-        del kwargs
         if not display and not save:
             raise ValueError(
                 "At least one of 'display' or 'save' must be enabled."
             )
+        if scale <= 0:
+            raise ValueError("scale must be greater than zero.")
 
         self.display = display
         self.save = save
         self.save_dir = Path(save_dir)
+        self.scale = scale
         self._output_index = 0
+        self._display_available = True
         self._display_enabled = display
         self._window_title: str | None = None
         self._context: EvalContext | None = None
@@ -97,7 +109,7 @@ class BaseVisualizer(
     def reset(self) -> None:
         """Reset output numbering for a new evaluation."""
         self._output_index = 0
-        self._display_enabled = self.display
+        self._display_enabled = self.display and self._display_available
 
     def close(self) -> None:
         """Close the visualizer's display window, if one is open."""
@@ -107,13 +119,12 @@ class BaseVisualizer(
             cv2.destroyWindow(self._window_title)
         self._window_title = None
 
-    @staticmethod
-    def scale_canvas(canvas: Tensor, scale: float = 1.0) -> Tensor:
-        """Resize a BCHW visualization canvas."""
-        if scale == 1.0:
+    def scale_canvas(self, canvas: Tensor) -> Tensor:
+        """Resize a BCHW visualization canvas using the configured scale."""
+        if self.scale == 1.0:
             return canvas
-        height = max(1, round(canvas.shape[-2] * scale))
-        width = max(1, round(canvas.shape[-1] * scale))
+        height = max(1, round(canvas.shape[-2] * self.scale))
+        width = max(1, round(canvas.shape[-1] * self.scale))
         return resize(canvas, [height, width], antialias=True)
 
     @abstractmethod
@@ -163,7 +174,17 @@ class BaseVisualizer(
         display_image = cv2.cvtColor(display_image, cv2.COLOR_RGB2BGR)
 
         if self._window_title is None:
-            cv2.namedWindow(window_title, cv2.WINDOW_NORMAL)
+            try:
+                cv2.namedWindow(window_title, cv2.WINDOW_NORMAL)
+            except cv2.error as error:
+                self._display_available = False
+                self._display_enabled = False
+                logger.warning(
+                    "OpenCV could not initialize a display window. "
+                    "Display has been disabled for this visualizer: {}",
+                    error,
+                )
+                return
             self._window_title = window_title
 
         cv2.resizeWindow(

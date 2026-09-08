@@ -35,8 +35,6 @@ class BBoxVisualizer(BaseVisualizer):
         **kwargs: Any,
     ) -> None:
         """Initialize bounding-box drawing options."""
-        if scale <= 0:
-            raise ValueError("scale must be greater than zero.")
         if width is not None and width <= 0:
             raise ValueError("width must be greater than zero.")
         if font_size is not None and font_size <= 0:
@@ -52,8 +50,7 @@ class BBoxVisualizer(BaseVisualizer):
         self.width = width
         self.font = font
         self.font_size = font_size
-        self.scale = scale
-        super().__init__(**kwargs)
+        super().__init__(scale=scale, **kwargs)
 
     @property
     def required_target_keys(self) -> list[str]:
@@ -85,8 +82,8 @@ class BBoxVisualizer(BaseVisualizer):
     ) -> None:
         """Render one prepared target and prediction pair."""
         canvas = numpy_to_batched_canvas(vis_frame)
-        prediction_canvas = self.scale_canvas(canvas, self.scale)
-        target_canvas = self.scale_canvas(canvas, self.scale)
+        prediction_canvas = self.scale_canvas(canvas)
+        target_canvas = self.scale_canvas(canvas)
 
         visualization = self.forward(
             prediction_canvas,
