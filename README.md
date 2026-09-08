@@ -4,13 +4,13 @@
 
 <a name="overview"></a>
 
-## 🌟 Overview
+## Overview
 
 `LuxonisEval` is a modular framework for evaluating neural network models across multiple inference engines. It supports on-device inference on Luxonis devices (`RVC2` and `RVC4`) through `DepthAI`, as well as host-side inference through `ONNX Runtime`, while reporting both quality metrics and throughput or latency performance.
 
 The framework follows a registry-based architecture: each pluggable component (engines, dataloaders, parsers, metrics, and visualizers) registers itself automatically. This lets you swap, extend, or add parts of the evaluation pipeline without modifying the core evaluation loop. In practice, adding a new component usually means subclassing the appropriate base class and referencing it by name in the configuration.
 
-### ✨ Key Features
+### Key Features
 
 - **Multiple Inference Engines**
   - [**DepthAI Engine**](luxonis_eval/engines/depthai_engine.py) - Run models exported as [NNArchive](https://docs.luxonis.com/software-v3/ai-inference/nn-archive) files on Luxonis devices via [DepthAI](https://docs.luxonis.com/software-v3/depthai/)
@@ -24,7 +24,7 @@ The framework follows a registry-based architecture: each pluggable component (e
 
 <a name="quick-start"></a>
 
-## 🚀 Quick Start
+## Quick Start
 
 Get started with `LuxonisEval` in a few steps:
 
@@ -80,7 +80,7 @@ This quickstart runs instance segmentation evaluation with `ONNX Runtime` on CPU
 
 <a name="installation"></a>
 
-## 🛠️ Installation
+## Installation
 
 `LuxonisEval` requires **Python 3.10** or higher. We recommend using a virtual environment to keep dependencies isolated.
 
@@ -100,13 +100,13 @@ pip install -e ".[dev]"
 
 <a name="usage"></a>
 
-## 📝 Usage
+## Usage
 
 You can use `LuxonisEval` either from the command line or through the Python API. The CLI is the primary entry point for running evaluations from configuration files.
 
 <a name="cli"></a>
 
-### 💻 CLI
+### CLI
 
 The CLI currently exposes the `eval` command:
 
@@ -142,7 +142,7 @@ luxonis_eval eval \
 
 <a name="python-api"></a>
 
-### 🐍 Python API
+### Python API
 
 For one-shot programmatic usage, call `eval_run`:
 
@@ -170,7 +170,7 @@ evaluator.close()
 
 <a name="architecture"></a>
 
-## 🏗️ Architecture
+## Architecture
 
 The repository is organized around a small set of core component types:
 
@@ -187,7 +187,7 @@ luxonis_eval/
 └── metadata/         # Class mapping files
 ```
 
-### 🧩 Key Base Classes
+### Key Base Classes
 
 | Base Class                                                      | Location       | Purpose                    |
 | --------------------------------------------------------------- | -------------- | -------------------------- |
@@ -199,7 +199,7 @@ luxonis_eval/
 
 All base classes use the [AutoRegisterMeta](https://github.com/luxonis/luxonis-ml/blob/8b89655497faca6d94e261d49c4d4f96e9078d9b/luxonis_ml/utils/registry.py#L162) metaclass. Any subclass is registered automatically and becomes available by name in configuration files, with no manual wiring required.
 
-### 🔄 Evaluation Pipeline
+### Evaluation Pipeline
 
 The evaluation loop in `LuxonisEval.evaluate()` is structured around abstract component interfaces rather than concrete implementations. That design keeps the pipeline modular and makes engine-specific or model-specific components easy to replace.
 
@@ -237,7 +237,7 @@ The main constraint is compatibility: the parser must produce predictions in the
 
 <a name="throughput-metric-semantics"></a>
 
-### 📊 Throughput Metric Semantics
+### Throughput Metric Semantics
 
 `ThroughputMetric` measures end-to-end pipeline timing rather than isolated model inference. The reported rows mean:
 
@@ -256,7 +256,7 @@ Rule of thumb: `End-to-end Latency ≈ Inference + Parsing + Metric Update + Met
 
 <a name="configuration"></a>
 
-## ⚙️ Configuration
+## Configuration
 
 Evaluation runs are driven by a YAML configuration file. [`EvalConfig`](luxonis_eval/config/config.py) parses and validates the configuration at startup, ensuring that referenced components exist and that required fields are present before evaluation begins.
 
@@ -270,7 +270,7 @@ pipeline:
     - ...
 ```
 
-### 📦 Data Loading And Preprocessing
+### Data Loading And Preprocessing
 
 This section defines which dataloader to use, which dataset it points to, and which preprocessing steps are applied before inference.
 
@@ -323,7 +323,7 @@ Parser selection is handled separately: an explicitly configured parser name alw
 > [!IMPORTANT]
 > `LuxonisLoader` evaluation is currently single-evaluator and single-dataset-task only. `pipeline.evaluators[*].task_name` selects the Luxonis dataset task namespace to evaluate. It is not a framework-level task enum or abstraction. For datasets that use the default empty Luxonis task, set `task_name: ""`.
 
-### 🧠 Evaluators
+### Evaluators
 
 Each pipeline evaluator binds together one dataset task selection, one parser,
 and its configured metrics and visualizers. At least one metric or one active
@@ -363,7 +363,7 @@ Compatibility is driven by data shape, not by a separate task abstraction:
 - the parser must produce outputs that the configured metrics and visualizers
   can consume
 
-### 🎨 Visualizers
+### Visualizers
 
 Visualizers are configured per evaluator. `BBoxVisualizer`,
 `InstanceSegmentationVisualizer`, `SegmentationVisualizer`, and
@@ -408,7 +408,7 @@ All four renderers validate their prediction types and required target data
 during the setup sanity check. Parameter details and defaults are defined by
 the local implementations in [`luxonis_eval/visualizers`](luxonis_eval/visualizers).
 
-### ⚡ Inference Engine
+### Inference Engine
 
 The engine section selects the inference engine and points to the model file. Configuration validation ensures that the model format matches the selected engine (`.tar.xz` NNArchive for `depthai` or `onnx`, `.onnx` for `onnx`).
 
@@ -423,7 +423,7 @@ pipeline:
 > [!NOTE]
 > The CLI override flag is named `--backend` for convenience, but it simply overrides `pipeline.engine.name`.
 
-### 📄 Full Example
+### Full Example
 
 ```yaml
 runtime:
@@ -470,7 +470,7 @@ pipeline:
       visualizers: []
 ```
 
-### 📏 Metrics
+### Metrics
 
 Quality metrics are configured per evaluator under `pipeline.evaluators[*].metrics`.
 
@@ -489,7 +489,7 @@ Metrics consume parser outputs directly. Each metric validates that the parser r
 
 `ThroughputMetric` is not configured manually in the evaluator list. It is always collected internally and reported alongside the quality metrics in the final `EvaluationResult`.
 
-### 🏃 Commands
+### Commands
 
 `luxonis_eval eval --config ...` runs the configured quality pipeline in this phase.
 
@@ -497,11 +497,11 @@ Metrics consume parser outputs directly. Each metric validates that the parser r
 
 <a name="extending-the-framework"></a>
 
-## 🧱 Extending the Framework
+## Extending the Framework
 
 `LuxonisEval` is designed around a simple rule: implement a new class that inherits from the appropriate base class, and the registry handles the rest. Every component type (`BaseEngine`, `BaseEvalLoader`, `BaseParser`, `BaseMetric`, `BaseVisualizer`) uses `AutoRegisterMeta`, so subclassing is enough to make a component available once its module is imported.
 
-### 📥 Adding a Custom DataLoader
+### Adding a Custom DataLoader
 
 Every custom loader must inherit from `BaseEvalLoader` and implement four abstract methods:
 
@@ -526,7 +526,7 @@ For `LuxonisLoader`-backed datasets, the LDF and native class maps may differ wh
 >
 > The loader must also provide a schema-stable `annotations_dict`: every sample must expose the same annotation keys. If a metric or active visualizer requires a key, that key must be present for every sample.
 
-### 🔌 Adding a Custom Engine
+### Adding a Custom Engine
 
 Subclass [`BaseEngine`](luxonis_eval/engines/base_engine.py), declare an
 `output_type` that subclasses [`EngineOutput`](luxonis_eval/engines/io.py), and
@@ -542,7 +542,7 @@ The `EngineOutput` implementation exposes named tensors through `names()`,
 configure loader preprocessing and builds an `EvalContext` that is attached to
 the parser, metrics, and visualizers.
 
-### 🧠 Adding a Custom Parser
+### Adding a Custom Parser
 
 Subclass [`BaseParser`](luxonis_eval/parsers/base_parser.py) and implement the single abstract method:
 
@@ -559,7 +559,7 @@ The parser bridges the gap between model-specific tensor layouts and the standar
 > [!IMPORTANT]
 > The parser must produce outputs that the configured metrics and visualizers can consume. For example, if a configured consumer expects `dai.ImgDetections`, the parser must return that message type.
 
-### 📐 Adding a Custom Metric
+### Adding a Custom Metric
 
 Subclass [`BaseMetric`](luxonis_eval/metrics/base_metric.py) and implement the four abstract methods:
 
@@ -571,7 +571,7 @@ Subclass [`BaseMetric`](luxonis_eval/metrics/base_metric.py) and implement the f
 > [!IMPORTANT]
 > Metrics must be compatible with the outputs generated by the configured parser. If the parser returns `dai.ImgDetections`, the metric must know how to process that object.
 
-### 🪜 General Pattern
+### General Pattern
 
 All extensions follow the same three-step workflow:
 
@@ -583,6 +583,6 @@ No manual registration, factory wiring, or extra boilerplate is required. As lon
 
 <a name="license"></a>
 
-## 📄 License
+## License
 
 This project is licensed under the [Apache License 2.0](LICENSE).
