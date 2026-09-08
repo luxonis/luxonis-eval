@@ -2,12 +2,12 @@ pipeline:
   loader:
     name: LuxonisLoader
     params:
-      dataset_name: coco-2017-quickstart
+      dataset_name: quickstartcoco
       view: [val]
 
   engine:
     name: onnx
-    model_path: yolov6.onnx.tar
+    model_path: examples/quickstart/yolov6.onnx.tar
 
   evaluators:
     - task_name: ""
@@ -16,3 +16,8 @@ pipeline:
         - name: BboxMeanAveragePrecision
           params:
             iou_type: bbox
+      visualizers:
+        - name: BBoxVisualizer
+          display: false
+          save: true
+          save_dir: visualizations/quickstart/onnx
