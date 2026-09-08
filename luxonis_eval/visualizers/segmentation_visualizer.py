@@ -33,8 +33,6 @@ class SegmentationVisualizer(BaseVisualizer):
         """Initialize semantic-segmentation drawing options."""
         if not 0 <= alpha <= 1:
             raise ValueError("alpha must be between zero and one.")
-        if scale <= 0:
-            raise ValueError("scale must be greater than zero.")
         normalized_colors: list[Color] | None
         if colors is None:
             normalized_colors = None
@@ -55,9 +53,8 @@ class SegmentationVisualizer(BaseVisualizer):
         self.background_class = background_class
         self.background_color = self._normalize_color(background_color)
         self.alpha = alpha
-        self.scale = scale
         self._warn_colors = True
-        super().__init__(**kwargs)
+        super().__init__(scale=scale, **kwargs)
 
     @property
     def required_target_keys(self) -> list[str]:
@@ -89,8 +86,8 @@ class SegmentationVisualizer(BaseVisualizer):
     ) -> None:
         """Render one prepared semantic-segmentation comparison."""
         canvas = numpy_to_batched_canvas(vis_frame)
-        prediction_canvas = self.scale_canvas(canvas, self.scale)
-        target_canvas = self.scale_canvas(canvas, self.scale)
+        prediction_canvas = self.scale_canvas(canvas)
+        target_canvas = self.scale_canvas(canvas)
         visualization = self.forward(
             prediction_canvas,
             target_canvas,

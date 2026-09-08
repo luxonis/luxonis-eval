@@ -19,11 +19,13 @@ from luxonis_eval.registry import VISUALIZERS_REGISTRY
 
 @dataclass(frozen=True, slots=True)
 class VisualizationData:
-    """Task-keyed tensors shared by every visualizer.
+    """Predictions and ground-truth data prepared for drawing.
 
-    Prediction values are lists because postprocessed batches can contain a
-    variable number of predictions per image. Target tensors retain the batch
-    representation expected by the drawing functions.
+    Both dictionaries are keyed by task, such as ``"boundingbox"`` or
+    ``"segmentation"``. Predictions contain one tensor per image. Targets
+    contain the whole batch in one tensor: image-shaped targets use the first
+    axis for the image, while row-based targets such as bounding boxes store
+    the image index in the first column.
     """
 
     predictions: dict[str, list[Tensor]]
@@ -43,24 +45,32 @@ class BaseVisualizer(
         display: bool = False,
         save: bool = True,
         save_dir: str | Path = "visualizations",
-        **kwargs: Any,
+        scale: float = 1.0,
     ) -> None:
         """Initialize the visualizer.
 
         Parameters
         ----------
-        **kwargs : Any
-            Visualizer basic configuration.
+        display : bool
+            Whether to show each visualization in a window.
+        save : bool
+            Whether to save visualizations as PNG files.
+        save_dir : str | Path
+            Directory where visualizations are saved.
+        scale : float
+            Factor used to resize visualization canvases.
         """
-        del kwargs
         if not display and not save:
             raise ValueError(
                 "At least one of 'display' or 'save' must be enabled."
             )
+        if scale <= 0:
+            raise ValueError("scale must be greater than zero.")
 
         self.display = display
         self.save = save
         self.save_dir = Path(save_dir)
+        self.scale = scale
         self._output_index = 0
         self._display_available = True
         self._display_enabled = display
@@ -109,13 +119,12 @@ class BaseVisualizer(
             cv2.destroyWindow(self._window_title)
         self._window_title = None
 
-    @staticmethod
-    def scale_canvas(canvas: Tensor, scale: float = 1.0) -> Tensor:
-        """Resize a BCHW visualization canvas."""
-        if scale == 1.0:
+    def scale_canvas(self, canvas: Tensor) -> Tensor:
+        """Resize a BCHW visualization canvas using the configured scale."""
+        if self.scale == 1.0:
             return canvas
-        height = max(1, round(canvas.shape[-2] * scale))
-        width = max(1, round(canvas.shape[-1] * scale))
+        height = max(1, round(canvas.shape[-2] * self.scale))
+        width = max(1, round(canvas.shape[-1] * self.scale))
         return resize(canvas, [height, width], antialias=True)
 
     @abstractmethod

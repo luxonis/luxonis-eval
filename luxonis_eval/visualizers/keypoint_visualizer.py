@@ -84,8 +84,8 @@ class KeypointVisualizer(BBoxVisualizer):
     ) -> None:
         """Render one prepared keypoint target and prediction pair."""
         canvas = numpy_to_batched_canvas(vis_frame)
-        prediction_canvas = self.scale_canvas(canvas, self.scale)
-        target_canvas = self.scale_canvas(canvas, self.scale)
+        prediction_canvas = self.scale_canvas(canvas)
+        target_canvas = self.scale_canvas(canvas)
         connectivity = (
             self.connectivity
             if self.connectivity is not None
