@@ -14,16 +14,10 @@ pipeline:
       view: [val]
 
   engine:
-    model_path: examples/quickstart_inst_seg/models/yolov8n-seg.onnx
+    model_path: yolov8n-seg.onnx
     name: onnx
     params:
       providers: [CPUExecutionProvider]
-
-  # engine:
-  #   model_path: examples/quickstart_inst_seg/models/yolov8n-seg.rvc4.tar.xz
-  #   name: depthai
-  #   params:
-  #     device_ip: 10.12.143.173
 
   evaluators:
     - parser:
@@ -41,4 +35,15 @@ pipeline:
         - name: MaskMeanAveragePrecision
           params:
             iou_type: segm
-      visualizers: []
+      visualizers:
+        - name: InstanceSegmentationVisualizer
+          active: true
+          display: false
+          save: true
+          save_dir: visualizations
+        - name: BBoxVisualizer
+          active: true
+          display: true
+          save: false
+          save_dir: visualizations
+
