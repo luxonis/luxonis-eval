@@ -8,6 +8,19 @@
 
 `LuxonisEval` is a modular framework for evaluating neural network models across multiple inference engines. It supports on-device inference on Luxonis devices (`RVC2` and `RVC4`) through `DepthAI`, as well as host-side inference through `ONNX Runtime`, while reporting both quality metrics and throughput or latency performance.
 
+Typical use cases include:
+
+- **Validating model exports** by comparing an ONNX model against metrics from
+  its original training checkpoint.
+- **Measuring conversion impact** by comparing host-side ONNX results with the
+  same model compiled for RVC2 or RVC4.
+- **Evaluating quantization tradeoffs** across model variants such as FP16 and
+  INT8.
+- **Detecting regressions** in model quality, preprocessing, output parsing, or
+  NNArchive metadata as models and config parameters evolve.
+- **Reviewing prediction quality visually** by saving annotated evaluation
+  samples.
+
 The framework follows a registry-based architecture: each pluggable component (engines, dataloaders, parsers, metrics, and visualizers) registers itself automatically. This lets you swap, extend, or add parts of the evaluation pipeline without modifying the core evaluation loop. In practice, adding a new component usually means subclassing the appropriate base class and referencing it by name in the configuration.
 
 ### Key Features
@@ -20,7 +33,7 @@ The framework follows a registry-based architecture: each pluggable component (e
   - [**BaseEvalLoader**](luxonis_eval/loaders/base_loader.py) - Base class for custom dataloaders
 - **Current Evaluation Coverage** - The built-in parsers and metrics currently cover classification, bounding box detection, semantic segmentation, instance segmentation, and keypoint evaluation
 - **NNArchive-Aware Configuration** - Parser metadata and preprocessing hints can be resolved from NNArchive models, including archive-driven overrides when desired
-- **Extensible Architecture** - Registry-based design powered by [`AutoRegisterMeta`](luxonis_eval/registry.py), making it straightforward to add custom engines, parsers, metrics, loaders, and visualizers
+- **Extensible Architecture** - The registry-based design powered by [`AutoRegisterMeta`](luxonis_eval/registry.py) makes it straightforward to add custom engines, parsers, metrics, loaders, and visualizers
 
 <a name="quick-start"></a>
 
