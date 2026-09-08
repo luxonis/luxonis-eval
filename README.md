@@ -34,7 +34,7 @@ Get started with `LuxonisEval` in a few steps:
    pip install .
    ```
 
-2. **Install FiftyOne, then download and parse 1,000 COCO images**
+2. **Install FiftyOne, then download the models and prepare 1,000 COCO images**
 
    ```bash
    pip install fiftyone
@@ -47,10 +47,11 @@ Get started with `LuxonisEval` in a few steps:
    luxonis_eval eval --config examples/quickstart/onnx_config.yaml
    ```
 
-This quickstart evaluates the included YOLOv6 NNArchive with `ONNX Runtime`
-on CPU and does not require Luxonis hardware. If you have an RVC4 device, the
-same example can evaluate `yolov6.rvc4.tar` on-device. For the dataset split,
-parsing, and device instructions, see
+This quickstart evaluates a YOLOv6 NNArchive from
+[models.luxonis.com](https://models.luxonis.com/luxonis/yolov6-nano/aim_RFFiRGVUcFAVE894kxRbRm?backTo=%2F)
+with `ONNX Runtime` on CPU and does not require Luxonis hardware. If you have
+an RVC4 device, the same example can evaluate the RVC4 archive on-device. For
+model placement, dataset parsing, visualization, and device instructions, see
 [examples/quickstart/README.md](examples/quickstart/README.md).
 
 ## Table Of Contents
