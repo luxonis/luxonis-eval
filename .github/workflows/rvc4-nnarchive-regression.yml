@@ -40,6 +40,8 @@ on:
 
 jobs:
   rvc4-nnarchive-regression:
+    # Temporarily disabled until the HIL testbed is available.
+    if: ${{ false }}
     runs-on: ["self-hosted", "testbed-runner"]
     permissions:
       contents: read
