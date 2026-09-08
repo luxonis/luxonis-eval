@@ -47,20 +47,25 @@ Get started with `LuxonisEval` in a few steps:
    pip install .
    ```
 
-2. **Prepare the example model and dataset (requires the `fiftyone` package)**
+2. **Install FiftyOne, then download the models and prepare 1,000 COCO images**
 
    ```bash
    pip install fiftyone
-   bash examples/quickstart_inst_seg/setup_example.sh
+   bash examples/quickstart/setup.sh
    ```
 
 3. **Run the evaluation**
 
    ```bash
-   luxonis_eval eval --config configs/yolov8n_inst_seg_config.yaml
+   luxonis_eval eval --config examples/quickstart/onnx_config.yaml
    ```
 
-This quickstart runs instance segmentation evaluation with `ONNX Runtime` on CPU and does not require Luxonis hardware. For a fuller walkthrough, see [examples/quickstart_inst_seg/README.md](examples/quickstart_inst_seg/README.md).
+This quickstart evaluates a YOLOv6 NNArchive from
+[models.luxonis.com](https://models.luxonis.com/luxonis/yolov6-nano/aim_RFFiRGVUcFAVE894kxRbRm?backTo=%2F)
+with `ONNX Runtime` on CPU and does not require Luxonis hardware. If you have
+an RVC4 device, the same example can evaluate the RVC4 archive on-device. For
+model placement, dataset parsing, visualization, and device instructions, see
+[examples/quickstart/README.md](examples/quickstart/README.md).
 
 ## Table Of Contents
 

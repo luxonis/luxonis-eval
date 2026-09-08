@@ -1,0 +1,26 @@
+pipeline:
+  loader:
+    name: LuxonisLoader
+    params:
+      dataset_name: quickstartcoco
+      view: [val]
+
+  engine:
+    name: depthai
+    model_path: examples/quickstart/yolov6.rvc4.tar
+    # To select a device, uncomment and set its address:
+#    params:
+#      device_ip: 192.168.1.165
+
+  evaluators:
+    - task_name: ""
+      # The YOLOv6 parser and its parameters are read from the NNArchive.
+      metrics:
+        - name: BboxMeanAveragePrecision
+          params:
+            iou_type: bbox
+      visualizers:
+        - name: BBoxVisualizer
+          display: false
+          save: true
+          save_dir: visualizations/quickstart/rvc4
