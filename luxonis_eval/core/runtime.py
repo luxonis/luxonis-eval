@@ -123,26 +123,27 @@ def resolve_luxonis_loader_class_mapping(
             "`BaseEvalLoader`."
         )
     loader_task_name = loader_task_name or ""
-    dataset_classes = dataloader.dataset.get_classes()
+    dataset_classes = dataloader._classes
     ldf_class_map = {
         v: k for k, v in dataset_classes[loader_task_name].items()
     }
+    dataset_name = dataloader.dataset._dataset_name
 
-    if "imagenet" in dataloader.dataset.dataset_name:
+    if "imagenet" in dataset_name:
         native_class_map = get_dataset_class_mapping("imagenet")
-    elif "coco" in dataloader.dataset.dataset_name:
+    elif "coco" in dataset_name:
         native_class_map = get_dataset_class_mapping("coco")
     else:
         native_class_map = class_mapping
         if native_class_map:
             logger.info(
-                f"Dataset '{dataloader.dataset.dataset_name}' does not match "
+                f"Dataset '{dataset_name}' does not match "
                 "known datasets for automatic class mapping. Using the "
                 "provided 'loader.params.class_mapping' argument."
             )
         else:
             logger.warning(
-                f"Dataset '{dataloader.dataset.dataset_name}' does not match "
+                f"Dataset '{dataset_name}' does not match "
                 "known datasets for automatic class mapping and no "
                 "'loader.params.class_mapping' was provided. Falling back to "
                 "the dataset's LDF class order as the native class mapping."
