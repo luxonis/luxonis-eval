@@ -4,16 +4,6 @@ on:
   push:
     branches:
       - main
-      - "develop*"
-      - "develop/*"
-      - "develop/**"
-  pull_request:
-    branches:
-      - main
-      - "develop*"
-      - "develop/*"
-      - "develop/**"
-    types: [opened, synchronize, reopened]
 
 jobs:
   onnx-nnarchive-regression:
