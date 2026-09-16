@@ -28,6 +28,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=None,
         help="Optional HIL testbed name used to resolve an RVC4 device.",
     )
+    parser.addoption(
+        "--require-device",
+        action="store_true",
+        default=False,
+        help="Fail instead of skipping when no RVC4 device can be resolved.",
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -72,14 +78,20 @@ def rvc4_device_ip(request: pytest.FixtureRequest) -> str | None:
 
 
 @pytest.fixture(scope="session")
-def required_rvc4_device_ip(rvc4_device_ip: str | None) -> str:
+def required_rvc4_device_ip(
+    request: pytest.FixtureRequest, rvc4_device_ip: str | None
+) -> str:
     if rvc4_device_ip is not None:
         return rvc4_device_ip
 
-    pytest.skip(
+    message = (
         "No RVC4 device configured. Re-run with --device-ip <ip-or-mxid>, "
         "set RVC4_IP, or provide --testbed-name / HIL_TESTBED."
     )
+    if request.config.getoption("--require-device"):
+        pytest.fail(message, pytrace=False)
+
+    pytest.skip(message)
 
 
 def _resolve_rvc4_device_ip_from_testbed(testbed_name: str) -> str:

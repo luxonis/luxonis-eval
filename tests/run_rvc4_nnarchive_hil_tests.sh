@@ -16,7 +16,7 @@ if [[ -n "${DEPTHAI_VERSION:-}" ]]; then
   python -m pip install "depthai==${DEPTHAI_VERSION}"
 fi
 
-pytest_args=(tests/test_rvc4_nnarchive_regression.py -q)
+pytest_args=(tests/test_rvc4_nnarchive_regression.py -q --require-device)
 
 if [[ -n "${HIL_TESTBED:-}" ]]; then
   if [[ -n "${HIL_FRAMEWORK_TOKEN:-}" ]]; then
