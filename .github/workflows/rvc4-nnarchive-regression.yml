@@ -47,6 +47,7 @@ jobs:
     env:
       LUXONIS_TELEMETRY_ENABLED: "false"
       HIL_FRAMEWORK_TOKEN: ${{ secrets.HIL_FRAMEWORK_TOKEN }}
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
 
     steps:
       - name: Checkout
