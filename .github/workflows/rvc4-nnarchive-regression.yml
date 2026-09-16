@@ -45,14 +45,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Write Google credentials
-        shell: bash
-        run: |
-          mkdir -p .ci
-          cat <<'EOF' > .ci/gcp-credentials.json
-          ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
-          EOF
-
       - name: Install HIL runner
         shell: bash
         run: |
@@ -70,6 +62,20 @@ jobs:
           OS_VERSION_INPUT: ${{ github.event.inputs.os_version }}
           ADDITIONAL_OPTIONS_INPUT: ${{ github.event.inputs.additional_options }}
         run: |
+          set -euo pipefail
+
+          CREDENTIALS_PATH="$GITHUB_WORKSPACE/.ci/gcp-credentials.json"
+          cleanup_credentials() {
+            rm -f "$CREDENTIALS_PATH"
+          }
+          trap cleanup_credentials EXIT
+
+          umask 077
+          mkdir -p "$(dirname "$CREDENTIALS_PATH")"
+          cat <<'EOF' > "$CREDENTIALS_PATH"
+          ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          EOF
+
           DEPTHAI_VERSION_VALUE="${DEPTHAI_VERSION_INPUT:-3.8.0}"
           if [[ ! "$DEPTHAI_VERSION_VALUE" =~ ^3\.(8|9|[1-9][0-9])\.[0-9]{1,2}$ ]]; then
             echo "DEPTHAI_VERSION must be within >=3.8.0,<4.0.0; got: $DEPTHAI_VERSION_VALUE" >&2
@@ -99,7 +105,10 @@ jobs:
 
           REMOTE_HIL_FRAMEWORK_TOKEN="$(printf '%q' "$HIL_FRAMEWORK_TOKEN")"
           REMOTE_DEPTHAI_VERSION="$(printf '%q' "$DEPTHAI_VERSION_VALUE")"
-          REMOTE_CMD="cd /tmp/luxonis-eval && \
+          REMOTE_CMD="set -e; \
+            trap 'rm -f /tmp/luxonis-eval/.ci/gcp-credentials.json' EXIT; \
+            cd /tmp/luxonis-eval && \
+            chmod 600 /tmp/luxonis-eval/.ci/gcp-credentials.json && \
             export GOOGLE_APPLICATION_CREDENTIALS=/tmp/luxonis-eval/.ci/gcp-credentials.json && \
             export LUXONIS_TELEMETRY_ENABLED=false && \
             export HIL_FRAMEWORK_TOKEN=$REMOTE_HIL_FRAMEWORK_TOKEN && \
