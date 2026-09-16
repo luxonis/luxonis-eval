@@ -62,9 +62,9 @@ def rvc4_device_ip(request: pytest.FixtureRequest) -> str | None:
     if env_device_ip:
         return env_device_ip
 
-    testbed_name = request.config.getoption("--testbed-name") or os.environ.get(
-        "HIL_TESTBED"
-    )
+    testbed_name = request.config.getoption(
+        "--testbed-name"
+    ) or os.environ.get("HIL_TESTBED")
     if not testbed_name:
         return None
 
@@ -86,12 +86,11 @@ def _resolve_rvc4_device_ip_from_testbed(testbed_name: str) -> str:
     try:
         from hil_framework.lib_testbed.config.Config import Config
         from hil_framework.lib_testbed.utils.Testbed import Testbed
-    except ImportError as exc:
+    except ImportError:
         pytest.exit(
             "hil_framework is required when --testbed-name or HIL_TESTBED is used.",
             returncode=1,
         )
-        raise exc
 
     testbed = Testbed(Config(testbed_name))
     target_matches = [
@@ -119,7 +118,7 @@ def _resolve_rvc4_device_ip_from_testbed(testbed_name: str) -> str:
         )
 
     pytest.exit(
-        "Unable to select a unique RVC4 camera from testbed "
+        "Unable to choose a unique RVC4 camera from testbed "
         f"{testbed_name!r}. Available cameras: {available_cameras}",
         returncode=1,
     )
