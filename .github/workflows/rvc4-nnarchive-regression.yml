@@ -28,6 +28,11 @@ on:
     branches:
       - main
       - "develop*"
+  pull_request:
+    branches:
+      - main
+      - "develop*"
+    types: [opened, synchronize, reopened]
 
 jobs:
   rvc4-nnarchive-regression:
