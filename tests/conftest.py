@@ -28,6 +28,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=None,
         help="Optional HIL testbed name used to resolve an RVC4 device.",
     )
+    parser.addoption(
+        "--require-device",
+        action="store_true",
+        default=False,
+        help="Fail instead of skipping when no RVC4 device can be resolved.",
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -62,9 +68,9 @@ def rvc4_device_ip(request: pytest.FixtureRequest) -> str | None:
     if env_device_ip:
         return env_device_ip
 
-    testbed_name = request.config.getoption("--testbed-name") or os.environ.get(
-        "HIL_TESTBED"
-    )
+    testbed_name = request.config.getoption(
+        "--testbed-name"
+    ) or os.environ.get("HIL_TESTBED")
     if not testbed_name:
         return None
 
@@ -72,26 +78,31 @@ def rvc4_device_ip(request: pytest.FixtureRequest) -> str | None:
 
 
 @pytest.fixture(scope="session")
-def required_rvc4_device_ip(rvc4_device_ip: str | None) -> str:
+def required_rvc4_device_ip(
+    request: pytest.FixtureRequest, rvc4_device_ip: str | None
+) -> str:
     if rvc4_device_ip is not None:
         return rvc4_device_ip
 
-    pytest.skip(
+    message = (
         "No RVC4 device configured. Re-run with --device-ip <ip-or-mxid>, "
         "set RVC4_IP, or provide --testbed-name / HIL_TESTBED."
     )
+    if request.config.getoption("--require-device"):
+        pytest.fail(message, pytrace=False)
+
+    pytest.skip(message)
 
 
 def _resolve_rvc4_device_ip_from_testbed(testbed_name: str) -> str:
     try:
         from hil_framework.lib_testbed.config.Config import Config
         from hil_framework.lib_testbed.utils.Testbed import Testbed
-    except ImportError as exc:
+    except ImportError:
         pytest.exit(
             "hil_framework is required when --testbed-name or HIL_TESTBED is used.",
             returncode=1,
         )
-        raise exc
 
     testbed = Testbed(Config(testbed_name))
     target_matches = [
@@ -119,7 +130,7 @@ def _resolve_rvc4_device_ip_from_testbed(testbed_name: str) -> str:
         )
 
     pytest.exit(
-        "Unable to select a unique RVC4 camera from testbed "
+        "Unable to choose a unique RVC4 camera from testbed "
         f"{testbed_name!r}. Available cameras: {available_cameras}",
         returncode=1,
     )
