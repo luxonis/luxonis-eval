@@ -5,14 +5,10 @@ on:
     branches:
       - main
       - "develop*"
-      - "develop/*"
-      - "develop/**"
   pull_request:
     branches:
       - main
       - "develop*"
-      - "develop/*"
-      - "develop/**"
     types: [opened, synchronize, reopened]
 
 jobs:
@@ -21,6 +17,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
 
     steps:
       - name: Checkout
