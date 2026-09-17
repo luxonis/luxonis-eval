@@ -81,7 +81,7 @@ jobs:
           mkdir -p "$(dirname "$CREDENTIALS_PATH")"
           printf '%s' "$GCP_CREDENTIALS_JSON" > "$CREDENTIALS_PATH"
 
-          DEPTHAI_VERSION_VALUE="${DEPTHAI_VERSION_INPUT:-3.8.0}"
+          DEPTHAI_VERSION_VALUE="${DEPTHAI_VERSION_INPUT:-3.10.0}"
           if [[ ! "$DEPTHAI_VERSION_VALUE" =~ ^3\.(8|9|[1-9][0-9])\.[0-9]{1,2}$ ]]; then
             echo "DEPTHAI_VERSION must be within >=3.8.0,<4.0.0; got: $DEPTHAI_VERSION_VALUE" >&2
             exit 1
