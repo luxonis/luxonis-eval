@@ -392,8 +392,9 @@ def _convert_semantic_segmentation(
     else:
         prediction_channels = np.stack(
             [
-                prediction_mask
-                == _prediction_class_id(target_class_id, context)
+                _prediction_class_channel(
+                    prediction_mask, target_class_id, context
+                )
                 for target_class_id in range(target_channels.shape[0])
             ],
             axis=0,
@@ -442,7 +443,7 @@ def _semantic_target_channels(
 def _prediction_class_id(
     target_class_id: int,
     context: EvalContext,
-) -> int:
+) -> int | None:
     mapping = context.class_index_map
     if mapping is None or target_class_id in mapping:
         return (
@@ -456,7 +457,18 @@ def _prediction_class_id(
         for prediction_class_id, prediction_names in context.class_map.items():
             if target_name in prediction_names.split(", "):
                 return prediction_class_id
-    return target_class_id
+    return None
+
+
+def _prediction_class_channel(
+    prediction_mask: np.ndarray,
+    target_class_id: int,
+    context: EvalContext,
+) -> np.ndarray:
+    prediction_class_id = _prediction_class_id(target_class_id, context)
+    if prediction_class_id is None:
+        return np.zeros_like(prediction_mask, dtype=bool)
+    return prediction_mask == prediction_class_id
 
 
 def _validate_mask_spatial_shape(
