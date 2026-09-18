@@ -42,8 +42,8 @@ def prepare_visualization_frame(
 
     ``mean`` and ``std`` undo host-side normalization. DepthAI frames do not
     need these values because NNArchive preprocessing happens on-device.
-    ``color_space`` describes the frame produced by the loader; BGR frames are
-    converted to RGB after denormalization.
+    ``color_space`` describes the frame produced by the loader. BGR frames are
+    converted back to RGB before applying the RGB normalization statistics.
     """
     image = np.asarray(frame)
     if image.ndim == 2:
@@ -55,6 +55,9 @@ def prepare_visualization_frame(
         )
 
     image = image[:, :, :3]
+    if color_space == "BGR" and image.shape[2] == 3:
+        image = image[:, :, ::-1]
+
     if np.issubdtype(image.dtype, np.floating):
         image = image.astype(np.float32, copy=True)
         if mean is not None or std is not None:
@@ -71,9 +74,6 @@ def prepare_visualization_frame(
             float(image.min()) >= 0.0 and float(image.max()) <= 1.0
         ):
             image *= 255.0
-
-    if color_space == "BGR" and image.shape[2] == 3:
-        image = image[:, :, ::-1]
 
     return np.ascontiguousarray(np.clip(image, 0, 255).astype(np.uint8))
 
