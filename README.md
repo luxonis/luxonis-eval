@@ -10,15 +10,15 @@
 
 Typical use cases include:
 
-- **Validating model exports** by comparing an ONNX model against metrics from
+- **Validating PyTorch checkpoint to ONNX exports** by comparing an ONNX model against metrics from
   its original training checkpoint.
 - **Measuring conversion impact** by comparing host-side ONNX results with the
   same model compiled for RVC2 or RVC4.
-- **Evaluating quantization tradeoffs** across model variants such as FP16 and
+- **Evaluating quantization tradeoffs** across different modes such as FP16 and
   INT8.
 - **Detecting regressions** in model quality, preprocessing, output parsing, or
   NNArchive metadata as models and config parameters evolve.
-- **Reviewing prediction quality visually** by saving annotated evaluation
+- **Reviewing predictions qualitatively** by saving annotated evaluation
   samples.
 
 The framework follows a registry-based architecture: each pluggable component (engines, dataloaders, parsers, metrics, and visualizers) registers itself automatically. This lets you swap, extend, or add parts of the evaluation pipeline without modifying the core evaluation loop. In practice, adding a new component usually means subclassing the appropriate base class and referencing it by name in the configuration.
@@ -260,7 +260,7 @@ The main constraint is compatibility: the parser must produce predictions in the
 `ThroughputMetric` measures end-to-end pipeline timing rather than isolated model inference. The reported rows mean:
 
 > [!WARNING]
-> Throughput values cover the complete evaluation pipeline and do not represent isolated model inference performance.
+> Throughput values cover the complete evaluation pipeline and do not represent isolated model inference performance. For model inference benchmarking, refer to [modelconverter benchmark](https://github.com/luxonis/modelconverter)
 
 - **Throughput** - Samples processed per second across the full evaluation pipeline
 - **End-to-end Latency** - Average wall-clock time per sample for the whole run
