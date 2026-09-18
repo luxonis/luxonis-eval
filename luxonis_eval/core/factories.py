@@ -1,6 +1,7 @@
 import os
 import sys
 
+import cv2
 from loguru import logger
 from luxonis_ml.data import LuxonisDataset
 from luxonis_ml.data.loaders import LuxonisLoader
@@ -141,25 +142,38 @@ def create_visualizers(
     uses_display = any(
         visualizer_cfg.display for visualizer_cfg in active_visualizers
     )
-    has_graphical_display = (
+    has_graphical_session = (
         sys.platform in {"win32", "darwin"}
         or bool(os.environ.get("DISPLAY"))
         or bool(os.environ.get("WAYLAND_DISPLAY"))
     )
-    if uses_display and not has_graphical_display:
+    has_highgui = _opencv_has_highgui()
+    display_available = has_graphical_session and has_highgui
+    if uses_display and not display_available:
+        reason = (
+            "no graphical session was detected"
+            if not has_graphical_session
+            else "OpenCV was built without HighGUI support"
+        )
         logger.warning(
-            "No graphical display was detected. Visualizers configured with "
-            "display=true may not open a window. Use save=true in "
-            "headless environments."
+            f"Visualization display is unavailable because {reason}. "
+            "Display will be disabled."
         )
 
     visualizers: list[BaseVisualizer] = []
     for visualizer_cfg in active_visualizers:
+        display = visualizer_cfg.display and display_available
+        if visualizer_cfg.display and not display and not visualizer_cfg.save:
+            raise ValueError(
+                f"{visualizer_cfg.name} is configured for display-only output, "
+                "but graphical display is unavailable. Enable 'save' or run "
+                "in an environment with graphical display support."
+            )
         try:
             visualizer = from_registry(
                 VISUALIZERS_REGISTRY,
                 visualizer_cfg.name,
-                display=visualizer_cfg.display,
+                display=display,
                 save=visualizer_cfg.save,
                 save_dir=visualizer_cfg.save_dir,
                 **visualizer_cfg.params,
@@ -179,6 +193,15 @@ def create_visualizers(
         visualizers.append(visualizer)
 
     return visualizers
+
+
+def _opencv_has_highgui() -> bool:
+    """Return whether the installed OpenCV build exposes a GUI backend."""
+    for line in cv2.getBuildInformation().splitlines():
+        key, separator, value = line.strip().partition(":")
+        if separator and key == "GUI":
+            return value.strip().upper() not in {"", "NO", "NONE"}
+    return True
 
 
 def _create_luxonis_loader(

@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-python3 -m venv venv
+python3 -m venv --clear venv
 source venv/bin/activate
 
 python -m pip install --upgrade pip
@@ -16,7 +16,7 @@ if [[ -n "${DEPTHAI_VERSION:-}" ]]; then
   python -m pip install "depthai==${DEPTHAI_VERSION}"
 fi
 
-pytest_args=(tests/test_rvc4_nnarchive_regression.py -q)
+pytest_args=(tests/test_rvc4_nnarchive_regression.py -q --require-device)
 
 if [[ -n "${HIL_TESTBED:-}" ]]; then
   if [[ -n "${HIL_FRAMEWORK_TOKEN:-}" ]]; then
@@ -29,5 +29,6 @@ if [[ -n "${HIL_TESTBED:-}" ]]; then
 fi
 
 export LUXONIS_TELEMETRY_ENABLED="${LUXONIS_TELEMETRY_ENABLED:-false}"
+export PYTEST_DISABLE_PLUGIN_AUTOLOAD="${PYTEST_DISABLE_PLUGIN_AUTOLOAD:-1}"
 
 pytest "${pytest_args[@]}" "$@"

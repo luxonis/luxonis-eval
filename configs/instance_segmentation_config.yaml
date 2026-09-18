@@ -43,7 +43,7 @@ pipeline:
           save_dir: visualizations
         - name: BBoxVisualizer
           active: true
-          display: true
-          save: false
+          display: false
+          save: true
           save_dir: visualizations
 
