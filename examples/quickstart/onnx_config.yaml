@@ -1,23 +1,29 @@
+runtime:
+  nn_archive_params_override: true # Prefer preprocessing and parser parameters from the NNArchive.
+
 pipeline:
   loader:
     name: LuxonisLoader
+    preprocessing: # Sets preprocessing that is not represented by NNArchive metadata.
+      # Letterbox images instead of stretching them to the model input size.
+      # keep_aspect_ratio is not set by the NNArchive metadata and needs to be manually configured
+      keep_aspect_ratio: true
     params:
       dataset_name: quickstartcoco
       view: [val]
 
   engine:
-    name: onnx
+    name: onnx # Runs inference with ONNX Runtime on the host.
     model_path: examples/quickstart/yolov6.onnx.tar
 
   evaluators:
     - task_name: ""
-      # The YOLOv6 parser and its parameters are read from the NNArchive.
       metrics:
-        - name: BboxMeanAveragePrecision
+        - name: BboxMeanAveragePrecision # Computes COCO-style bounding-box mean average precision.
           params:
             iou_type: bbox
       visualizers:
         - name: BBoxVisualizer
           display: false
-          save: true
+          save: true # Writes rendered images to disk.
           save_dir: visualizations/quickstart/onnx

@@ -1,26 +1,32 @@
+runtime:
+  nn_archive_params_override: true # Prefer preprocessing and parser parameters from the NNArchive.
+
 pipeline:
   loader:
     name: LuxonisLoader
+    preprocessing: # Sets preprocessing that is not represented by NNArchive metadata.
+      # Letterbox images instead of stretching them to the model input size.
+      # keep_aspect_ratio is not set by the NNArchive metadata and needs to be manually configured
+      keep_aspect_ratio: true
     params:
       dataset_name: quickstartcoco
       view: [val]
 
   engine:
-    name: depthai
+    name: depthai # Runs inference on a connected Luxonis device.
     model_path: examples/quickstart/yolov6.rvc4.tar
     # To select a device, uncomment and set its address:
-#    params:
-#      device_ip: 192.168.1.165
+    params:
+      device_ip: 10.12.143.167
 
   evaluators:
     - task_name: ""
-      # The YOLOv6 parser and its parameters are read from the NNArchive.
       metrics:
-        - name: BboxMeanAveragePrecision
+        - name: BboxMeanAveragePrecision # Computes COCO-style bounding-box mean average precision.
           params:
             iou_type: bbox
       visualizers:
         - name: BBoxVisualizer
           display: false
-          save: true
+          save: true # Writes rendered images to disk.
           save_dir: visualizations/quickstart/rvc4

@@ -445,47 +445,34 @@ pipeline:
 
 ```yaml
 runtime:
-  nn_archive_params_override: false
+  nn_archive_params_override: true # Prefer preprocessing and parser parameters from the NNArchive.
 
 pipeline:
   loader:
     name: LuxonisLoader
-    preprocessing:
+    preprocessing: # Sets preprocessing that is not represented by NNArchive metadata.
+      # Letterbox images instead of stretching them to the model input size.
+      # keep_aspect_ratio is not set by the NNArchive metadata and needs to be manually configured
       keep_aspect_ratio: true
-      color_space: RGB
-      normalize:
-        active: true
-        params:
-          mean: [0.0, 0.0, 0.0]
-          std: [1.0, 1.0, 1.0]
     params:
-      dataset_name: coco-2017
+      dataset_name: quickstartcoco
       view: [val]
 
   engine:
-    name: onnx
-    model_path: examples/quickstart_inst_seg/models/yolov8n-seg.onnx
-    params:
-      providers: [CPUExecutionProvider]
+    name: onnx # Runs inference with ONNX Runtime on the host.
+    model_path: examples/quickstart/yolov6.onnx.tar
 
   evaluators:
-    - task_name: instance_segmentation
-      parser:
-        name: YOLOExtendedParser
-        params:
-          subtype: yolov8
-          n_classes: 80
-          conf_threshold: 0.25
-          iou_threshold: 0.7
-          mask_conf: 0.25
+    - task_name: ""
       metrics:
-        - name: BboxMeanAveragePrecision
+        - name: BboxMeanAveragePrecision # Computes COCO-style bounding-box mean average precision.
           params:
             iou_type: bbox
-        - name: MaskMeanAveragePrecision
-          params:
-            iou_type: segm
-      visualizers: []
+      visualizers:
+        - name: BBoxVisualizer
+          display: false
+          save: true # Writes rendered images to disk.
+          save_dir: visualizations/quickstart/onnx
 ```
 
 ### Metrics

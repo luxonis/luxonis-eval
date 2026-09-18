@@ -25,6 +25,9 @@ pip install .
 pip install fiftyone
 ```
 
+The setup script also requires `wget` to be available on `PATH`. On Ubuntu,
+install it with `sudo apt install wget` if it is not already available.
+
 Installing this repository also installs `luxonis-ml`, whose CLI is used to
 parse COCO into LDF (Luxonis-internal dataset representation format).
 
@@ -53,8 +56,7 @@ luxonis_ml data parse --delete .cache/quickstart/fiftyone/coco-2017 \
     --train 800 --val 100 --test 100
 ```
 
-The integer split sizes tell `luxonis-ml` to preserve the original COCO split
-boundaries. The `--delete` flag removes an existing local LDF dataset named
+The `--delete` flag removes an existing local LDF dataset named
 `quickstartcoco` before recreating it.
 
 To store the FiftyOne download elsewhere, set `QUICKSTART_DATA_DIR` to a clean
@@ -75,8 +77,8 @@ luxonis_eval eval --config examples/quickstart/onnx_config.yaml
 
 No Luxonis device is required. The command uses ONNX Runtime's CPU execution
 provider and reports bounding-box mean average precision on the 100 validation
-images. Rendered predictions are saved under
-`visualizations/quickstart/onnx/`; no window is displayed.
+images. Running the script will also save rendered predictions under
+`visualizations/quickstart/onnx/`.
 
 ## 4. Optional: evaluate on a device
 
@@ -89,13 +91,9 @@ luxonis_eval eval --config examples/quickstart/rvc4_config.yaml
 
 DepthAI discovers a connected device automatically. To select a network
 device, uncomment `pipeline.engine.params` in `rvc4_config.yaml` and set its
-IP address before running the same command:
+IP address before running the command.
 
-```bash
-luxonis_eval eval --config examples/quickstart/rvc4_config.yaml
-```
 
 Both archives describe the same YOLOv6 model, so the same dataset, parser, and
 metric configuration is used for host and device evaluation. Rendered RVC4
-predictions are saved under `visualizations/quickstart/rvc4/` without opening
-a display window.
+predictions are saved under `visualizations/quickstart/rvc4/`.
