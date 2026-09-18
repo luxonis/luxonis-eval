@@ -1,7 +1,6 @@
 import os
-import sys
 from collections.abc import Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 from typing import Any
 
 from pycocotools.coco import COCO
@@ -11,16 +10,8 @@ from pycocotools.cocoeval import COCOeval
 @contextmanager
 def suppress_stdout() -> Iterator[None]:
     """Suppress stdout within a context."""
-    fd = sys.stdout.fileno()
-    saved_fd = os.dup(fd)
-
-    try:
-        with open(os.devnull, "w") as devnull:
-            os.dup2(devnull.fileno(), fd)
+    with open(os.devnull, "w") as devnull, redirect_stdout(devnull):
         yield
-    finally:
-        os.dup2(saved_fd, fd)
-        os.close(saved_fd)
 
 
 class COCOStore:

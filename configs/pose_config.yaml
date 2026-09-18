@@ -68,4 +68,11 @@ pipeline:
         - name: KeypointMeanAveragePrecision
           params:
             compute_area_from_keypoints: true
-      visualizers: []
+      visualizers:
+        - name: KeypointVisualizer
+          active: true
+          display: false
+          save: true
+          save_dir: visualizations
+          params:
+            visibility_threshold: 0.5

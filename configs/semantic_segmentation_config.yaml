@@ -37,4 +37,11 @@ pipeline:
             include_background: false
             average: micro
             input_format: index
-      visualizers: []
+      visualizers:
+        - name: SegmentationVisualizer
+          active: true
+          display: false
+          save: true
+          save_dir: visualizations
+          params:
+            alpha: 0.6
