@@ -42,8 +42,8 @@ def prepare_visualization_frame(
 
     ``mean`` and ``std`` undo host-side normalization. DepthAI frames do not
     need these values because NNArchive preprocessing happens on-device.
-    ``color_space`` describes the frame produced by the loader; BGR frames are
-    converted to RGB after denormalization.
+    ``color_space`` describes the frame produced by the loader. BGR frames are
+    converted back to RGB before applying the RGB normalization statistics.
     """
     image = np.asarray(frame)
     if image.ndim == 2:
@@ -55,6 +55,9 @@ def prepare_visualization_frame(
         )
 
     image = image[:, :, :3]
+    if color_space == "BGR" and image.shape[2] == 3:
+        image = image[:, :, ::-1]
+
     if np.issubdtype(image.dtype, np.floating):
         image = image.astype(np.float32, copy=True)
         if mean is not None or std is not None:
@@ -71,9 +74,6 @@ def prepare_visualization_frame(
             float(image.min()) >= 0.0 and float(image.max()) <= 1.0
         ):
             image *= 255.0
-
-    if color_space == "BGR" and image.shape[2] == 3:
-        image = image[:, :, ::-1]
 
     return np.ascontiguousarray(np.clip(image, 0, 255).astype(np.uint8))
 
@@ -392,8 +392,9 @@ def _convert_semantic_segmentation(
     else:
         prediction_channels = np.stack(
             [
-                prediction_mask
-                == _prediction_class_id(target_class_id, context)
+                _prediction_class_channel(
+                    prediction_mask, target_class_id, context
+                )
                 for target_class_id in range(target_channels.shape[0])
             ],
             axis=0,
@@ -442,7 +443,7 @@ def _semantic_target_channels(
 def _prediction_class_id(
     target_class_id: int,
     context: EvalContext,
-) -> int:
+) -> int | None:
     mapping = context.class_index_map
     if mapping is None or target_class_id in mapping:
         return (
@@ -456,7 +457,18 @@ def _prediction_class_id(
         for prediction_class_id, prediction_names in context.class_map.items():
             if target_name in prediction_names.split(", "):
                 return prediction_class_id
-    return target_class_id
+    return None
+
+
+def _prediction_class_channel(
+    prediction_mask: np.ndarray,
+    target_class_id: int,
+    context: EvalContext,
+) -> np.ndarray:
+    prediction_class_id = _prediction_class_id(target_class_id, context)
+    if prediction_class_id is None:
+        return np.zeros_like(prediction_mask, dtype=bool)
+    return prediction_mask == prediction_class_id
 
 
 def _validate_mask_spatial_shape(

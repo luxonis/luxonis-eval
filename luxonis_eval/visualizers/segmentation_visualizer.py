@@ -180,7 +180,7 @@ class SegmentationVisualizer(BaseVisualizer):
 
         if (
             self.background_class is not None
-            and n_classes > 0
+            and n_classes > 1
             and 0 <= self.background_class < n_classes
         ):
             colors[self.background_class] = self.background_color

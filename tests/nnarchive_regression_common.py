@@ -21,9 +21,7 @@ CASES = [
         name="instance_segmentation_multiclass_squares_ldf_native_empty_task"
     ),
     RegressionCase(name="keypoint_squares_ldf_native_empty_task"),
-    RegressionCase(
-        name="semantic_segmentation_squares_ldf_native_empty_task"
-    ),
+    RegressionCase(name="semantic_segmentation_squares_ldf_native_empty_task"),
 ]
 
 

@@ -61,7 +61,7 @@ class VisualizerConfig(ConfigItem):
 
     @model_validator(mode="after")
     def validate_output(self) -> "VisualizerConfig":
-        if not self.display and not self.save:
+        if self.active and not self.display and not self.save:
             raise ValueError(
                 "At least one of 'display' or 'save' must be enabled."
             )

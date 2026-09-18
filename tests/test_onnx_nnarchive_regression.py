@@ -29,7 +29,7 @@ except ModuleNotFoundError:
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case.name)
 def test_onnx_nnarchive_regression(
     case: RegressionCase,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     nnarchive_testdata_root: Path,
     tmp_path: Path,
 ) -> None:
