@@ -406,7 +406,10 @@ as `bbox_00000.png`. The sequence resets for every `evaluate()` call,
 so another evaluation using the same directory replaces files with matching
 names.
 
-The built-in visualizers accept the following `params`:
+The built-in visualizers accept the following `params`, which match the
+corresponding LuxonisTrain visualizers. See the
+[LuxonisTrain visualizer reference](https://github.com/luxonis/luxonis-train/blob/main/luxonis_train/attached_modules/visualizers/README.md)
+for detailed parameter descriptions and rendering examples.
 
 | Visualizer | Required target keys | Prediction type | Main parameters |
 | --- | --- | --- | --- |
