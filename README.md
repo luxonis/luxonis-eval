@@ -400,20 +400,21 @@ visualizers:
       alpha: 0.6
 ```
 
-At least one of `display` or `save` must be `true`. When saving is enabled,
-existing files with the same generated filename are overwritten.
+At least one of `display` or `save` must be `true`.
 The configuration defaults are `active: true`, `display: false`, `save: true`,
 and `save_dir: visualizations`. In display mode, each image waits for a key
 press; pressing `q` or Escape closes the window and disables display for the
-rest of that evaluation. Saving continues if it is also enabled.
+rest of that evaluation.
 
 Saved files use a task-specific prefix and a five-digit sequence number, such
 as `bbox_00000.png`. The sequence resets for every `evaluate()` call,
 so another evaluation using the same directory replaces files with matching
-names. Before drawing, the framework prepares an RGB visualization frame and
-reverses host-side normalization when applicable.
+names.
 
-The built-in visualizers accept the following `params`:
+The built-in visualizers accept the following `params`, which match the
+corresponding LuxonisTrain visualizers. See the
+[LuxonisTrain visualizer reference](https://github.com/luxonis/luxonis-train/blob/main/luxonis_train/attached_modules/visualizers/README.md)
+for detailed parameter descriptions and rendering examples.
 
 | Visualizer | Required target keys | Prediction type | Main parameters |
 | --- | --- | --- | --- |
