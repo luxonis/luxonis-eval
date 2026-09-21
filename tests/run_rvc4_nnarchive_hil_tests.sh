@@ -9,8 +9,7 @@ python3 -m venv --clear venv
 source venv/bin/activate
 
 python -m pip install --upgrade pip
-python -m pip install gcsfs
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev]" "gcsfs==2024.6.1"
 
 if [[ -n "${DEPTHAI_VERSION:-}" ]]; then
   python -m pip install "depthai==${DEPTHAI_VERSION}"
@@ -24,12 +23,13 @@ pytest_args=(
 )
 
 if [[ -n "${HIL_TESTBED:-}" ]]; then
-  if [[ -n "${HIL_FRAMEWORK_TOKEN:-}" ]]; then
-    python -m pip install --upgrade \
-      --index-url "https://__token__:${HIL_FRAMEWORK_TOKEN}@gitlab.luxonis.com/api/v4/projects/213/packages/pypi/simple" \
-      hil-framework
+  hil_wheels=("$ROOT_DIR"/.ci/hil_framework-*.whl)
+  if [[ ${#hil_wheels[@]} -ne 1 || ! -f "${hil_wheels[0]}" ]]; then
+    echo "Expected exactly one synced hil-framework wheel in $ROOT_DIR/.ci." >&2
+    exit 1
   fi
 
+  python -m pip install --upgrade "${hil_wheels[0]}"
   pytest_args+=(--testbed-name "$HIL_TESTBED")
 fi
 

@@ -60,6 +60,12 @@ jobs:
           python -m pip install --upgrade --no-cache-dir \
             --index-url "https://__token__:${HIL_FRAMEWORK_TOKEN}@gitlab.luxonis.com/api/v4/projects/213/packages/pypi/simple" \
             hil-framework
+          mkdir -p .ci
+          rm -f .ci/hil_framework-*.whl
+          python -m pip download --no-deps --no-cache-dir \
+            --dest .ci \
+            --index-url "https://__token__:${HIL_FRAMEWORK_TOKEN}@gitlab.luxonis.com/api/v4/projects/213/packages/pypi/simple" \
+            hil-framework
 
       - name: Run RVC4 NNArchive regression tests
         shell: bash
@@ -77,6 +83,7 @@ jobs:
           CREDENTIALS_PATH="$GITHUB_WORKSPACE/.ci/gcp-credentials.json"
           cleanup_local_credentials() {
             rm -f "$CREDENTIALS_PATH"
+            rm -f "$GITHUB_WORKSPACE"/.ci/hil_framework-*.whl
           }
           trap cleanup_local_credentials EXIT
 
@@ -111,15 +118,13 @@ jobs:
             ADDITIONAL_OPTIONS_VALUE="$ADDITIONAL_OPTIONS_INPUT"
           fi
 
-          REMOTE_HIL_FRAMEWORK_TOKEN="$(printf '%q' "$HIL_FRAMEWORK_TOKEN")"
           REMOTE_DEPTHAI_VERSION="$(printf '%q' "$DEPTHAI_VERSION_VALUE")"
           REMOTE_CMD="set -e; \
-            trap 'rm -f /tmp/luxonis-eval/.ci/gcp-credentials.json' EXIT; \
+            trap 'rm -f /tmp/luxonis-eval/.ci/gcp-credentials.json /tmp/luxonis-eval/.ci/hil_framework-*.whl' EXIT; \
             cd /tmp/luxonis-eval && \
             chmod 600 /tmp/luxonis-eval/.ci/gcp-credentials.json && \
             export GOOGLE_APPLICATION_CREDENTIALS=/tmp/luxonis-eval/.ci/gcp-credentials.json && \
             export LUXONIS_TELEMETRY_ENABLED=false && \
-            export HIL_FRAMEWORK_TOKEN=$REMOTE_HIL_FRAMEWORK_TOKEN && \
             export DEPTHAI_VERSION=$REMOTE_DEPTHAI_VERSION && \
             bash ./tests/run_rvc4_nnarchive_hil_tests.sh"
 
