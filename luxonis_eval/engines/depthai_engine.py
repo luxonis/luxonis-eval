@@ -13,6 +13,7 @@ from luxonis_eval.engines.io import EngineOutput, TensorLayout, TensorSpec
 if TYPE_CHECKING:
     from luxonis_ml.nn_archive.config import Config as NNArchiveConfig
 
+
 @dataclass(frozen=True, slots=True)
 class DepthAIEngineOutput(EngineOutput):
     raw_output: dai.NNData
@@ -70,6 +71,7 @@ class DepthAIEngineOutput(EngineOutput):
                 f"Requested outputs are missing from engine result: {missing}"
             )
         return DepthAIEngineOutput(self.raw_output, requested_names)
+
 
 class DepthAIEngine(BaseEngine, register_name="depthai"):
     """DepthAI inference engine."""

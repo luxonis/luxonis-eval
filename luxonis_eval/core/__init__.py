@@ -11,7 +11,7 @@ __all__ = [
     "EvaluationResult",
     "LuxonisEval",
     "MetricResult",
-    "MetricsResult",
     "MetricValues",
+    "MetricsResult",
     "ThroughputResult",
 ]

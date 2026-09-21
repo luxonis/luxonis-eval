@@ -13,7 +13,7 @@ def to_jsonable(value: Any) -> Any:
         return to_jsonable(asdict(value))
     if isinstance(value, dict):
         return {str(key): to_jsonable(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         return [to_jsonable(item) for item in value]
     if isinstance(value, np.ndarray):
         return value.tolist()

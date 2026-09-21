@@ -428,12 +428,12 @@ corresponding LuxonisTrain visualizers. See the
 [LuxonisTrain visualizer reference](https://github.com/luxonis/luxonis-train/blob/main/luxonis_train/attached_modules/visualizers/README.md)
 for detailed parameter descriptions and rendering examples.
 
-| Visualizer | Required target keys | Prediction type | Main parameters |
-| --- | --- | --- | --- |
-| `BBoxVisualizer` | `[/boundingbox]` | `dai.ImgDetections` | `labels`, `draw_labels`, `draw_scores`, `colors`, `fill`, `width`, `font`, `font_size`, `scale` |
-| `InstanceSegmentationVisualizer` | `[/boundingbox, /instance_segmentation]` | `dai.ImgDetections` with instance-mask metadata | Bounding-box parameters plus `alpha` and `scale` |
-| `KeypointVisualizer` | `[/boundingbox, /keypoints]` | `dai.ImgDetections` with keypoints | Bounding-box parameters plus `visibility_threshold`, `connectivity`, `visible_color`, `nonvisible_color`, `radius`, `draw_indices` |
-| `SegmentationVisualizer` | `[/segmentation]` | `dai.SegmentationMask` | `colors`, `background_class`, `background_color`, `alpha`, `scale` |
+| Visualizer                       | Required target keys                     | Prediction type                                 | Main parameters                                                                                                                    |
+| -------------------------------- | ---------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `BBoxVisualizer`                 | `[/boundingbox]`                         | `dai.ImgDetections`                             | `labels`, `draw_labels`, `draw_scores`, `colors`, `fill`, `width`, `font`, `font_size`, `scale`                                    |
+| `InstanceSegmentationVisualizer` | `[/boundingbox, /instance_segmentation]` | `dai.ImgDetections` with instance-mask metadata | Bounding-box parameters plus `alpha` and `scale`                                                                                   |
+| `KeypointVisualizer`             | `[/boundingbox, /keypoints]`             | `dai.ImgDetections` with keypoints              | Bounding-box parameters plus `visibility_threshold`, `connectivity`, `visible_color`, `nonvisible_color`, `radius`, `draw_indices` |
+| `SegmentationVisualizer`         | `[/segmentation]`                        | `dai.SegmentationMask`                          | `colors`, `background_class`, `background_color`, `alpha`, `scale`                                                                 |
 
 All four renderers validate their prediction types and required target data
 during the setup sanity check. Parameter details and defaults are defined by

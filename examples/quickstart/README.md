@@ -6,11 +6,11 @@ locally. Optionally, evaluation can be run on a Luxonis device if you have one.
 
 The downloaded images are split as follows:
 
-| COCO split | LDF split | Images | Used for evaluation |
-| --- | --- | ---: | --- |
-| `train` | `train` | 800 | No |
-| `validation` | `val` | 100 | Yes |
-| `test` | `test` | 100 | No |
+| COCO split   | LDF split | Images | Used for evaluation |
+| ------------ | --------- | -----: | ------------------- |
+| `train`      | `train`   |    800 | No                  |
+| `validation` | `val`     |    100 | Yes                 |
+| `test`       | `test`    |    100 | No                  |
 
 COCO 2017 does not publish annotations for its test split, so this example
 evaluates the model on `val`.
@@ -92,7 +92,6 @@ luxonis_eval eval --config examples/quickstart/rvc4_config.yaml
 DepthAI discovers a connected device automatically. To select a network
 device, uncomment `pipeline.engine.params` in `rvc4_config.yaml` and set its
 IP address before running the command.
-
 
 Both archives describe the same YOLOv6 model, so the same dataset, parser, and
 metric configuration is used for host and device evaluation. Rendered RVC4

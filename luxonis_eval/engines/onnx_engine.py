@@ -63,6 +63,7 @@ def _transpose_tensor_to_layout(
     axes = tuple(source_layout.index(dim) for dim in target_layout)
     return np.transpose(tensor, axes).copy()
 
+
 @dataclass(frozen=True, slots=True)
 class ONNXEngineOutput(EngineOutput):
     tensors: dict[str, np.ndarray]
@@ -131,6 +132,7 @@ class ONNXEngineOutput(EngineOutput):
             ),
             source_name=self.source_name,
         )
+
 
 class OnnxEngine(BaseEngine, register_name="onnx"):
     """ONNX Runtime inference engine."""
@@ -208,9 +210,9 @@ class OnnxEngine(BaseEngine, register_name="onnx"):
             if self.nn_archive_cfg is not None
             else None
         )
-        input_layout = _normalize_layout(
-            getattr(archive_input, "layout", None)
-        ) or "NCHW"
+        input_layout = (
+            _normalize_layout(getattr(archive_input, "layout", None)) or "NCHW"
+        )
         output_specs = tuple(
             self._build_output_spec(idx, output_meta)
             for idx, output_meta in enumerate(self._session.get_outputs())

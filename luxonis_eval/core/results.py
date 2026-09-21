@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-
 MetricValues = dict[str, float]
 MetricResult = tuple[str, MetricValues]
 MetricsResult = list[MetricResult]

@@ -97,7 +97,8 @@ class BaseVisualizer(
         target: dict[str, np.ndarray],
         vis_frame: np.ndarray,
     ) -> None:
-        """Convert one evaluation result and render its visualization."""
+        """Convert one evaluation result and render its
+        visualization."""
         self.visualize(self.convert(predictions, target), vis_frame)
 
     @property
@@ -120,7 +121,8 @@ class BaseVisualizer(
         self._window_title = None
 
     def scale_canvas(self, canvas: Tensor) -> Tensor:
-        """Resize a BCHW visualization canvas using the configured scale."""
+        """Resize a BCHW visualization canvas using the configured
+        scale."""
         if self.scale == 1.0:
             return canvas
         height = max(1, round(canvas.shape[-2] * self.scale))

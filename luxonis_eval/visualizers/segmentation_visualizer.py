@@ -19,7 +19,8 @@ from .utils import (
 
 
 class SegmentationVisualizer(BaseVisualizer):
-    """Render semantic-segmentation targets and predictions side by side."""
+    """Render semantic-segmentation targets and predictions side by
+    side."""
 
     def __init__(
         self,
@@ -65,7 +66,8 @@ class SegmentationVisualizer(BaseVisualizer):
         predictions: dai.SegmentationMask,
         target: dict[str, np.ndarray],
     ) -> VisualizationData:
-        """Convert an indexed DepthAI mask and dataset mask to BCHW tensors."""
+        """Convert an indexed DepthAI mask and dataset mask to BCHW
+        tensors."""
         if not isinstance(predictions, dai.SegmentationMask):
             raise TypeError(
                 "SegmentationVisualizer expects predictions of type "
@@ -123,7 +125,8 @@ class SegmentationVisualizer(BaseVisualizer):
         predictions: Tensor,
         targets: Tensor,
     ) -> tuple[Tensor, Tensor]:
-        """Draw prepared semantic-segmentation targets and predictions."""
+        """Draw prepared semantic-segmentation targets and
+        predictions."""
         if predictions.shape != targets.shape:
             raise ValueError(
                 "Prediction and target segmentation tensors must have the "

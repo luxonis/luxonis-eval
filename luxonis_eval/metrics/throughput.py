@@ -38,9 +38,7 @@ class ThroughputMetric:
         self._stage_elapsed["parsing"] += parsing
         self._stage_elapsed["metric_update"] += metric_update
 
-    def compute(
-        self, *, metric_compute: float = 0.0
-    ) -> ThroughputResult:
+    def compute(self, *, metric_compute: float = 0.0) -> ThroughputResult:
         """Compute final throughput metrics.
 
         Parameters
@@ -75,14 +73,12 @@ class ThroughputMetric:
                 else 0.0
             ),
             inference_ms_per_sample=float(
-                (self._stage_elapsed["inference"] / self._num_updates)
-                * 1000.0
+                (self._stage_elapsed["inference"] / self._num_updates) * 1000.0
                 if self._num_updates
                 else 0.0
             ),
             parsing_ms_per_sample=float(
-                (self._stage_elapsed["parsing"] / self._num_updates)
-                * 1000.0
+                (self._stage_elapsed["parsing"] / self._num_updates) * 1000.0
                 if self._num_updates
                 else 0.0
             ),

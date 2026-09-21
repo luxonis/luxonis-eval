@@ -31,7 +31,9 @@ class KeypointVisualizer(BBoxVisualizer):
         **kwargs: Any,
     ) -> None:
         if not 0 <= visibility_threshold <= 1:
-            raise ValueError("visibility_threshold must be between zero and one.")
+            raise ValueError(
+                "visibility_threshold must be between zero and one."
+            )
         if radius is not None and radius <= 0:
             raise ValueError("radius must be greater than zero.")
 
@@ -57,7 +59,8 @@ class KeypointVisualizer(BBoxVisualizer):
         predictions: dai.ImgDetections,
         target: dict[str, np.ndarray],
     ) -> VisualizationData:
-        """Convert DepthAI detections and normalized targets to tensors."""
+        """Convert DepthAI detections and normalized targets to
+        tensors."""
         if not isinstance(predictions, dai.ImgDetections):
             raise TypeError(
                 "KeypointVisualizer expects predictions of type "
@@ -128,9 +131,7 @@ class KeypointVisualizer(BBoxVisualizer):
             target_boundingbox,
         )
 
-        prediction_radius = self.radius or self._get_radius(
-            prediction_canvas
-        )
+        prediction_radius = self.radius or self._get_radius(prediction_canvas)
         target_radius = self.radius or self._get_radius(target_canvas)
         prediction_visualization = self.draw_keypoint_predictions(
             prediction_visualization,
@@ -248,9 +249,7 @@ class KeypointVisualizer(BBoxVisualizer):
         offset: tuple[int, int] = (7, 7),
     ) -> Tensor:
         """Draw visible keypoint indices with cycled text offsets."""
-        image = Image.fromarray(
-            canvas.permute(1, 2, 0).detach().cpu().numpy()
-        )
+        image = Image.fromarray(canvas.permute(1, 2, 0).detach().cpu().numpy())
         draw = ImageDraw.Draw(image)
         offset_y, offset_x = offset
         offset_modes = (

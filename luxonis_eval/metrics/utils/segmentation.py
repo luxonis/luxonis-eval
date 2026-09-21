@@ -27,7 +27,8 @@ class PreparedSegmentationData:
 def extract_segmentation_mask(
     predictions: dai.SegmentationMask,
 ) -> np.ndarray:
-    """Extract a semantic-segmentation mask from a prediction payload."""
+    """Extract a semantic-segmentation mask from a prediction
+    payload."""
     mask = predictions.getCvMask()
 
     if mask is None:
@@ -44,7 +45,8 @@ def prepare_segmentation_metric_inputs(
     target_bg: int | None = None,
     class_index_map: dict[int, int] | None = None,
 ) -> PreparedSegmentationData:
-    """Normalize segmentation predictions and targets for metric updates."""
+    """Normalize segmentation predictions and targets for metric
+    updates."""
     target_mask, binary_target = target_segmentation_to_index_mask(
         target["/segmentation"]
     )

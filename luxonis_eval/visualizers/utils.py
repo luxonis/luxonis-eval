@@ -165,7 +165,8 @@ def convert_keypoint_predictions(
     *,
     expected_keypoints: int | None = None,
 ) -> Tensor:
-    """Convert normalized DepthAI keypoints to pixel ``(x, y, visibility)``."""
+    """Convert normalized DepthAI keypoints to pixel ``(x, y,
+    visibility)``."""
     rows: list[list[list[float]]] = []
     n_keypoints = expected_keypoints
     for detection in detections:
@@ -228,9 +229,7 @@ def convert_keypoint_targets(
         )
 
     batch_indices = np.zeros((keypoints.shape[0], 1), dtype=np.float32)
-    return torch.from_numpy(
-        np.concatenate([batch_indices, keypoints], axis=1)
-    )
+    return torch.from_numpy(np.concatenate([batch_indices, keypoints], axis=1))
 
 
 def convert_visualization_data(
@@ -239,7 +238,8 @@ def convert_visualization_data(
     context: EvalContext,
     requested_targets: Sequence[str],
 ) -> VisualizationData:
-    """Convert supported runtime messages and targets to task-keyed tensors."""
+    """Convert supported runtime messages and targets to task-keyed
+    tensors."""
     requested_target_set = set(requested_targets)
     missing_targets = requested_target_set - set(target)
     if missing_targets:
@@ -254,9 +254,7 @@ def convert_visualization_data(
         target_boxes: Tensor | None = None
         if "/boundingbox" in requested_target_set:
             converted_predictions["boundingbox"] = [
-                convert_detection_predictions(
-                    predictions.detections, context
-                )
+                convert_detection_predictions(predictions.detections, context)
             ]
             target_boxes = convert_bounding_box_targets(
                 target["/boundingbox"], context
@@ -306,13 +304,13 @@ def convert_visualization_data(
             )
         prediction_mask = predictions.getCvMask()
         if prediction_mask is None:
-            raise ValueError("Segmentation prediction does not contain a mask.")
-        prediction_channels, target_channels = (
-            _convert_semantic_segmentation(
-                np.asarray(prediction_mask),
-                np.asarray(target["/segmentation"]),
-                context,
+            raise ValueError(
+                "Segmentation prediction does not contain a mask."
             )
+        prediction_channels, target_channels = _convert_semantic_segmentation(
+            np.asarray(prediction_mask),
+            np.asarray(target["/segmentation"]),
+            context,
         )
         converted_predictions["segmentation"] = [
             torch.from_numpy(prediction_channels)
