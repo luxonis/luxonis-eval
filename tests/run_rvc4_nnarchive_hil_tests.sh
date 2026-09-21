@@ -16,7 +16,12 @@ if [[ -n "${DEPTHAI_VERSION:-}" ]]; then
   python -m pip install "depthai==${DEPTHAI_VERSION}"
 fi
 
-pytest_args=(tests/test_rvc4_nnarchive_regression.py -q --require-device)
+pytest_args=(
+  -s
+  -v
+  tests/test_rvc4_nnarchive_regression.py
+  --require-device
+)
 
 if [[ -n "${HIL_TESTBED:-}" ]]; then
   if [[ -n "${HIL_FRAMEWORK_TOKEN:-}" ]]; then
@@ -30,5 +35,12 @@ fi
 
 export LUXONIS_TELEMETRY_ENABLED="${LUXONIS_TELEMETRY_ENABLED:-false}"
 export PYTEST_DISABLE_PLUGIN_AUTOLOAD="${PYTEST_DISABLE_PLUGIN_AUTOLOAD:-1}"
+
+echo "HIL test configuration:"
+echo "  DEPTHAI_VERSION=${DEPTHAI_VERSION:-<default>}"
+echo "  HIL_TESTBED=${HIL_TESTBED:-<empty>}"
+printf '  pytest_args:'
+printf ' %q' "${pytest_args[@]}"
+printf '\n'
 
 pytest "${pytest_args[@]}" "$@"

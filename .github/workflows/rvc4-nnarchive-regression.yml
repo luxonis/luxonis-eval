@@ -54,8 +54,10 @@ jobs:
       - name: Install HIL runner
         shell: bash
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install --upgrade --no-cache-dir \
+          python3 -m venv --clear venv
+          source venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade --no-cache-dir \
             --index-url "https://__token__:${HIL_FRAMEWORK_TOKEN}@gitlab.luxonis.com/api/v4/projects/213/packages/pypi/simple" \
             hil-framework
 
@@ -70,6 +72,7 @@ jobs:
           GCP_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
           set -euo pipefail
+          source venv/bin/activate
 
           CREDENTIALS_PATH="$GITHUB_WORKSPACE/.ci/gcp-credentials.json"
           cleanup_local_credentials() {
