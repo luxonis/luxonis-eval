@@ -46,4 +46,3 @@ pipeline:
           display: false
           save: true
           save_dir: visualizations
-

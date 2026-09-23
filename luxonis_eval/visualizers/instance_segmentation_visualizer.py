@@ -22,7 +22,8 @@ from .utils import (
 
 
 class InstanceSegmentationVisualizer(BaseVisualizer):
-    """Render instance-mask ground truth and predictions side by side."""
+    """Render instance-mask ground truth and predictions side by
+    side."""
 
     def __init__(
         self,
@@ -67,7 +68,8 @@ class InstanceSegmentationVisualizer(BaseVisualizer):
         predictions: dai.ImgDetections,
         target: dict[str, np.ndarray],
     ) -> VisualizationData:
-        """Convert detections, masks, and targets into drawing tensors."""
+        """Convert detections, masks, and targets into drawing
+        tensors."""
         if not isinstance(predictions, dai.ImgDetections):
             raise TypeError(
                 "InstanceSegmentationVisualizer expects predictions of type "
@@ -115,9 +117,7 @@ class InstanceSegmentationVisualizer(BaseVisualizer):
         colors = self.color_dict
         for index in range(len(canvas)):
             image_boxes = boundingbox[index]
-            image_masks = scale_masks(
-                instance_segmentation[index], self.scale
-            )
+            image_masks = scale_masks(instance_segmentation[index], self.scale)
             image = canvas[index].clone()
             prediction_classes = image_boxes[:, 5].int()
             class_colors = [

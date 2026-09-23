@@ -1,0 +1,45 @@
+name: Pre-commit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - "develop*"
+  pull_request:
+    branches:
+      - main
+      - "develop*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install development dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Run pre-commit hooks
+        run: pre-commit run --all-files --show-diff-on-failure --color=always
+        env:
+          # Keep this hook for local commits, but allow CI on protected branches.
+          SKIP: no-commit-to-branch

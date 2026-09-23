@@ -99,10 +99,7 @@ class EvalConfigResolver:
         if keep_aspect_ratio is not None:
             return keep_aspect_ratio
 
-        if source_loader.name == "LuxonisLoader":
-            return True
-
-        return False
+        return source_loader.name == "LuxonisLoader"
 
     def _resolve_normalize_config(
         self,
@@ -274,7 +271,11 @@ class EvalConfigResolver:
         )
         if archive_head is None:
             return None
-        return list(archive_head.outputs) if archive_head.outputs is not None else None
+        return (
+            list(archive_head.outputs)
+            if archive_head.outputs is not None
+            else None
+        )
 
     def _resolve_archive_parser(
         self, nn_archive_cfg: NNArchiveConfig | None

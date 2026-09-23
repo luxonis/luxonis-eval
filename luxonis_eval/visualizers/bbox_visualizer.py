@@ -20,7 +20,6 @@ from .utils import (
 
 
 class BBoxVisualizer(BaseVisualizer):
-
     def __init__(
         self,
         labels: dict[int, str] | list[str] | None = None,
@@ -61,7 +60,8 @@ class BBoxVisualizer(BaseVisualizer):
         predictions: dai.ImgDetections,
         target: dict[str, np.ndarray],
     ) -> VisualizationData:
-        """Convert detections and normalized targets into drawing tensors."""
+        """Convert detections and normalized targets into drawing
+        tensors."""
         if not isinstance(predictions, dai.ImgDetections):
             raise TypeError(
                 "BBoxVisualizer expects predictions of type "
@@ -109,7 +109,10 @@ class BBoxVisualizer(BaseVisualizer):
                 continue
             target_classes = target[:, 1].int()
             class_labels = (
-                [labels.get(int(class_id), str(int(class_id))) for class_id in target_classes]
+                [
+                    labels.get(int(class_id), str(int(class_id)))
+                    for class_id in target_classes
+                ]
                 if self.draw_labels
                 else None
             )

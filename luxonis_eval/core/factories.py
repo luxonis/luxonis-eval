@@ -196,7 +196,8 @@ def create_visualizers(
 
 
 def _opencv_has_highgui() -> bool:
-    """Return whether the installed OpenCV build exposes a GUI backend."""
+    """Return whether the installed OpenCV build exposes a GUI
+    backend."""
     for line in cv2.getBuildInformation().splitlines():
         key, separator, value = line.strip().partition(":")
         if separator and key == "GUI":
