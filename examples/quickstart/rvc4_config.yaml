@@ -16,8 +16,8 @@ pipeline:
     name: depthai # Runs inference on a connected Luxonis device.
     model_path: examples/quickstart/yolov6.rvc4.tar
     # To select a device, uncomment and set its address:
-#    params:
-#      device_ip: 192.168.1.104
+    # params:
+    #   device_ip: 192.168.1.104
 
   evaluators:
     - task_name: ""
