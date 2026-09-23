@@ -3,7 +3,7 @@ from typing import Final
 from luxonis_ml.utils import setup_logging
 from pydantic_extra_types.semantic_version import SemanticVersion
 
-__version__: Final[str] = "0.0.1"
+__version__: Final[str] = "0.1.0"
 __semver__: Final[SemanticVersion] = SemanticVersion.parse(__version__)
 
 from .core import (
