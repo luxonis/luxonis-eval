@@ -15,10 +15,11 @@ from luxonis_eval.utils.utils import ordered_class_names
 class ClassificationParser(BaseParser):
     """Parser for classification model outputs."""
 
-    def __init__(self, apply_softmax: bool = False, **kwargs: Any) -> None:
-        """Initialize the classification parser."""
+    def __init__(self, is_softmax: bool = True, **kwargs: Any) -> None:
+        """Initialize the parser; set is_softmax=False for raw
+        logits."""
         super().__init__(**kwargs)
-        self.apply_softmax = apply_softmax
+        self.is_softmax = is_softmax
 
     def parse(self, output: EngineOutput) -> Classifications:
         """Parse backend output into class scores.
@@ -44,17 +45,12 @@ class ClassificationParser(BaseParser):
                 "post-processing."
             )
 
-        if self.apply_softmax:
+        if not self.is_softmax:
             # Subtract the largest value first so softmax stays numerically stable.
             scores = scores - np.max(scores)
-            scores = DepthAINodesClassificationParser.compute(
-                scores,
-                is_softmax=False,
-            )
-        else:
-            scores = DepthAINodesClassificationParser.compute(
-                scores,
-                is_softmax=True,
-            )
+        scores = DepthAINodesClassificationParser.compute(
+            scores,
+            is_softmax=self.is_softmax,
+        )
 
         return create_classification_message(classes=classes, scores=scores)
