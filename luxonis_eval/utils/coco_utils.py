@@ -21,6 +21,19 @@ COCO_DETECTION_METRIC_NAMES = (
     "AR_large",
 )
 
+COCO_KEYPOINT_METRIC_NAMES = (
+    "AP",
+    "AP50",
+    "AP75",
+    "AP_medium",
+    "AP_large",
+    "AR",
+    "AR50",
+    "AR75",
+    "AR_medium",
+    "AR_large",
+)
+
 
 @contextmanager
 def suppress_stdout() -> Iterator[None]:
@@ -154,18 +167,23 @@ class COCOStore:
             coco_target.dataset = coco_target_dict  # type: ignore
             coco_target.createIndex()
 
-            if len(self.pred_results) == 0:
-                return dict.fromkeys(COCO_DETECTION_METRIC_NAMES, 0.0)
-
-            coco_pred = coco_target.loadRes(self.pred_results)  # type: ignore
+            if self.pred_results:
+                coco_pred = coco_target.loadRes(self.pred_results)  # type: ignore
+            else:
+                coco_pred = COCO()
+                coco_pred.dataset = {**coco_target_dict, "annotations": []}
+                coco_pred.createIndex()
             coco_eval = COCOeval(coco_target, coco_pred, iouType=self.iou_type)  # type: ignore
             coco_eval.evaluate()
             coco_eval.accumulate()
             coco_eval.summarize()
 
+        metric_names = (
+            COCO_KEYPOINT_METRIC_NAMES
+            if self.iou_type == "keypoints"
+            else COCO_DETECTION_METRIC_NAMES
+        )
         return {
             name: float(value)
-            for name, value in zip(
-                COCO_DETECTION_METRIC_NAMES, coco_eval.stats, strict=True
-            )
+            for name, value in zip(metric_names, coco_eval.stats, strict=True)
         }
