@@ -51,7 +51,8 @@ class F1Score(BaseMetric):
         prepared = prepare_segmentation_metric_inputs(
             predictions,
             target,
-            include_background=self.include_background,
+            # Preserve class IDs; TorchMetrics ignores background targets.
+            include_background=True,
             target_bg=context.target_background_index,
             class_index_map=context.class_index_map,
         )
@@ -91,4 +92,9 @@ class F1Score(BaseMetric):
                 target_class_map=self.target_class_map,
             ),
             average=average,
+            ignore_index=(
+                self.context.target_background_index
+                if not self.include_background
+                else None
+            ),
         )
