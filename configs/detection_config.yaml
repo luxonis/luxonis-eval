@@ -1,0 +1,39 @@
+pipeline:
+  loader:
+    name: LuxonisLoader
+    params:
+      dataset_name: coco-2017
+      view: [test]
+
+  engine:
+    name: onnx
+    model_path: path/to/yolov8n.onnx
+    params:
+      providers: [CPUExecutionProvider]
+
+  # engine:
+  #   name: depthai
+  #   model_path: path/to/yolov8n.rvc4.tar.xz
+  #   params:
+  #     device_ip: 10.12.143.173
+
+  evaluators:
+    - task_name: ""
+      parser:
+        name: YOLOExtendedParser
+        params:
+          subtype: yolov8
+          n_classes: 80
+          conf_threshold: 0.25
+          iou_threshold: 0.7
+          max_det: 300
+      metrics:
+        - name: BboxMeanAveragePrecision
+          params:
+            iou_type: bbox
+      visualizers:
+        - name: BBoxVisualizer
+          active: true
+          display: false
+          save: true
+          save_dir: visualizations

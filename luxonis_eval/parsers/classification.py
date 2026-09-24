@@ -1,83 +1,56 @@
 from typing import Any
 
-import depthai as dai
 import numpy as np
 from depthai_nodes import Classifications
 from depthai_nodes.message.creators import create_classification_message
-from loguru import logger
+from depthai_nodes.node.parsers.classification import (
+    ClassificationParser as DepthAINodesClassificationParser,
+)
 
+from luxonis_eval.engines.io import EngineOutput
 from luxonis_eval.parsers.base_parser import BaseParser
+from luxonis_eval.utils.utils import ordered_class_names
 
 
 class ClassificationParser(BaseParser):
     """Parser for classification model outputs."""
 
-    def __init__(self, **kwargs: Any) -> None:
-        """Initialize the classification parser."""
+    def __init__(self, is_softmax: bool = True, **kwargs: Any) -> None:
+        """Initialize the parser; set is_softmax=False for raw
+        logits."""
         super().__init__(**kwargs)
+        self.is_softmax = is_softmax
 
-    def parse(
-        self,
-        raw_output: dai.NNData | list[np.ndarray],
-        *,
-        class_map: dict[int, str],
-        apply_softmax: bool = False,
-        **kwargs: Any,
-    ) -> Classifications:
+    def parse(self, output: EngineOutput) -> Classifications:
         """Parse backend output into class scores.
 
         Parameters
         ----------
-        raw_output : dai.NNData | list[np.ndarray]
-            Backend inference output.
-        apply_softmax : bool, default=False
-            Whether to apply softmax to the output scores.
-        **kwargs : Any
-            Additional parser arguments.
-
+        output : EngineOutput
+            Engine-normalized inference output.
         Returns
         -------
         Classifications
             Classification scores.
         """
-        classes = list(class_map.values())
-        if isinstance(raw_output, dai.NNData):
-            layer_names = raw_output.getAllLayerNames()
-            logger.debug(f"Processing output with layers: {layer_names}")
-            output_name = layer_names[0]
-            scores = raw_output.getTensor(output_name, dequantize=True)
-        elif isinstance(raw_output, list):
-            scores = raw_output[0]
-        else:
-            raise TypeError(
-                f"Unsupported raw_output type: {type(raw_output)}. Expected dai.NNData or list[np.ndarray]."
+        classes = ordered_class_names(self.context.class_map)
+        _, scores = output.get_first()
+        scores = np.asarray(scores, dtype=np.float64).flatten()
+        if scores.size == 0:
+            raise ValueError("Classification output is empty.")
+
+        if not np.all(np.isfinite(scores)):
+            raise ValueError(
+                "Classification output contains non-finite values before "
+                "post-processing."
             )
 
-        scores = np.array(scores).flatten()
-
-        if apply_softmax:
-            scores = self._softmax(scores)
+        if not self.is_softmax:
+            # Subtract the largest value first so softmax stays numerically stable.
+            scores = scores - np.max(scores)
+        scores = DepthAINodesClassificationParser.compute(
+            scores,
+            is_softmax=self.is_softmax,
+        )
 
         return create_classification_message(classes=classes, scores=scores)
-
-    def _softmax(
-        self, x: np.ndarray, axis: int | None = None, keep_dims: bool = False
-    ) -> np.ndarray:
-        """Apply softmax to an array.
-
-        Parameters
-        ----------
-        x : np.ndarray
-            Input array.
-        axis : int | None, optional
-            Axis over which to apply softmax.
-        keep_dims : bool, default=False
-            Whether to keep reduced dimensions.
-
-        Returns
-        -------
-        np.ndarray
-            Softmax-normalized array.
-        """
-        ex = np.exp(x)
-        return ex / np.sum(ex, axis=axis, keepdims=keep_dims)

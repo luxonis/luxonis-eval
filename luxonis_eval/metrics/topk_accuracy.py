@@ -23,7 +23,7 @@ class TopKAccuracy(BaseMetric):
         self.topk = tuple(int(k) for k in topk)
         super().__init__(**kwargs)
 
-    def metric_keys(self) -> list[str]:
+    def required_target_keys(self) -> list[str]:
         """Return the ground-truth keys required by the metric.
 
         Returns
@@ -33,16 +33,15 @@ class TopKAccuracy(BaseMetric):
         """
         return ["/classification"]
 
-    def _reset_impl(self) -> None:
+    def reset(self) -> None:
         """Reset internal metric state."""
         self.correct_at_k = dict.fromkeys(self.topk, 0)
         self.total = 0
 
-    def _update_impl(
+    def update(
         self,
         predictions: Classifications,
         target: dict[str, np.ndarray],
-        **kwargs: Any,
     ) -> None:
         """Update internal metric state.
 
@@ -52,15 +51,11 @@ class TopKAccuracy(BaseMetric):
             Model predictions (logits or probabilities).
         target : dict[str, np.ndarray]
             Ground-truth labels.
-        **kwargs : Any
-            Additional context.
         """
-        cls_target = target[self.metric_keys()[0]]
-        class_index_map = kwargs.get("class_index_map", {})
-        class_map = kwargs.get("class_map", {})
-        class_map = {v: k for k, v in class_map.items()}
-
-        topk = tuple(kwargs.get("topk", self.topk))
+        cls_target = target[self.required_target_keys()[0]]
+        context = self.context
+        class_index_map = context.class_index_map
+        class_map = {v: k for k, v in context.class_map.items()}
 
         pred_classes = predictions.classes
         tgt = np.asarray(cls_target)
@@ -71,10 +66,10 @@ class TopKAccuracy(BaseMetric):
         if class_index_map is not None:
             target_idx = int(class_index_map[target_idx])
 
-        max_k = max(topk)
+        max_k = max(self.topk)
         top_idx = [class_map[pred_classes[i]] for i in range(max_k)]  # type: ignore
 
-        for k in topk:
+        for k in self.topk:
             if k not in self.correct_at_k:
                 self.correct_at_k[k] = 0
             if target_idx in top_idx[:k]:
@@ -82,7 +77,7 @@ class TopKAccuracy(BaseMetric):
 
         self.total += 1
 
-    def _compute_impl(self) -> dict[str, float]:
+    def compute(self) -> dict[str, float]:
         """Compute final Top-K accuracy metrics.
 
         Returns

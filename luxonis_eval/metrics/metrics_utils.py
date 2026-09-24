@@ -1,19 +1,21 @@
 from collections.abc import Sequence
 from typing import Any
 
+import depthai as dai
 import numpy as np
 from pycocotools import mask as mask_utils
 
 
-def yolo_norm_to_coco_xywh(
+def normalized_xywh_to_coco_xywh(
     target: np.ndarray, img_w: int, img_h: int
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Convert YOLO-normalized labels to COCO xywh boxes.
+    """Convert normalized top-left ``xywh`` labels to COCO ``xywh``
+    boxes.
 
     Parameters
     ----------
     target : np.ndarray
-        Array of shape ``(N, 5)`` as ``(class_id, x_center, y_center, w, h)``.
+        Array of shape ``(N, 5)`` as ``(class_id, x_min, y_min, w, h)``.
     img_w : int
         Image width in pixels.
     img_h : int
@@ -31,12 +33,35 @@ def yolo_norm_to_coco_xywh(
         )
 
     cls_idc = target[:, 0].astype(np.int64)
-    xc = target[:, 1] * img_w
-    yc = target[:, 2] * img_h
+    x = target[:, 1] * img_w
+    y = target[:, 2] * img_h
     bw = target[:, 3] * img_w
     bh = target[:, 4] * img_h
-    boxes_xywh = np.stack([xc, yc, bw, bh], axis=-1)
+    boxes_xywh = np.stack([x, y, bw, bh], axis=-1)
     return cls_idc, boxes_xywh
+
+
+def detection_to_coco_xywh(
+    detection: dai.ImgDetection, width: int, height: int
+) -> list[float]:
+    """Convert a detection object to COCO top-left ``xywh`` pixels.
+
+    Parameters
+    ----------
+    detection : dai.ImgDetection
+        DepthAI detection with a normalized bounding box.
+    width : int
+        Image width in pixels.
+    height : int
+        Image height in pixels.
+    """
+    box = detection.getBoundingBox().denormalize(width, height).getOuterXYWH()
+    return [
+        float(box[0].x),
+        float(box[0].y),
+        float(box[1].width),
+        float(box[1].height),
+    ]
 
 
 def binary_mask_to_rle(binary_mask: np.ndarray) -> Any:
@@ -92,6 +117,40 @@ def remap_prediction_mask(
     return remapped
 
 
+def target_segmentation_to_index_mask(
+    target_mask: np.ndarray,
+) -> tuple[np.ndarray, bool]:
+    """Convert a segmentation target tensor to an index mask."""
+    mask = np.asarray(target_mask)
+
+    if mask.ndim == 2:
+        return mask.astype(np.int64), False
+
+    if mask.ndim != 3:
+        raise ValueError(
+            f"Expected segmentation target with 2 or 3 dimensions, got {mask.ndim}."
+        )
+
+    if mask.shape[0] == 1:
+        return mask[0].astype(np.int64), True
+
+    return np.argmax(mask, axis=0).astype(np.int64), False
+
+
+def normalize_prediction_segmentation_mask(
+    pred_mask: np.ndarray,
+    *,
+    binary_target: bool,
+) -> np.ndarray:
+    """Normalize a predicted segmentation mask to class indices."""
+    mask = np.asarray(pred_mask).astype(np.int64)
+
+    if binary_target:
+        return (mask == 0).astype(np.int64)
+
+    return mask
+
+
 def mask_ignore_pixels(
     pred_mask: np.ndarray, target_mask: np.ndarray, ignore_index: int = 0
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -120,6 +179,20 @@ def mask_ignore_pixels(
     pred_mask[ignore_mask] = 0
 
     return pred_mask, target_mask
+
+
+def binary_segmentation_confusion(
+    pred_mask: np.ndarray,
+    target_mask: np.ndarray,
+) -> tuple[int, int, int]:
+    """Compute TP, FP and FN for binary segmentation masks."""
+    pred_fg = np.asarray(pred_mask) > 0
+    target_fg = np.asarray(target_mask) > 0
+
+    tp = int(np.logical_and(pred_fg, target_fg).sum())
+    fp = int(np.logical_and(pred_fg, np.logical_not(target_fg)).sum())
+    fn = int(np.logical_and(np.logical_not(pred_fg), target_fg).sum())
+    return tp, fp, fn
 
 
 def to_coco_kpts_flat(kpts: np.ndarray) -> list[float]:

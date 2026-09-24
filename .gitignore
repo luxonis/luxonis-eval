@@ -191,6 +191,13 @@ cython_debug/
 # Ruff stuff:
 .ruff_cache/
 
+# Evaluation visualizer output
+visualizations/
+
+# Downloaded quickstart model archives
+examples/quickstart/yolov6.onnx.tar
+examples/quickstart/yolov6.rvc4.tar
+
 # PyPI configuration file
 .pypirc
 

@@ -1,0 +1,48 @@
+pipeline:
+  loader:
+    name: LuxonisLoader
+    preprocessing:
+      keep_aspect_ratio: true
+      color_space: RGB
+      normalize:
+        active: true
+        params:
+          mean: [0.0, 0.0, 0.0]
+          std: [1.0, 1.0, 1.0]
+    params:
+      dataset_name: coco-2017
+      view: [val]
+
+  engine:
+    model_path: yolov8n-seg.onnx
+    name: onnx
+    params:
+      providers: [CPUExecutionProvider]
+
+  evaluators:
+    - parser:
+        name: YOLOExtendedParser
+        params:
+          subtype: yolov8
+          n_classes: 80
+          conf_threshold: 0.25
+          iou_threshold: 0.7
+          mask_conf: 0.25
+      metrics:
+        - name: BboxMeanAveragePrecision
+          params:
+            iou_type: bbox
+        - name: MaskMeanAveragePrecision
+          params:
+            iou_type: segm
+      visualizers:
+        - name: InstanceSegmentationVisualizer
+          active: true
+          display: false
+          save: true
+          save_dir: visualizations
+        - name: BBoxVisualizer
+          active: true
+          display: false
+          save: true
+          save_dir: visualizations

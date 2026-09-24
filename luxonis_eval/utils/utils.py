@@ -1,121 +1,8 @@
-import json
-import re
-from importlib.resources import files
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 import onnxruntime as ort
-from loguru import logger
-from luxonis_ml.data.loaders import LuxonisLoader
-from tabulate import tabulate
-
-from luxonis_eval.metrics.metrics_utils import yolo_norm_to_coco_xywh
-
-
-def get_model_name(path: str) -> str:
-    name = Path(path).name
-    return re.sub(r"\.((rvc\d+)?\.?tar\.xz|onnx)$", "", name)
-
-
-def section(
-    title: str, width: int = 35, line_char: str = "═"
-) -> list[list[str]]:
-    """Create a section header row for a tabulated report.
-
-    Parameters
-    ----------
-    title : str
-        Section title.
-    width : int, optional
-        Total header width.
-    line_char : str, optional
-        Character to use for the line.
-
-    Returns
-    -------
-    list[list[str]]
-        Rows suitable for appending to a tabulate row list.
-    """
-    label = f" {title} "
-    centered = label.center(width, line_char)
-    return [[centered, ""]]
-
-
-def make_report_table(
-    *,
-    backend: str,
-    model_name: str,
-    device: str,
-    tp: dict[str, float | int],
-    results: list[dict[str, Any]],
-) -> str:
-    """Build a formatted report table.
-
-    Parameters
-    ----------
-    backend : str
-        Backend identifier.
-    model_name : str
-        Model name.
-    device : str
-        Inference device descriptor.
-    tp : dict[str, float | int]
-        Throughput and latency related metrics.
-    results : list[dict[str, Any]]
-        Quality metric results.
-
-    Returns
-    -------
-    str
-        Rendered table as text.
-    """
-
-    def format_stage(name: str) -> str:
-        ms = float(tp[f"{name}_ms_per_sample"])
-        total = float(tp["ms_per_sample"])
-        pct = (ms / total * 100.0) if total else 0.0
-        return f"{ms:5.2f} ms | {pct:4.1f}%"
-
-    rows: list[list[str]] = []
-
-    rows += section("SETTINGS")
-    rows += [
-        ["Model", model_name],
-        ["Backend", str(backend).upper()],
-        ["Device", str(device)],
-    ]
-
-    rows += section("PERFORMANCE")
-    rows += [
-        ["Throughput", f"{tp['samples_per_s']:.2f} samples/s"],
-        ["End-to-end Latency", f"{tp['ms_per_sample']:.2f} ms/sample"],
-    ]
-
-    rows += section("STAGE BREAKDOWN", line_char="-")
-    rows += [
-        ["Inference", format_stage("inference")],
-        ["Parsing", format_stage("parsing")],
-        ["Metric Update", format_stage("metric_update")],
-        ["Metric Compute", format_stage("metric_compute")],
-        ["Pipeline Overhead", format_stage("overhead")],
-    ]
-
-    rows += section("QUALITY")
-    for result in results:
-        metric_name = result.pop("metric")
-        rows += section(metric_name, line_char="-")
-        for k, v in result.items():
-            val = f"{v * 100:.2f}%" if isinstance(v, float) else str(v)
-            rows.append([str(k), val])
-
-    return tabulate(
-        rows,
-        headers=["Metric", "Value"],
-        tablefmt="rounded_outline",
-        colalign=("left", "right"),
-        disable_numparse=True,
-    )
 
 
 def check_loader_output(output: object) -> None:
@@ -129,8 +16,19 @@ def check_loader_output(output: object) -> None:
     Raises
     ------
     TypeError
-        If the output is not of type 'luxonis_ml.typing.LoaderOutput': a tuple containing either a single image as a 'np.ndarray or a dictionary mapping image names to 'np.ndarray', along with a dictionary of task group names and their annotations.
+        If the output is not of type 'luxonis_ml.typing.LoaderOutput': a
+        tuple containing either a single image as an `np.ndarray` or a
+        dictionary mapping image names to `np.ndarray`, along with a
+        dictionary of task group names and their annotations.
     """
+
+    def _validate_image_array(image: np.ndarray) -> None:
+        if image.ndim not in (2, 3):
+            raise TypeError(
+                "Image arrays must be `HW` (grayscale) or `HWC` (color), "
+                f"got shape {image.shape}."
+            )
+
     if not isinstance(output, tuple) or len(output) != 2:
         raise TypeError(
             f"LoaderOutput must be a tuple of length 2, got {type(output)}"
@@ -139,7 +37,7 @@ def check_loader_output(output: object) -> None:
     images, labels = output
 
     if isinstance(images, np.ndarray):
-        pass  # LoaderSingleOutput
+        _validate_image_array(images)
     elif isinstance(images, dict) and all(
         isinstance(k, str) and isinstance(v, np.ndarray)
         for k, v in images.items()
@@ -191,6 +89,22 @@ def check_loader_classes(classes: dict[str, int]) -> None:
         )
 
 
+def ordered_class_names(class_map: dict[int, str]) -> list[str]:
+    """Return class names ordered by class index."""
+    if not class_map:
+        return []
+
+    ordered_indices = sorted(class_map)
+    expected_indices = list(range(len(ordered_indices)))
+    if ordered_indices != expected_indices:
+        raise ValueError(
+            "class_map must contain contiguous zero-based indices, got "
+            f"{ordered_indices}."
+        )
+
+    return [class_map[index] for index in ordered_indices]
+
+
 def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:
     """Retrieve ONNX model input information.
 
@@ -215,141 +129,4 @@ def get_onnx_input_info(onnx_path: Path | None) -> dict[str, Any]:
     return {
         "shape": input.shape,
         "name": input.name,
-    }
-
-
-def get_class_mapping(
-    dataloader: LuxonisLoader,
-    **kwargs,
-) -> tuple[dict, dict, dict | None]:
-    """Get native class map and optional class index mapping.
-
-    Parameters
-    ----------
-    dataloader : LuxonisLoader
-        Dataloader to extract class mappings from.
-    **kwargs
-        Additional dataset-specific parameters.
-
-    Returns
-    -------
-    tuple[dict, dict, dict | None]
-        LDF class map, native class map and class index map (if available).
-    """
-
-    if isinstance(dataloader, LuxonisLoader):
-        ldf_class_map = dataloader.classes[""]
-        ldf_class_map = {v: k for k, v in ldf_class_map.items()}
-    else:
-        raise NotImplementedError(
-            "Built-in `get_class_mapping` is only implemented for `LuxonisLoader`. Please provide a custom implementation for other loader types inheriting from `BaseEvalLoader`."
-        )
-
-    if "imagenet" in dataloader.dataset.dataset_name:
-        native_class_map = get_dataset_class_mapping("imagenet")
-    elif "coco" in dataloader.dataset.dataset_name:
-        native_class_map = get_dataset_class_mapping("coco")
-    else:
-        logger.info(
-            f"Dataset '{dataloader.dataset.dataset_name}' does not match known datasets for automatic class mapping. Attempting to use provided class mapping from the 'loader.params.class_mapping' argument."
-        )
-        native_class_map = kwargs.get("class_mapping", {})
-
-    class_index_map = None
-    if native_class_map:
-        class_index_map = get_class_index_mapping(
-            ldf_class_map, native_class_map
-        )
-    else:
-        logger.warning(
-            "No native class map found. Class index mapping will not be available, which may affect metric calculations that require the mapping of LDF class indices to native dataset indices."
-        )
-
-    return ldf_class_map, native_class_map, class_index_map
-
-
-def get_dataset_class_mapping(
-    dataset_name: Literal["coco", "imagenet"],
-) -> dict[int, str]:
-    supported = {"coco", "imagenet"}
-    if dataset_name not in supported:
-        raise ValueError(
-            f"Unsupported dataset '{dataset_name}'. Supported values are {supported}."
-        )
-
-    mapping_file = files("luxonis_eval.metadata").joinpath(
-        f"{dataset_name}_class_mappings.json"
-    )
-    with mapping_file.open() as f:
-        class_mapping = json.load(f)
-    return {int(k): v for k, v in class_mapping.items()}
-
-
-def get_class_index_mapping(
-    ldf_class_map: dict[int, str], native_class_map: dict[int, str]
-) -> dict[int, int]:
-    """Map LDF class indices to native dataset indices.
-
-    Parameters
-    ----------
-    ldf_class_map : dict[int, str]
-        LDF class index to class name mapping.
-    native_class_map : dict[int, str]
-        Native class index to class name mapping.
-
-    Returns
-    -------
-    dict[int, int]
-        Mapping from LDF class index to native class index.
-    """
-    ldf_to_native_index_map: dict[int, int] = {}
-    for k, v in ldf_class_map.items():
-        if k == 0 and v == "background":
-            continue
-
-        for key, value in native_class_map.items():
-            values = value.split(", ")
-            if v in values:
-                ldf_to_native_index_map[k] = key
-                break
-
-        if k not in ldf_to_native_index_map:
-            raise ValueError(f"Label {v} not found in native class map.")
-
-    return ldf_to_native_index_map
-
-
-def get_metric_ctx(base_ctx: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
-    """Get additional context for metric updates.
-
-    Parameters
-    ----------
-    base_ctx : dict[str, Any]
-        Base context dictionary.
-    **kwargs : Any
-        Additional context parameters.
-
-    Returns
-    -------
-    dict[str, Any]
-        Context dictionary to pass to metric updates.
-    """
-    class_index_map = kwargs.get("class_index_map", {})
-    class_map = kwargs.get("class_map", {})
-    ldf_class_map = kwargs.get("ldf_class_map", {})
-    width = kwargs.get("width", -1)
-    height = kwargs.get("height", -1)
-
-    ldf_name_to_idx = {v: k for k, v in ldf_class_map.items()}
-
-    return {
-        **base_ctx,
-        "class_map": class_map,
-        "class_index_map": class_index_map,
-        "width": width,
-        "height": height,
-        "category_ids": sorted(class_map.keys()),
-        "target_converter": yolo_norm_to_coco_xywh,
-        "target_bg": ldf_name_to_idx.get("background"),
-        "target_class_map": ldf_class_map,
     }

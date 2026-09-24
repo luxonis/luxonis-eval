@@ -4,6 +4,7 @@ from typing import Any
 import numpy as np
 from luxonis_ml.utils.registry import AutoRegisterMeta
 
+from luxonis_eval.core.context import EvalContext
 from luxonis_eval.registry import METRICS_REGISTRY
 
 
@@ -23,14 +24,38 @@ class BaseMetric(
         **kwargs : Any
             Metric basic configuration.
         """
+        self._context: EvalContext | None = None
         self.reset()
 
+    def attach_context(self, context: EvalContext) -> None:
+        """Attach evaluation runtime metadata after setup."""
+        self._context = context
+
+    @property
+    def context(self) -> EvalContext:
+        """Return the attached evaluation context."""
+        if self._context is None:
+            raise RuntimeError(
+                f"{type(self).__name__} is missing evaluation context. "
+                "Call attach_context() during setup before update()."
+            )
+        return self._context
+
+    @abstractmethod
+    def required_target_keys(self) -> list[str]:
+        """Return the ground-truth keys required by the metric."""
+        ...
+
+    @abstractmethod
     def reset(self) -> None:
         """Reset the metric state."""
-        self._reset_impl()
+        ...
 
+    @abstractmethod
     def update(
-        self, predictions: Any, target: dict[str, np.ndarray], **kwargs: Any
+        self,
+        predictions: Any,
+        target: dict[str, np.ndarray],
     ) -> None:
         """Update the metric with predictions and ground truths.
 
@@ -40,12 +65,10 @@ class BaseMetric(
             Model predictions.
         target : dict[str, np.ndarray]
             Ground-truth data.
-        **kwargs : Any
-            Additional context.
         """
-        self.validate_target_keys(target)
-        self._update_impl(predictions, target, **kwargs)
+        ...
 
+    @abstractmethod
     def compute(self) -> dict[str, float]:
         """Compute final metric values.
 
@@ -54,45 +77,4 @@ class BaseMetric(
         dict[str, float]
             Computed metric results.
         """
-        results = self._compute_impl()
-        results["metric"] = self.__class__.__name__  # type: ignore
-        return results
-
-    def validate_target_keys(self, target: dict[str, np.ndarray]) -> None:
-        """Validate that the target contains the required keys for the
-        metric.
-
-        Parameters
-        ----------
-        target : dict[str, np.ndarray]
-            Ground-truth data.
-        """
-        metric_keys = set(self.metric_keys())
-        target_keys = set(target)
-        if not metric_keys.issubset(target_keys):
-            raise ValueError(
-                f"Target is missing required keys for {self.__class__.__name__}. "
-                f"Expected at least: {self.metric_keys()}, but got: {list(target.keys())}."
-            )
-
-    @abstractmethod
-    def metric_keys(self) -> list[str]:
-        """Return the ground-truth keys required by the metric."""
-        ...
-
-    @abstractmethod
-    def _reset_impl(self) -> None:
-        """Reset internal metric state."""
-        ...
-
-    @abstractmethod
-    def _update_impl(
-        self, predictions: Any, target: dict[str, np.ndarray], **kwargs: Any
-    ) -> None:
-        """Update internal metric state."""
-        ...
-
-    @abstractmethod
-    def _compute_impl(self) -> dict[str, float]:
-        """Compute metric results."""
         ...

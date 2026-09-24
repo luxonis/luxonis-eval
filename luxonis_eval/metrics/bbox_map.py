@@ -5,6 +5,10 @@ import depthai as dai
 import numpy as np
 
 from luxonis_eval.metrics.base_metric import BaseMetric
+from luxonis_eval.metrics.metrics_utils import (
+    detection_to_coco_xywh,
+    normalized_xywh_to_coco_xywh,
+)
 from luxonis_eval.utils.coco_utils import COCOStore
 
 
@@ -27,7 +31,7 @@ class BboxMeanAveragePrecision(BaseMetric):
         self._store = COCOStore(iou_type=iou_type)
         super().__init__(**kwargs)
 
-    def metric_keys(self) -> list[str]:
+    def required_target_keys(self) -> list[str]:
         """Return the ground-truth keys required by the metric.
 
         Returns
@@ -37,15 +41,14 @@ class BboxMeanAveragePrecision(BaseMetric):
         """
         return ["/boundingbox"]
 
-    def _reset_impl(self) -> None:
+    def reset(self) -> None:
         """Reset internal metric state."""
         self._store.reset()
 
-    def _update_impl(
+    def update(
         self,
         predictions: dai.ImgDetections,
         target: dict[str, np.ndarray],
-        **kwargs: Any,
     ) -> None:
         """Update internal metric state.
 
@@ -55,21 +58,14 @@ class BboxMeanAveragePrecision(BaseMetric):
             Model predictions.
         target : dict[str, np.ndarray]
             Ground-truth data.
-        **kwargs : Any
-            Additional context.
         """
-        target_boxes = target[self.metric_keys()[0]]
-        width = int(kwargs["width"])
-        height = int(kwargs["height"])
+        context = self.context
+        width = context.width
+        height = context.height
 
-        class_map: dict[int, str] = kwargs.get("class_map", {})
-        category_ids: Sequence[int] | None = kwargs.get("category_ids")
-        class_index_map = kwargs.get("class_index_map")
-        target_converter = kwargs.get("target_converter")
-        if target_converter is None:
-            raise ValueError(
-                "BboxMeanAveragePrecision requires target_converter in ctx."
-            )
+        class_map = context.class_map
+        category_ids: Sequence[int] = context.category_ids
+        class_index_map = context.class_index_map
 
         self._store.init_categories_once(
             class_map=class_map, category_ids=category_ids
@@ -77,8 +73,8 @@ class BboxMeanAveragePrecision(BaseMetric):
         img_id = self._store.new_image(width=width, height=height)
 
         # --- GT ---
-        target_classes, target_boxes_xywh = target_converter(
-            target_boxes, width, height
+        target_classes, target_boxes_xywh = normalized_xywh_to_coco_xywh(
+            target[self.required_target_keys()[0]], width, height
         )
         for box_xywh, cls in zip(
             target_boxes_xywh, target_classes, strict=True
@@ -110,10 +106,7 @@ class BboxMeanAveragePrecision(BaseMetric):
                 and cls not in self._store.category_ids_set
             ):
                 continue
-            box = (
-                pred.getBoundingBox().denormalize(width, height).getOuterXYWH()
-            )
-            box = [box[0].x, box[0].y, box[1].width, box[1].height]
+            box = detection_to_coco_xywh(pred, width, height)
             if box[2] <= 0 or box[3] <= 0:
                 continue
             self._store.add_pred(
@@ -125,7 +118,7 @@ class BboxMeanAveragePrecision(BaseMetric):
                 }
             )
 
-    def _compute_impl(self) -> dict[str, float]:
+    def compute(self) -> dict[str, float]:
         """Compute final mAP metrics.
 
         Returns

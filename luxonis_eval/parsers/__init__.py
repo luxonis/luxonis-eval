@@ -1,15 +1,11 @@
 from .base_parser import BaseParser
 from .classification import ClassificationParser
-from .detection import YOLODetectionParser
-from .instance_seg import YOLOInstanceSegmentationParser
-from .keypoint_detection import YOLOKeypointDetectionParser
-from .semantic_seg import SemanticSegmentationParser
+from .segmentation import SegmentationParser
+from .yolo import YOLOExtendedParser
 
 __all__ = [
     "BaseParser",
     "ClassificationParser",
-    "SemanticSegmentationParser",
-    "YOLODetectionParser",
-    "YOLOInstanceSegmentationParser",
-    "YOLOKeypointDetectionParser",
+    "SegmentationParser",
+    "YOLOExtendedParser",
 ]
