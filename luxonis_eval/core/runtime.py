@@ -113,7 +113,7 @@ def normalize_luxonis_task_labels(
 def resolve_luxonis_loader_class_mapping(
     dataloader: LuxonisLoader,
     loader_task_name: str | None,
-    class_mapping: dict[int, str] | None = None,
+    class_mapping: dict[int, str] | dict[str, str] | None = None,
 ) -> tuple[dict[int, str], dict[int, str], dict[int, int] | None]:
     if not isinstance(dataloader, LuxonisLoader):
         raise NotImplementedError(
@@ -129,26 +129,25 @@ def resolve_luxonis_loader_class_mapping(
     }
     dataset_name = dataloader.dataset._dataset_name
 
-    if "imagenet" in dataset_name:
+    if class_mapping is not None:
+        native_class_map = {
+            int(index): name for index, name in class_mapping.items()
+        }
+        logger.info(
+            f"Using the provided 'loader.params.class_mapping' for dataset '{dataset_name}'."
+        )
+    elif "imagenet" in dataset_name:
         native_class_map = get_dataset_class_mapping("imagenet")
     elif "coco" in dataset_name:
         native_class_map = get_dataset_class_mapping("coco")
     else:
-        native_class_map = class_mapping
-        if native_class_map:
-            logger.info(
-                f"Dataset '{dataset_name}' does not match "
-                "known datasets for automatic class mapping. Using the "
-                "provided 'loader.params.class_mapping' argument."
-            )
-        else:
-            logger.warning(
-                f"Dataset '{dataset_name}' does not match "
-                "known datasets for automatic class mapping and no "
-                "'loader.params.class_mapping' was provided. Falling back to "
-                "the dataset's LDF class order as the native class mapping."
-            )
-            native_class_map = ldf_class_map.copy()
+        logger.warning(
+            f"Dataset '{dataset_name}' does not match "
+            "known datasets for automatic class mapping and no "
+            "'loader.params.class_mapping' was provided. Falling back to "
+            "the dataset's LDF class order as the native class mapping."
+        )
+        native_class_map = ldf_class_map.copy()
 
     class_index_map = get_class_index_mapping(ldf_class_map, native_class_map)
     return ldf_class_map, native_class_map, class_index_map

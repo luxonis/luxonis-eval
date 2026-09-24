@@ -226,7 +226,10 @@ class EvalConfigResolver:
             )
 
         archive_params = (
-            dict(archive_parser.params) if archive_parser is not None else {}
+            dict(archive_parser.params)
+            if archive_parser is not None
+            and archive_parser.name == parser_name
+            else {}
         )
         source_params = (
             dict(source_evaluator.parser.params)

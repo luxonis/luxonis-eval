@@ -32,17 +32,19 @@ except ModuleNotFoundError:
 def test_rvc4_nnarchive_regression(
     case: RegressionCase,
     monkeypatch: pytest.MonkeyPatch,
-    nnarchive_testdata_root: Path,
+    rvc4_nnarchive_testdata_root: Path,
     required_rvc4_device_ip: str,
     tmp_path: Path,
 ) -> None:
     monkeypatch.setenv("LUXONISML_BASE_PATH", str(tmp_path / "luxonis_ml"))
     monkeypatch.setenv("LUXONISML_TEAM_ID", "pytest")
 
-    resolved_case_dir = case_dir(nnarchive_testdata_root, case)
+    resolved_case_dir = case_dir(rvc4_nnarchive_testdata_root, case)
 
-    parse_dataset(case, nnarchive_testdata_root)
-    expected_metrics = load_expected_metrics(case, nnarchive_testdata_root)
+    parse_dataset(case, rvc4_nnarchive_testdata_root)
+    expected_metrics = load_expected_metrics(
+        case, rvc4_nnarchive_testdata_root
+    )
 
     result = quality_run(
         resolved_case_dir / "depthai_eval.yaml",

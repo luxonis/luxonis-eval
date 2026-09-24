@@ -94,6 +94,14 @@ def required_rvc4_device_ip(
     pytest.skip(message)
 
 
+@pytest.fixture(scope="session")
+def rvc4_nnarchive_testdata_root(
+    request: pytest.FixtureRequest, required_rvc4_device_ip: str
+) -> Path:
+    """Download data only after the device requirement has passed."""
+    return request.getfixturevalue("nnarchive_testdata_root")
+
+
 def _resolve_rvc4_device_ip_from_testbed(testbed_name: str) -> str:
     try:
         from hil_framework.lib_testbed.config.Config import Config
