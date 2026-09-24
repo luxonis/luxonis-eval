@@ -184,8 +184,10 @@ from luxonis_eval.config import EvalConfig
 eval_cfg = EvalConfig.get_config(cfg="path/to/config.yaml")
 evaluator = LuxonisEval(eval_cfg)
 evaluator.setup()
-results = evaluator.evaluate()
-evaluator.close()
+try:
+    results = evaluator.evaluate()
+finally:
+    evaluator.close()
 ```
 
 <a name="architecture"></a>

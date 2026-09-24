@@ -16,8 +16,8 @@ pipeline:
       parser:
         name: ClassificationParser
         params:
-          # Set to false if the NNArchive already outputs probabilities.
-          apply_softmax: true
+          # Set to true if the NNArchive already outputs probabilities.
+          is_softmax: false
       metrics:
         - name: TopKAccuracy
           params:

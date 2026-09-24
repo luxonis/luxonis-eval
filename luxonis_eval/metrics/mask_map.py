@@ -157,6 +157,16 @@ class MaskMeanAveragePrecision(BaseMetric):
         return {
             "AP": float(metrics["segm_map"]),
             "AP50": float(metrics["segm_map_50"]),
+            "AP75": float(metrics["segm_map_75"]),
+            "AP_small": float(metrics["segm_map_small"]),
+            "AP_medium": float(metrics["segm_map_medium"]),
+            "AP_large": float(metrics["segm_map_large"]),
+            "AR1": float(metrics["segm_mar_1"]),
+            "AR10": float(metrics["segm_mar_10"]),
+            "AR100": float(metrics["segm_mar_100"]),
+            "AR_small": float(metrics["segm_mar_small"]),
+            "AR_medium": float(metrics["segm_mar_medium"]),
+            "AR_large": float(metrics["segm_mar_large"]),
         }
 
     @staticmethod
