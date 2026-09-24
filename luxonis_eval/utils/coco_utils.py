@@ -6,6 +6,21 @@ from typing import Any
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 
+COCO_DETECTION_METRIC_NAMES = (
+    "AP",
+    "AP50",
+    "AP75",
+    "AP_small",
+    "AP_medium",
+    "AP_large",
+    "AR1",
+    "AR10",
+    "AR100",
+    "AR_small",
+    "AR_medium",
+    "AR_large",
+)
+
 
 @contextmanager
 def suppress_stdout() -> Iterator[None]:
@@ -140,7 +155,7 @@ class COCOStore:
             coco_target.createIndex()
 
             if len(self.pred_results) == 0:
-                return {"AP": 0.0, "AP50": 0.0}
+                return dict.fromkeys(COCO_DETECTION_METRIC_NAMES, 0.0)
 
             coco_pred = coco_target.loadRes(self.pred_results)  # type: ignore
             coco_eval = COCOeval(coco_target, coco_pred, iouType=self.iou_type)  # type: ignore
@@ -148,5 +163,9 @@ class COCOStore:
             coco_eval.accumulate()
             coco_eval.summarize()
 
-        s = coco_eval.stats
-        return {"AP": float(s[0]), "AP50": float(s[1])}
+        return {
+            name: float(value)
+            for name, value in zip(
+                COCO_DETECTION_METRIC_NAMES, coco_eval.stats, strict=True
+            )
+        }
