@@ -25,6 +25,7 @@ from luxonis_eval.core.results import EvaluationResult
 from luxonis_eval.core.runtime import (
     build_eval_context,
     normalize_target,
+    remap_keypoints_per_class,
     resolve_class_mapping,
     select_evaluator_outputs,
 )
@@ -156,6 +157,13 @@ class LuxonisEval:
                     loader=self.loader,
                     loader_task_name=self.loader_task_name,
                 )
+                target = remap_keypoints_per_class(
+                    target,
+                    mappings=self.cfg.pipeline.loader.params.get(
+                        "kpts_mapping_per_class"
+                    ),  # type: ignore[arg-type]
+                    target_class_map=self.ldf_class_map,
+                )
 
                 inference_t0 = time.perf_counter()
                 raw_output = self.engine.infer_once(img)
@@ -270,6 +278,13 @@ class LuxonisEval:
             target,
             loader=self.loader,
             loader_task_name=self.loader_task_name,
+        )
+        target = remap_keypoints_per_class(
+            target,
+            mappings=self.cfg.pipeline.loader.params.get(
+                "kpts_mapping_per_class"
+            ),  # type: ignore[arg-type]
+            target_class_map=self.ldf_class_map,
         )
         raw_output = self.engine.infer_once(img)  # type: ignore[arg-type]
         if self.visualizers:

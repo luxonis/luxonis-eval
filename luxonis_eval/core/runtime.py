@@ -23,6 +23,81 @@ def normalize_target(
     return target
 
 
+def remap_keypoints_per_class(
+    target: dict[str, np.ndarray],
+    mappings: dict[str, list[int]] | None,
+    target_class_map: dict[int, str],
+) -> dict[str, np.ndarray]:
+    """Return a target with configured class keypoints reordered in
+    memory."""
+    if not mappings:
+        return target
+
+    keypoints_key = "/keypoints"
+    boundingbox_key = "/boundingbox"
+    if keypoints_key not in target or boundingbox_key not in target:
+        raise KeyError(
+            "loader.params.kpts_mapping_per_class requires both "
+            "'/keypoints' and '/boundingbox' targets."
+        )
+
+    name_to_class_id = {
+        name: class_id for class_id, name in target_class_map.items()
+    }
+    missing_classes = mappings.keys() - name_to_class_id.keys()
+    if missing_classes:
+        raise KeyError(
+            "Classes specified in loader.params.kpts_mapping_per_class are "
+            f"not present in the selected dataset task: {sorted(missing_classes)}"
+        )
+
+    original = np.asarray(target[keypoints_key])
+    bboxes = np.asarray(target[boundingbox_key])
+    if len(original) != len(bboxes):
+        raise ValueError(
+            "Keypoint and bounding-box instance counts differ: "
+            f"{len(original)} != {len(bboxes)}."
+        )
+    if original.size == 0:
+        return target
+    if original.ndim not in {2, 3}:
+        raise ValueError(
+            "Expected keypoints with shape [N, K * 3] or [N, K, 3], "
+            f"got {original.shape}."
+        )
+
+    original_shape = original.shape
+    if original.ndim == 2:
+        if original.shape[1] % 3 != 0:
+            raise ValueError(
+                "Flattened keypoint width must be divisible by 3, "
+                f"got {original.shape[1]}."
+            )
+        keypoints = original.reshape(len(original), -1, 3).copy()
+    else:
+        if original.shape[2] != 3:
+            raise ValueError(
+                "Keypoint triplets must contain (x, y, visibility), "
+                f"got trailing dimension {original.shape[2]}."
+            )
+        keypoints = original.copy()
+
+    class_ids = bboxes[:, 0].astype(int)
+    expected_indices = list(range(keypoints.shape[1]))
+    for class_name, mapping in mappings.items():
+        if sorted(mapping) != expected_indices:
+            raise ValueError(
+                f"Invalid keypoint mapping for class '{class_name}': expected "
+                f"a permutation of {expected_indices}, got {mapping}."
+            )
+        mask = class_ids == name_to_class_id[class_name]
+        keypoints[mask] = keypoints[mask][:, mapping, :]
+
+    remapped = dict(target)
+    remapped[keypoints_key] = keypoints.reshape(original_shape)
+    return remapped
+
+
 def resolve_class_mapping(
     loader: BaseEvalLoader | LuxonisLoader,
     loader_params: Params,

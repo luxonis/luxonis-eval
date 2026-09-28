@@ -213,6 +213,7 @@ def _create_luxonis_loader(
     loader_params = dict(cfg.pipeline.loader.params)
     loader_params.pop("filter_task_names", None)
     loader_params.pop("class_mapping", None)
+    loader_params.pop("kpts_mapping_per_class", None)
     dataset_name: str = loader_params.pop("dataset_name")  # type: ignore
 
     dataset_kwargs = {}
