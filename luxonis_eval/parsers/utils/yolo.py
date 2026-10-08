@@ -43,7 +43,12 @@ def build_yolo_compute_inputs(
     keypoint_edges: list[tuple[int, int]] | None = None,
 ) -> YOLOComputeInputs:
     subtype_enum = parse_yolo_subtype(subtype)
-    tensors = extract_yolo_tensors(output, subtype_enum)
+    tensors = extract_yolo_tensors(
+        output,
+        subtype_enum,
+        n_classes=n_classes or len(class_map),
+        anchors=anchors,
+    )
 
     resolved_strides: list[int] | None = None
     if subtype_enum == YOLOSubtype.V26:
@@ -107,11 +112,16 @@ def parse_yolo_subtype(subtype: str) -> YOLOSubtype:
 def extract_yolo_tensors(
     output: EngineOutput,
     subtype: YOLOSubtype,
+    *,
+    n_classes: int | None = None,
+    anchors: list[list[list[float]]] | None = None,
 ) -> YoloTensorBundle:
     layer_names = list(output.names())
     if subtype == YOLOSubtype.V26:
         return _extract_yolo26_tensors(output, layer_names)
-    return _extract_standard_yolo_tensors(output, layer_names, subtype)
+    return _extract_standard_yolo_tensors(
+        output, layer_names, subtype, n_classes=n_classes, anchors=anchors
+    )
 
 
 def _extract_yolo26_tensors(
@@ -164,12 +174,23 @@ def _extract_standard_yolo_tensors(
     output: EngineOutput,
     layer_names: list[str],
     subtype: YOLOSubtype,
+    *,
+    n_classes: int | None,
+    anchors: list[list[list[float]]] | None,
 ) -> YoloTensorBundle:
     outputs_names = sorted(
         [name for name in layer_names if "_yolo" in name or "yolo-" in name]
     )
+    anchors_per_head = (
+        np.asarray(anchors).reshape(len(outputs_names), -1).shape[1] // 2
+        if anchors and outputs_names
+        else 1
+    )
+    expected_channels = (
+        anchors_per_head * (n_classes + 5) if n_classes is not None else None
+    )
     outputs_values = [
-        output.get(name, layout="NCHW").astype(np.float32, copy=False)
+        _get_detection_tensor(output, name, expected_channels)
         for name in outputs_names
     ]
 
@@ -218,6 +239,33 @@ def _extract_standard_yolo_tensors(
     return YoloTensorBundle(
         layer_names=layer_names,
         outputs_values=outputs_values,
+    )
+
+
+def _get_detection_tensor(
+    output: EngineOutput, name: str, expected_channels: int | None
+) -> np.ndarray:
+    """Recover YOLO tensors whose device layout metadata is
+    incorrect."""
+    tensor = output.get(name, layout="NCHW")
+    if expected_channels is None or (
+        tensor.ndim == 4 and tensor.shape[1] == expected_channels
+    ):
+        return tensor.astype(np.float32, copy=False)
+
+    raw = output.get(name)
+    if raw.ndim == 4:
+        channel_axes = [
+            axis for axis in (1, 2, 3) if raw.shape[axis] == expected_channels
+        ]
+        if len(channel_axes) == 1:
+            return np.moveaxis(raw, channel_axes[0], 1).astype(
+                np.float32, copy=False
+            )
+    raise ValueError(
+        f"Cannot determine YOLO output layout for '{name}': expected "
+        f"{expected_channels} channels, got NCHW shape {tensor.shape} "
+        f"and stored shape {raw.shape}."
     )
 
 

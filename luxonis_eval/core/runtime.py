@@ -175,9 +175,6 @@ def get_class_index_mapping(
 ) -> dict[int, int]:
     ldf_to_native_index_map: dict[int, int] = {}
     for k, v in ldf_class_map.items():
-        if k == 0 and v == "background":
-            continue
-
         for key, value in native_class_map.items():
             values = value.split(", ")
             if v in values:
@@ -185,6 +182,8 @@ def get_class_index_mapping(
                 break
 
         if k not in ldf_to_native_index_map:
+            if k == 0 and v == "background":
+                continue
             raise ValueError(f"Label {v} not found in native class map.")
 
     return ldf_to_native_index_map

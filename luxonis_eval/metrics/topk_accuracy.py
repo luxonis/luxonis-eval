@@ -1,8 +1,8 @@
 from collections.abc import Sequence
 from typing import Any
 
+import depthai as dai
 import numpy as np
-from depthai_nodes import Classifications
 
 from luxonis_eval.metrics.base_metric import BaseMetric
 
@@ -40,14 +40,14 @@ class TopKAccuracy(BaseMetric):
 
     def update(
         self,
-        predictions: Classifications,
+        predictions: dai.beta.Classifications,
         target: dict[str, np.ndarray],
     ) -> None:
         """Update internal metric state.
 
         Parameters
         ----------
-        predictions : Classifications
+        predictions : dai.beta.Classifications
             Model predictions (logits or probabilities).
         target : dict[str, np.ndarray]
             Ground-truth labels.
@@ -67,7 +67,7 @@ class TopKAccuracy(BaseMetric):
             target_idx = int(class_index_map[target_idx])
 
         max_k = max(self.topk)
-        top_idx = [class_map[pred_classes[i]] for i in range(max_k)]  # type: ignore
+        top_idx = [class_map[name] for name in pred_classes[:max_k]]
 
         for k in self.topk:
             if k not in self.correct_at_k:

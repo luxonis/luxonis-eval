@@ -1,7 +1,7 @@
 from typing import Any
 
+import depthai as dai
 import numpy as np
-from depthai_nodes import Classifications
 from depthai_nodes.message.creators import create_classification_message
 from depthai_nodes.node.parsers.classification import (
     ClassificationParser as DepthAINodesClassificationParser,
@@ -21,7 +21,7 @@ class ClassificationParser(BaseParser):
         super().__init__(**kwargs)
         self.is_softmax = is_softmax
 
-    def parse(self, output: EngineOutput) -> Classifications:
+    def parse(self, output: EngineOutput) -> dai.beta.Classifications:
         """Parse backend output into class scores.
 
         Parameters
@@ -30,7 +30,7 @@ class ClassificationParser(BaseParser):
             Engine-normalized inference output.
         Returns
         -------
-        Classifications
+        dai.beta.Classifications
             Classification scores.
         """
         classes = ordered_class_names(self.context.class_map)
