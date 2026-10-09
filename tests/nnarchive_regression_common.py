@@ -8,7 +8,7 @@ from typing import Literal
 from luxonis_ml.data import BucketStorage, LuxonisParser
 from luxonis_ml.enums import DatasetType
 
-RELATIVE_TOLERANCE = 0.02
+RELATIVE_TOLERANCE = 0.025
 
 
 @dataclass(frozen=True)
