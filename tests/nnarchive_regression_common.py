@@ -43,9 +43,8 @@ EVAL_CONFIG_NAMES = {
     "semantic": "semantic_segmentation",
 }
 
-# Match the assertions used by the original four normalized regression cases.
-# Training losses and metrics unsupported by LuxonisEval are not comparisons.
-TRAINING_METRIC_NAMES = {
+# LuxonisTrain-to-LuxonisEval metric name mappings, grouped by task family.
+TRAIN_TO_EVAL_METRIC_MAP = {
     "classification": {"Accuracy": "TopKAccuracy.top1_acc"},
     "detection": {
         "MeanAveragePrecision": "BboxMeanAveragePrecision.AP",
@@ -139,6 +138,12 @@ def parse_dataset(case: RegressionCase, nnarchive_testdata_root: Path) -> None:
 def load_expected_metrics(
     case: RegressionCase, nnarchive_testdata_root: Path
 ) -> dict[str, float]:
+    """Read reference test scores under LuxonisEval result keys.
+
+    For LuxonisTrain summaries, select and rename test metrics using
+    TRAIN_TO_EVAL_METRIC_MAP. Summaries already using LuxonisEval result
+    keys are returned directly.
+    """
     resolved_case_dir = case_dir(nnarchive_testdata_root, case)
     summary = json.loads(
         (resolved_case_dir / "metrics_summary.json").read_text(
@@ -154,31 +159,36 @@ def load_expected_metrics(
             if key.startswith("test/metric/")
         }
     else:
-        # Previously normalized fixtures already use LuxonisEval metric names.
+        # Some fixtures store scores directly under LuxonisEval result keys.
         if not summary:
             raise ValueError(f"{case.name}: metric summary is empty.")
         return {key: float(value) for key, value in summary.items()}
 
-    training_metrics = {}
+    train_test_metrics = {}
     for key, value in scalars.items():
         if not key.startswith("metric/"):
             continue
-        name = key.rsplit("/", 1)[-1]
-        if name in training_metrics:
+        metric_name = key.rsplit("/", 1)[-1]
+        if metric_name in train_test_metrics:
             raise ValueError(
-                f"{case.name}: ambiguous training metric {name!r}."
+                f"{case.name}: multiple LuxonisTrain test metrics use "
+                f"the name {metric_name!r}."
             )
-        training_metrics[name] = value
+        train_test_metrics[metric_name] = value
 
-    mapping = TRAINING_METRIC_NAMES[case.name.split("_", 1)[0]]
-    missing = sorted(set(mapping) - training_metrics.keys())
-    if missing:
+    task_family = case.name.split("_", 1)[0]
+    metric_name_map = TRAIN_TO_EVAL_METRIC_MAP[task_family]
+    missing_train_metrics = sorted(
+        set(metric_name_map) - train_test_metrics.keys()
+    )
+    if missing_train_metrics:
         raise ValueError(
-            f"{case.name}: missing training test metrics: {missing}."
+            f"{case.name}: missing LuxonisTrain test metrics required "
+            f"for comparison: {missing_train_metrics}."
         )
     return {
-        eval_name: float(training_metrics[training_name])
-        for training_name, eval_name in mapping.items()
+        eval_key: float(train_test_metrics[train_name])
+        for train_name, eval_key in metric_name_map.items()
     }
 
 
