@@ -9,20 +9,20 @@ try:
         CASES,
         RegressionCase,
         assert_within_relative_tolerance,
-        case_dir,
         flatten_metrics,
         load_expected_metrics,
         parse_dataset,
+        resolve_case_artifacts,
     )
 except ModuleNotFoundError:
     from nnarchive_regression_common import (
         CASES,
         RegressionCase,
         assert_within_relative_tolerance,
-        case_dir,
         flatten_metrics,
         load_expected_metrics,
         parse_dataset,
+        resolve_case_artifacts,
     )
 
 
@@ -36,17 +36,17 @@ def test_onnx_nnarchive_regression(
     monkeypatch.setenv("LUXONISML_BASE_PATH", str(tmp_path / "luxonis_ml"))
     monkeypatch.setenv("LUXONISML_TEAM_ID", "pytest")
 
-    resolved_case_dir = case_dir(nnarchive_testdata_root, case)
+    config_path, model_path = resolve_case_artifacts(
+        case, nnarchive_testdata_root, "onnx"
+    )
 
-    parse_dataset(case, nnarchive_testdata_root)
     expected_metrics = load_expected_metrics(case, nnarchive_testdata_root)
+    parse_dataset(case, nnarchive_testdata_root)
 
     result = quality_run(
-        resolved_case_dir / "onnx_eval.yaml",
+        config_path,
         {
-            "pipeline.engine.model_path": str(
-                resolved_case_dir / "onnx_model.onnx.tar.xz"
-            ),
+            "pipeline.engine.model_path": str(model_path),
             "runtime.logging.level": "WARNING",
             "runtime.logging.use_rich": False,
         },
