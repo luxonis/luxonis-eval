@@ -1,0 +1,42 @@
+pipeline:
+  loader:
+    name: LuxonisLoader
+    preprocessing:
+      keep_aspect_ratio: true
+    params:
+      dataset_name: real_v3
+      view: [test]
+      # Convert legacy family-specific offsets to source-local
+      # [TL, TR, BR, BL] before metrics and visualization.
+      kpts_mapping_per_class:
+        qr_code: [1, 2, 3, 0]
+        data_matrix: [3, 0, 1, 2]
+
+  engine:
+    name: depthai
+    model_path: phase6officialfp16.rvc4.tar.xz
+    params:
+      device_ip: 10.12.143.167
+
+  evaluators:
+    - task_name: "barcode-detection"
+      parser:
+        name: YOLOExtendedParser
+      metrics:
+        - name: BboxMeanAveragePrecision
+          params:
+            iou_type: bbox
+            conf_thres: 0.03
+            iou_thres: 0.65
+        - name: KeypointMeanAveragePrecision
+          params:
+            sigmas: [0.08, 0.08, 0.08, 0.08]
+            area_factor: 1
+      visualizers:
+        - name: KeypointVisualizer
+          active: true
+          display: false
+          save: true
+
+runtime:
+  nn_archive_params_override: true
