@@ -1,6 +1,10 @@
+from pathlib import Path
+from typing import Literal
+
 import numpy as np
 import pytest
 import torch
+import yaml
 from depthai_nodes.message.creators import create_segmentation_message
 from torchmetrics.segmentation import DiceScore, MeanIoU
 
@@ -10,6 +14,11 @@ from luxonis_eval.engines.onnx_engine import ONNXEngineOutput
 from luxonis_eval.metrics import DiceCoefficient, F1Score, JaccardIndex, MIoU
 from luxonis_eval.metrics.utils import prepare_segmentation_metric_inputs
 from luxonis_eval.parsers import SegmentationParser
+
+from .nnarchive_regression_common import (
+    RegressionCase,
+    resolve_case_artifacts,
+)
 
 
 @pytest.mark.parametrize("metric_type", [F1Score, JaccardIndex])
@@ -99,6 +108,59 @@ def test_include_background_requires_migration(
 ):
     with pytest.raises(ValueError, match="uses ignore_index"):
         metric_type(include_background=False)
+
+
+@pytest.mark.parametrize("backend", ["onnx", "depthai"])
+@pytest.mark.parametrize("include_background", [False, True])
+def test_fixture_config_removes_only_unsupported_metric_parameter(
+    tmp_path: Path,
+    backend: Literal["onnx", "depthai"],
+    include_background: bool,
+):
+    case = RegressionCase(
+        name="semantic_segmentation_squares_ldf_native_empty_task"
+    )
+    directory = tmp_path / case.name
+    directory.mkdir()
+    config_path = directory / f"{backend}_eval.yaml"
+    suffix = "onnx" if backend == "onnx" else "rvc4"
+    (directory / f"model.{suffix}.tar.xz").touch()
+    config = {
+        "pipeline": {
+            "evaluators": [
+                {
+                    "metrics": [
+                        {
+                            "name": "JaccardIndex",
+                            "params": {
+                                "include_background": include_background,
+                                "num_classes": 3,
+                                "ignore_index": 2,
+                            },
+                        },
+                        {
+                            "name": "F1Score",
+                            "params": {
+                                "include_background": include_background,
+                                "average": "macro",
+                            },
+                        },
+                        {
+                            "name": "MIoU",
+                            "params": {"include_background": False},
+                        },
+                    ]
+                }
+            ]
+        }
+    }
+    config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    resolved_path, _ = resolve_case_artifacts(case, tmp_path, backend)
+    actual = yaml.safe_load(resolved_path.read_text(encoding="utf-8"))
+    metrics = config["pipeline"]["evaluators"][0]["metrics"]
+    del metrics[0]["params"]["include_background"]
+    del metrics[1]["params"]["include_background"]
+    assert actual == config
 
 
 @pytest.mark.parametrize("background_class", [False, True])

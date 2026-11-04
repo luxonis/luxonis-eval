@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+import yaml
 from luxonis_ml.data import BucketStorage, LuxonisParser
 from luxonis_ml.enums import DatasetType
 
@@ -112,6 +113,17 @@ def resolve_case_artifacts(
         raise FileNotFoundError(
             f"{case.name}: missing {backend} evaluation config in {directory}; "
             f"expected one of {config_names}."
+        )
+
+    if stem == "semantic_segmentation":
+        config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        # Cloud fixtures still carry this removed F1/Jaccard parameter.
+        for evaluator in config["pipeline"].get("evaluators", []):
+            for metric in evaluator.get("metrics", []):
+                if metric["name"] in {"F1Score", "JaccardIndex"}:
+                    metric.get("params", {}).pop("include_background", None)
+        config_path.write_text(
+            yaml.safe_dump(config, sort_keys=False), encoding="utf-8"
         )
 
     suffix = "onnx" if backend == "onnx" else "rvc4"
