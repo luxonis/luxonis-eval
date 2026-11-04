@@ -14,8 +14,8 @@ class MIoU(BaseMetric):
     def __init__(
         self,
         num_classes: int,
-        include_background: bool = False,
-        per_class: bool = True,
+        include_background: bool = True,
+        per_class: bool = False,
         input_format: Literal["one-hot", "index", "mixed"] = "index",
         **kwargs: Any,
     ) -> None:
@@ -25,8 +25,9 @@ class MIoU(BaseMetric):
         ----------
         num_classes : int
             Number of classes in the segmentation task.
-        include_background : bool, default=False
-            Whether to include the background class in the metric calculation.
+        include_background : bool, default=True
+            Whether to score class 0. Foreground errors on background pixels
+            still count when False, matching LuxonisTrain.
         per_class : bool, default=False
             Whether to compute IoU per class.
         input_format : Literal["one-hot", "index", "mixed"], default="index"
@@ -41,6 +42,7 @@ class MIoU(BaseMetric):
             input_format=input_format,
         )
         self.per_class = per_class
+        self.num_classes = num_classes
         self.include_background = include_background
         self.input_format = input_format
         self.target_class_map = None
@@ -80,11 +82,14 @@ class MIoU(BaseMetric):
         prepared = prepare_segmentation_metric_inputs(
             predictions,
             target,
-            include_background=self.include_background,
             target_bg=context.target_background_index,
             class_index_map=context.class_index_map,
         )
-        self.metric.update(prepared.pred_tensor, prepared.target_tensor)
+        self.metric.update(
+            *prepared.formatted_tensors(
+                num_classes=self.num_classes, input_format=self.input_format
+            )
+        )
 
     def compute(self) -> dict[str, float]:
         """Compute final mIoU metrics.
@@ -96,17 +101,19 @@ class MIoU(BaseMetric):
         """
         results = self.metric.compute()
 
-        if not self.per_class:
+        if not self.per_class or results.ndim == 0 or results.numel() == 1:
             return {"mIoU": float(results)}
 
+        first_class = 0 if self.include_background else 1
         class_names = [
             self.target_class_map.get(i, f"class_{i}")
             if self.target_class_map is not None
             else f"class_{i}"
-            for i in range(len(results))
+            for i in range(first_class, first_class + results.numel())
         ]
 
-        return {
+        per_class = {
             f"mIoU ({name})": float(r)
             for name, r in zip(class_names, results, strict=True)
         }
+        return {"mIoU": float(results.mean()), **per_class}

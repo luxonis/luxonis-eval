@@ -14,19 +14,29 @@ from luxonis_eval.metrics.utils import (
 
 
 class F1Score(BaseMetric):
-    """F1 score for semantic segmentation."""
+    """F1 score for semantic segmentation.
+
+    ``ignore_index`` excludes pixels with that ground-truth ID, matching
+    LuxonisTrain's F1Score wrapper.
+    """
 
     def __init__(
         self,
         num_classes: int | None = None,
-        include_background: bool = True,
+        ignore_index: int | None = None,
         average: Literal["micro", "macro", "weighted", "none"]
         | None = "micro",
         input_format: Literal["one-hot", "index"] = "index",
         **kwargs: Any,
     ) -> None:
+        if "include_background" in kwargs:
+            raise ValueError(
+                "F1Score uses ignore_index instead of include_background. "
+                "Set ignore_index to the dataset background ID to ignore "
+                "background target pixels, or omit it to score all pixels."
+            )
         self.num_classes = num_classes
-        self.include_background = include_background
+        self.ignore_index = ignore_index
         self.average = average
         self.input_format = input_format
         self.target_class_map = None
@@ -51,8 +61,6 @@ class F1Score(BaseMetric):
         prepared = prepare_segmentation_metric_inputs(
             predictions,
             target,
-            # Preserve class IDs; TorchMetrics ignores background targets.
-            include_background=True,
             target_bg=context.target_background_index,
             class_index_map=context.class_index_map,
         )
@@ -82,7 +90,9 @@ class F1Score(BaseMetric):
     ) -> torchmetrics.Metric:
         average = None if self.average == "none" else self.average
         if binary_target:
-            return torchmetrics.F1Score(task="binary", average=average)
+            return torchmetrics.F1Score(
+                task="binary", average=average, ignore_index=self.ignore_index
+            )
 
         return torchmetrics.F1Score(
             task="multiclass",
@@ -92,9 +102,5 @@ class F1Score(BaseMetric):
                 target_class_map=self.target_class_map,
             ),
             average=average,
-            ignore_index=(
-                self.context.target_background_index
-                if not self.include_background
-                else None
-            ),
+            ignore_index=self.ignore_index,
         )

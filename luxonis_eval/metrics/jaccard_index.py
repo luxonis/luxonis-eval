@@ -14,18 +14,28 @@ from luxonis_eval.metrics.utils import (
 
 
 class JaccardIndex(BaseMetric):
-    """Jaccard index for semantic segmentation."""
+    """Jaccard index for semantic segmentation.
+
+    ``ignore_index`` excludes pixels with that ground-truth ID, matching
+    LuxonisTrain's JaccardIndex wrapper.
+    """
 
     def __init__(
         self,
         num_classes: int | None = None,
-        include_background: bool = True,
+        ignore_index: int | None = None,
         per_class: bool = False,
         input_format: Literal["one-hot", "index", "mixed"] = "index",
         **kwargs: Any,
     ) -> None:
+        if "include_background" in kwargs:
+            raise ValueError(
+                "JaccardIndex uses ignore_index instead of include_background. "
+                "Set ignore_index to the dataset background ID to ignore "
+                "background target pixels, or omit it to score all pixels."
+            )
         self.num_classes = num_classes
-        self.include_background = include_background
+        self.ignore_index = ignore_index
         self.per_class = per_class
         self.input_format = input_format
         self.target_class_map = None
@@ -50,8 +60,6 @@ class JaccardIndex(BaseMetric):
         prepared = prepare_segmentation_metric_inputs(
             predictions,
             target,
-            # Preserve class IDs; TorchMetrics ignores background targets.
-            include_background=True,
             target_bg=context.target_background_index,
             class_index_map=context.class_index_map,
         )
@@ -81,7 +89,9 @@ class JaccardIndex(BaseMetric):
     ) -> torchmetrics.Metric:
         average = None if self.per_class else "macro"
         if binary_target:
-            return torchmetrics.JaccardIndex(task="binary")
+            return torchmetrics.JaccardIndex(
+                task="binary", ignore_index=self.ignore_index
+            )
 
         return torchmetrics.JaccardIndex(
             task="multiclass",
@@ -91,9 +101,5 @@ class JaccardIndex(BaseMetric):
                 target_class_map=self.target_class_map,
             ),
             average=average,
-            ignore_index=(
-                self.context.target_background_index
-                if not self.include_background
-                else None
-            ),
+            ignore_index=self.ignore_index,
         )
