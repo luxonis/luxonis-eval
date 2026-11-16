@@ -586,7 +586,7 @@ Parser configuration belongs in the parser itself, and LuxonisEval provides the 
 
 The parser bridges the gap between model-specific tensor layouts and the standardized message types that downstream metrics and visualizers expect. The built-in parsers produce the following output types:
 
-- [**ClassificationParser**](luxonis_eval/parsers/classification.py) -> [depthai_nodes.Classifications](https://github.com/luxonis/depthai-nodes/tree/main/depthai_nodes/message#classifications)
+- [**ClassificationParser**](luxonis_eval/parsers/classification.py) -> `dai.beta.Classifications`
 - [**YOLOExtendedParser**](luxonis_eval/parsers/yolo.py) -> [dai.ImgDetections](https://docs.luxonis.com/software-v3/depthai/api/cpp/#classdai_1_1ImgDetections)
 - [**SegmentationParser**](luxonis_eval/parsers/segmentation.py) -> [dai.SegmentationMask](https://github.com/luxonis/depthai-nodes/tree/main/depthai_nodes/message#segmentationmask)
 

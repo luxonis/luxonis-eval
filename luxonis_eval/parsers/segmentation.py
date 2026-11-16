@@ -16,11 +16,15 @@ class SegmentationParser(BaseParser):
     """Parser for semantic segmentation model outputs."""
 
     def __init__(
-        self, classes_in_one_layer: bool = False, **kwargs: Any
+        self,
+        classes_in_one_layer: bool = False,
+        background_class: bool = False,
+        **kwargs: Any,
     ) -> None:
         """Initialize the segmentation parser."""
         super().__init__(**kwargs)
         self.classes_in_one_layer = classes_in_one_layer
+        self.background_class = background_class
 
     def parse(self, output: EngineOutput) -> dai.SegmentationMask:
         """Parse backend output into segmentation predictions."""
@@ -28,6 +32,7 @@ class SegmentationParser(BaseParser):
         class_map = DepthAINodesSegmentationParser.compute(
             np.asarray(segmentation_mask),
             classes_in_one_layer=self.classes_in_one_layer,
+            background_class=self.background_class,
         )
 
         return create_segmentation_message(class_map)

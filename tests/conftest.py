@@ -6,9 +6,7 @@ from luxonis_ml.utils import LuxonisFileSystem
 
 os.environ.setdefault("LUXONIS_TELEMETRY_ENABLED", "false")
 
-NORMALIZED_TESTDATA_REMOTE_DIR = (
-    "gs://luxonis-test-bucket/luxonis-eval-test-data/NormalizedTestData"
-)
+NORMALIZED_TESTDATA_REMOTE_DIR = "gs://luxonis-test-bucket/luxonis-eval-test-data/NormalizedTestDataExtended"
 LOCAL_TESTDATA_ENV_VAR = "LUXONIS_EVAL_TESTDATA_DIR"
 
 

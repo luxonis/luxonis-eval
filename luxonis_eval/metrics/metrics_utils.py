@@ -109,6 +109,17 @@ def remap_prediction_mask(
     np.ndarray
         The remapped prediction mask with indices aligned to the target mask.
     """
+    # Native 255 is reserved for unassigned pixels, not an ordinary class.
+    assigned_ids = np.unique(pred_mask[pred_mask != 255])
+    unmapped_ids = sorted(
+        set(assigned_ids.tolist()) - set(class_index_map.values())
+    )
+    if unmapped_ids:
+        raise ValueError(
+            "Segmentation prediction class IDs have no dataset class mapping: "
+            f"{unmapped_ids}."
+        )
+
     remapped = np.full(pred_mask.shape, fill_value=255, dtype=np.int64)
 
     for target_idx, pred_idx in class_index_map.items():
@@ -149,36 +160,6 @@ def normalize_prediction_segmentation_mask(
         return (mask == 0).astype(np.int64)
 
     return mask
-
-
-def mask_ignore_pixels(
-    pred_mask: np.ndarray, target_mask: np.ndarray, ignore_index: int = 0
-) -> tuple[np.ndarray, np.ndarray]:
-    """Replace ignore_index pixels with 0 in both masks so they cancel
-    out and don't affect IoU for any real class.
-
-    Parameters
-    ----------
-    pred_mask : np.ndarray
-        The predicted segmentation mask with class indices.
-    target_mask : np.ndarray
-        The ground-truth segmentation mask with class indices.
-    ignore_index : int, default=0
-        The class index to ignore (e.g., background).
-
-    Returns
-    -------
-    tuple[np.ndarray, np.ndarray]
-        The modified prediction and target masks with ignore_index pixels set to 0.
-    """
-    ignore_mask = target_mask == ignore_index
-    target_mask = target_mask.copy()
-    pred_mask = pred_mask.copy()
-
-    target_mask[ignore_mask] = 0
-    pred_mask[ignore_mask] = 0
-
-    return pred_mask, target_mask
 
 
 def binary_segmentation_confusion(

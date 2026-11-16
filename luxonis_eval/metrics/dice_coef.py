@@ -5,7 +5,10 @@ import numpy as np
 from torchmetrics.segmentation import DiceScore
 
 from luxonis_eval.metrics.base_metric import BaseMetric
-from luxonis_eval.metrics.utils import prepare_segmentation_metric_inputs
+from luxonis_eval.metrics.utils import (
+    format_torchmetric_result,
+    prepare_segmentation_metric_inputs,
+)
 
 
 class DiceCoefficient(BaseMetric):
@@ -14,7 +17,7 @@ class DiceCoefficient(BaseMetric):
     def __init__(
         self,
         num_classes: int,
-        include_background: bool = False,
+        include_background: bool = True,
         average: Literal["micro", "macro", "weighted", "none"]
         | None = "micro",
         input_format: Literal["one-hot", "index"] = "index",
@@ -27,7 +30,8 @@ class DiceCoefficient(BaseMetric):
         num_classes : int
             Number of classes in the segmentation task.
         include_background : bool, default=True
-            Whether to include the background class in the metric calculation.
+            Whether to score class 0. Foreground errors on background pixels
+            still count when False, matching LuxonisTrain.
         average : Literal["micro", "macro", "weighted", "none"] | None, default="micro"
             How to average the metric across classes.
         input_format : Literal["one-hot", "index"], default="index"
@@ -42,6 +46,7 @@ class DiceCoefficient(BaseMetric):
             input_format=input_format,
         )
         self.include_background = include_background
+        self.num_classes = num_classes
         self.input_format = input_format
         self.target_class_map = None
         super().__init__(**kwargs)
@@ -80,11 +85,14 @@ class DiceCoefficient(BaseMetric):
         prepared = prepare_segmentation_metric_inputs(
             predictions,
             target,
-            include_background=self.include_background,
             target_bg=context.target_background_index,
             class_index_map=context.class_index_map,
         )
-        self.metric.update(prepared.pred_tensor, prepared.target_tensor)
+        self.metric.update(
+            *prepared.formatted_tensors(
+                num_classes=self.num_classes, input_format=self.input_format
+            )
+        )
 
     def compute(self) -> dict[str, float]:
         """Compute final Dice coefficient metrics.
@@ -94,4 +102,10 @@ class DiceCoefficient(BaseMetric):
         dict[str, float]
             Computed Dice coefficient results.
         """
-        return {"Dice Score": float(self.metric.compute())}
+        return format_torchmetric_result(
+            self.metric.compute(),
+            scalar_name="Dice Score",
+            per_class_prefix="Dice Score",
+            target_class_map=self.target_class_map,
+            class_offset=0 if self.include_background else 1,
+        )

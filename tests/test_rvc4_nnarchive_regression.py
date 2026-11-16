@@ -9,20 +9,20 @@ try:
         CASES,
         RegressionCase,
         assert_within_relative_tolerance,
-        case_dir,
         flatten_metrics,
         load_expected_metrics,
         parse_dataset,
+        resolve_case_artifacts,
     )
 except ModuleNotFoundError:
     from nnarchive_regression_common import (
         CASES,
         RegressionCase,
         assert_within_relative_tolerance,
-        case_dir,
         flatten_metrics,
         load_expected_metrics,
         parse_dataset,
+        resolve_case_artifacts,
     )
 
 
@@ -39,19 +39,19 @@ def test_rvc4_nnarchive_regression(
     monkeypatch.setenv("LUXONISML_BASE_PATH", str(tmp_path / "luxonis_ml"))
     monkeypatch.setenv("LUXONISML_TEAM_ID", "pytest")
 
-    resolved_case_dir = case_dir(rvc4_nnarchive_testdata_root, case)
+    config_path, model_path = resolve_case_artifacts(
+        case, rvc4_nnarchive_testdata_root, "depthai"
+    )
 
-    parse_dataset(case, rvc4_nnarchive_testdata_root)
     expected_metrics = load_expected_metrics(
         case, rvc4_nnarchive_testdata_root
     )
+    parse_dataset(case, rvc4_nnarchive_testdata_root)
 
     result = quality_run(
-        resolved_case_dir / "depthai_eval.yaml",
+        config_path,
         {
-            "pipeline.engine.model_path": str(
-                resolved_case_dir / "rvc4_model.rvc4.tar.xz"
-            ),
+            "pipeline.engine.model_path": str(model_path),
             "pipeline.engine.params.device_ip": required_rvc4_device_ip,
             "runtime.logging.level": "WARNING",
             "runtime.logging.use_rich": False,

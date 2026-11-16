@@ -1,5 +1,6 @@
 luxonis-ml[data,nn_archive,utils]~=0.10.0
-depthai-nodes==0.6.2
+depthai>=3.9.0
+depthai-nodes==0.7.0
 cyclopts
 loguru
 tabulate

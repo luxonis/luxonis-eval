@@ -1,12 +1,12 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Literal
 
 import depthai as dai
 import numpy as np
 import torch
 
 from luxonis_eval.metrics.metrics_utils import (
-    mask_ignore_pixels,
     normalize_prediction_segmentation_mask,
     remap_prediction_mask,
     target_segmentation_to_index_mask,
@@ -22,6 +22,30 @@ class PreparedSegmentationData:
     pred_tensor: torch.Tensor
     target_tensor: torch.Tensor
     binary_target: bool
+    target_channels: torch.Tensor | None = None
+
+    def formatted_tensors(
+        self,
+        *,
+        num_classes: int,
+        input_format: Literal["one-hot", "index", "mixed"],
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Represent one image in the requested TorchMetrics format."""
+        if input_format == "index":
+            return self.pred_tensor, self.target_tensor
+
+        pred = torch.nn.functional.one_hot(
+            self.pred_tensor, num_classes=num_classes
+        ).movedim(-1, 1)
+        if input_format == "mixed":
+            return pred, self.target_tensor
+
+        target = self.target_channels
+        if target is None:
+            target = torch.nn.functional.one_hot(
+                self.target_tensor, num_classes=num_classes
+            ).movedim(-1, 1)
+        return pred, target
 
 
 def extract_segmentation_mask(
@@ -41,7 +65,6 @@ def prepare_segmentation_metric_inputs(
     predictions: dai.SegmentationMask,
     target: dict[str, np.ndarray],
     *,
-    include_background: bool,
     target_bg: int | None = None,
     class_index_map: dict[int, int] | None = None,
 ) -> PreparedSegmentationData:
@@ -55,24 +78,42 @@ def prepare_segmentation_metric_inputs(
         binary_target=binary_target,
     )
 
-    if class_index_map is not None and not binary_target:
-        pred_mask = remap_prediction_mask(pred_mask, class_index_map)
-
-    if not binary_target and not include_background and target_bg is not None:
-        pred_mask, target_mask = mask_ignore_pixels(
-            pred_mask,
-            target_mask,
-            ignore_index=target_bg,
+    if pred_mask.shape != target_mask.shape:
+        raise ValueError(
+            "Segmentation prediction and target shapes must match, got "
+            f"{pred_mask.shape} and {target_mask.shape}."
         )
 
-    pred_tensor = torch.from_numpy(pred_mask.astype(np.int64))
-    target_tensor = torch.from_numpy(target_mask.astype(np.int64))
+    if not binary_target:
+        # Save native unassigned pixels before remapping ordinary class IDs.
+        unassigned = pred_mask == 255
+        if np.any(unassigned) and target_bg is None:
+            raise ValueError(
+                "Segmentation predictions contain unassigned label 255, "
+                "but the dataset has no background class to map it to."
+            )
+        if class_index_map is not None:
+            pred_mask = remap_prediction_mask(pred_mask, class_index_map)
+        if np.any(unassigned):
+            pred_mask[unassigned] = target_bg
+
+    # TorchMetrics expects BHW index masks; one update contains one image.
+    pred_tensor = torch.from_numpy(pred_mask.astype(np.int64)).unsqueeze(0)
+    target_tensor = torch.from_numpy(target_mask.astype(np.int64)).unsqueeze(0)
     return PreparedSegmentationData(
         pred_mask=pred_mask,
         target_mask=target_mask,
         pred_tensor=pred_tensor,
         target_tensor=target_tensor,
         binary_target=binary_target,
+        target_channels=(
+            torch.from_numpy(
+                np.asarray(target["/segmentation"], dtype=bool)
+            ).unsqueeze(0)
+            if np.asarray(target["/segmentation"]).ndim == 3
+            and not binary_target
+            else None
+        ),
     )
 
 
@@ -100,6 +141,7 @@ def format_torchmetric_result(
     scalar_name: str,
     per_class_prefix: str,
     target_class_map: Mapping[int, str] | None = None,
+    class_offset: int = 0,
 ) -> dict[str, float]:
     """Format scalar or per-class torchmetrics output consistently."""
     if result.ndim == 0 or result.numel() == 1:
@@ -109,7 +151,7 @@ def format_torchmetric_result(
         target_class_map.get(index, f"class_{index}")
         if target_class_map is not None
         else f"class_{index}"
-        for index in range(result.numel())
+        for index in range(class_offset, class_offset + result.numel())
     ]
     return {
         f"{per_class_prefix}_{class_name}": float(value)
