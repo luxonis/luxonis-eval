@@ -5,15 +5,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-python3 -m venv --clear venv
-source venv/bin/activate
+if ! command -v uv >/dev/null 2>&1; then
+  curl -LsSf https://astral.sh/uv/0.12.0/install.sh | sh
+  export PATH="$HOME/.local/bin:$PATH"
+fi
 
-python -m pip install --upgrade pip
-python -m pip install gcsfs
-python -m pip install -e ".[dev]"
+uv sync --locked
 
 if [[ -n "${DEPTHAI_VERSION:-}" ]]; then
-  python -m pip install "depthai==${DEPTHAI_VERSION}"
+  uv pip install --python .venv/bin/python "depthai==${DEPTHAI_VERSION}"
 fi
 
 pytest_args=(
@@ -25,7 +25,7 @@ pytest_args=(
 
 if [[ -n "${HIL_TESTBED:-}" ]]; then
   if [[ -n "${HIL_FRAMEWORK_TOKEN:-}" ]]; then
-    python -m pip install --upgrade \
+    uv pip install --python .venv/bin/python --upgrade \
       --index-url "https://__token__:${HIL_FRAMEWORK_TOKEN}@gitlab.luxonis.com/api/v4/projects/213/packages/pypi/simple" \
       hil-framework
   fi
@@ -43,4 +43,5 @@ printf '  pytest_args:'
 printf ' %q' "${pytest_args[@]}"
 printf '\n'
 
-pytest "${pytest_args[@]}" "$@"
+# Preserve the explicitly requested DepthAI version and HIL package above.
+uv run --no-sync pytest "${pytest_args[@]}" "$@"

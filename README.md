@@ -46,20 +46,19 @@ Get started with `LuxonisEval` in a few steps:
 1. **Install the project from source**
 
    ```bash
-   pip install .
+   uv sync --locked --no-dev
    ```
 
-2. **Install FiftyOne, then download the models and prepare 1,000 COCO images**
+2. **Download the models and prepare 1,000 COCO images with FiftyOne**
 
    ```bash
-   pip install fiftyone
-   bash examples/quickstart/setup.sh
+   uv run --locked --no-dev --with fiftyone bash examples/quickstart/setup.sh
    ```
 
 3. **Run the evaluation**
 
    ```bash
-   luxonis_eval eval --config examples/quickstart/onnx_config.yaml
+   uv run --locked --no-dev luxonis_eval eval --config examples/quickstart/onnx_config.yaml
    ```
 
 This quickstart evaluates a YOLOv6 NNArchive from
@@ -102,21 +101,30 @@ model placement, dataset parsing, visualization, and device instructions, see
 
 ## 🛠️ Installation
 
-`LuxonisEval` requires **Python 3.10** or higher. We recommend using a virtual environment to keep dependencies isolated.
+`LuxonisEval` requires **Python 3.10** or higher. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage the project environment.
 
 **Install from source**:
+
+```bash
+uv sync --locked --no-dev
+```
+
+Run the CLI with `uv run --no-dev luxonis_eval ...`.
+
+**Developer install**:
+
+```bash
+uv sync --locked
+uv run prek install
+```
+
+**Install with pip** (pip 23.3 or newer):
 
 ```bash
 pip install .
 ```
 
-This installs the `luxonis_eval` CLI in your environment.
-
-**Developer install**:
-
-```bash
-pip install -e ".[dev]"
-```
+See [Contributing](CONTRIBUTING.md) for tests, dependency updates, and locked pip installs.
 
 <a name="usage"></a>
 

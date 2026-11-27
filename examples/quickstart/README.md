@@ -17,12 +17,11 @@ evaluates the model on `val`.
 
 ## 1. Install the packages
 
-From the repository root, create and activate a Python 3.10+ virtual
-environment, then install `luxonis-eval` and FiftyOne:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then
+sync the project environment from the repository root:
 
 ```bash
-pip install .
-pip install fiftyone
+uv sync --locked --no-dev
 ```
 
 The setup script also requires `wget` to be available on `PATH`. On Ubuntu,
@@ -33,10 +32,11 @@ parse COCO into LDF (Luxonis-internal dataset representation format).
 
 ## 2. Download the models and prepare COCO
 
-Run the setup script from the repository root:
+Run the setup script from the repository root. `--with fiftyone` adds FiftyOne
+for this command:
 
 ```bash
-bash examples/quickstart/setup.sh
+uv run --locked --no-dev --with fiftyone bash examples/quickstart/setup.sh
 ```
 
 The script downloads the `R2 COCO 512x384` ONNX and RVC4 NNArchives from the
@@ -51,7 +51,7 @@ to download 800 training, 100 validation, and 100 test images. It stores the
 download under `.cache/quickstart/fiftyone/`, then runs:
 
 ```bash
-luxonis_ml data parse --delete .cache/quickstart/fiftyone/coco-2017 \
+uv run --no-dev luxonis_ml data parse --delete .cache/quickstart/fiftyone/coco-2017 \
     --name quickstartcoco \
     --train 800 --val 100 --test 100
 ```
@@ -63,7 +63,7 @@ To store the FiftyOne download elsewhere, set `QUICKSTART_DATA_DIR` to a clean
 directory:
 
 ```bash
-QUICKSTART_DATA_DIR=/path/to/fiftyone bash examples/quickstart/setup.sh
+QUICKSTART_DATA_DIR=/path/to/fiftyone uv run --locked --no-dev --with fiftyone bash examples/quickstart/setup.sh
 ```
 
 ## 3. Evaluate with ONNX Runtime
@@ -72,7 +72,7 @@ QUICKSTART_DATA_DIR=/path/to/fiftyone bash examples/quickstart/setup.sh
 preprocessing and YOLO parser metadata. Run:
 
 ```bash
-luxonis_eval eval --config examples/quickstart/onnx_config.yaml
+uv run --no-dev luxonis_eval eval --config examples/quickstart/onnx_config.yaml
 ```
 
 No Luxonis device is required. The command uses ONNX Runtime's CPU execution
@@ -86,7 +86,7 @@ If an RVC4 device is connected, use the dedicated device configuration. It
 selects the DepthAI engine and `yolov6.rvc4.tar`:
 
 ```bash
-luxonis_eval eval --config examples/quickstart/rvc4_config.yaml
+uv run --no-dev luxonis_eval eval --config examples/quickstart/rvc4_config.yaml
 ```
 
 DepthAI discovers a connected device automatically. To select a network
