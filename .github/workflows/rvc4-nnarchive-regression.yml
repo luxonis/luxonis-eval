@@ -48,13 +48,16 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.12.0"
+
       - name: Install HIL runner
         shell: bash
         run: |
-          python3 -m venv --clear venv
-          source venv/bin/activate
-          python -m pip install --upgrade pip
-          python -m pip install --upgrade --no-cache-dir \
+          uv venv --python python3 --clear venv
+          uv pip install --python venv/bin/python --upgrade --no-cache \
             --index-url "https://__token__:${HIL_FRAMEWORK_TOKEN}@gitlab.luxonis.com/api/v4/projects/213/packages/pypi/simple" \
             hil-framework
 
@@ -127,5 +130,5 @@ jobs:
             --wait \
             $OS_VERSION_OPTION \
             $RESERVATION_OPTION \
-            --sync-workspace --rsync-args="--exclude=venv" \
+            --sync-workspace --rsync-args="--exclude=venv --exclude=.venv --exclude=.cache" \
             --commands "$REMOTE_CMD"

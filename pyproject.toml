@@ -8,13 +8,35 @@ requires-python = ">=3.10"
 authors = [{ name = "Luxonis", email = "support@luxonis.com" }]
 maintainers = [{ name = "Luxonis", email = "support@luxonis.com" }]
 keywords = ["ml", "inference", "luxonis", "oak"]
-dynamic = ["dependencies", "optional-dependencies", "version"]
+dynamic = ["version"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python :: 3.10",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Topic :: Scientific/Engineering :: Image Processing",
   "Topic :: Scientific/Engineering :: Image Recognition",
+]
+dependencies = [
+  "cyclopts",
+  "depthai>=3.9.0",
+  "depthai-nodes==0.7.0",
+  "faster-coco-eval",
+  "loguru",
+  "luxonis-ml[data,nn_archive,utils]~=0.10.0",
+  "onnx",
+  "onnxruntime",
+  "tabulate",
+  "torch",
+  "torchmetrics",
+  "torchvision",
+]
+
+[dependency-groups]
+lint = ["prek~=0.4"]
+dev = [
+  { include-group = "lint" },
+  "luxonis-ml[gcs]~=0.10.0",
+  "pytest>=8.0.0,<9.0.0",
 ]
 
 [project.scripts]
@@ -25,18 +47,21 @@ repository = "https://github.com/luxonis/luxonis-eval"
 issues = "https://github.com/luxonis/luxonis-eval/issues"
 
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv]
+# onnxruntime 1.24 declares Python 3.10 support but ships no cp310 wheels.
+constraint-dependencies = ["onnxruntime<1.24; python_full_version < '3.11'"]
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["luxonis_eval*"]
 
 [tool.setuptools.package-data]
 "luxonis_eval.metadata" = ["*.json"]
 
 [tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
-optional-dependencies = { dev = { file = ["requirements-dev.txt"] } }
 version = { attr = "luxonis_eval.__version__" }
 
 [tool.ruff]
